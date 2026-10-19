@@ -24,3 +24,9 @@ Backend/hs_err_pid*
 
 # React Build
 Frontend/build/
+
+# keep generated IDE state out of the repository
+Backend/.idea/
+Backend/.settings/
+Backend/.classpath
+Backend/.project
