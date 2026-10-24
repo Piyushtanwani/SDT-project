@@ -1,0 +1,14 @@
+# Use a lightweight JDK runtime
+FROM eclipse-temurin:22-jdk-alpine
+
+# Set a working directory
+WORKDIR /app
+
+# Copy the pre-built JAR file from your local target directory
+COPY target/*.jar app.jar
+
+# Expose the default Spring Boot port
+EXPOSE 8085
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
