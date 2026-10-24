@@ -2,12 +2,13 @@ package com.elearning.security;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -22,6 +23,7 @@ import com.elearning.services.CustomUserDetailsService;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
@@ -36,32 +38,66 @@ public class SecurityConfig {
     }
 
     @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        // Public authentication & onboarding endpoints
                         .requestMatchers(
-                                "/api/exams/**",
-                                "/api/questions/**",
-                                "/api/skills/**",
-                                "/api/auth/**",
-                                "/api/certificates/**",
-                                "/api/attempts/**",
-                                "/api/messages/**",
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/verify-otp",
+                                "/api/auth/resend-otp/**",
+                                "/api/auth/google-auth"
+                        ).permitAll()
+                        // Public course & module viewing
+                        .requestMatchers(HttpMethod.GET,
+                                "/course/getCourses",
+                                "/course/getCourseName/**",
+                                "/course/getCourseById/**",
+                                "/module/course/**",
+                                "/module/**"
+                        ).permitAll()
+                        // Public certificate verification and leaderboard
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/certificates/credential/**",
+                                "/api/certificates/leaderboard"
+                        ).permitAll()
+                        // Public WebSocket handshake & docs / static assets
+                        .requestMatchers(
                                 "/ws/**",
-                                "/upload/**",
-                                "/payments/**",
-                                "/course/**",
-                                "/module/**",
-                                "/error",
                                 "/swagger-ui/**",
+                                "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/Uploads/**",
                                 "/uploads/**",
                                 "/ProfilePhotos/**",
-                                "/profilephotos/**"
-                        )
-                        .permitAll()
+                                "/profilephotos/**",
+                                "/error"
+                        ).permitAll()
+                        // Admin-only course, module, question, and user management
+                        .requestMatchers(
+                                "/course/add",
+                                "/course/deletecourse/**",
+                                "/module/add/**",
+                                "/module/update/**",
+                                "/module/delete/**",
+                                "/api/questions/add",
+                                "/api/questions/course/**",
+                                "/api/admin/**",
+                                "/api/auth/getallusers",
+                                "/api/auth/deleteuser/**",
+                                "/api/auth/updateuser/**"
+                        ).hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/skills/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/skills/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/skills/**").hasRole("ADMIN")
+                        // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);

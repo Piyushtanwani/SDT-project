@@ -224,32 +224,92 @@ export default function CodingPlatform() {
       return;
     }
 
-    // Client-side JavaScript runner
+    // Isolated JavaScript runner (Server Piston sandbox with isolated Web Worker fallback)
     if (currentTab.language === "javascript") {
       try {
-        let logs = [];
-        const originalLog = console.log;
-        const originalError = console.error;
-        console.log = (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
-        console.error = (...args) => logs.push("Error: " + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
-        
-        // Execute in safe function context
-        // eslint-disable-next-line no-new-func
-        const runFn = new Function(currentTab.content);
-        const result = runFn();
-        if (result !== undefined) {
-          logs.push("=> " + (typeof result === 'object' ? JSON.stringify(result) : String(result)));
-        }
-        
-        console.log = originalLog;
-        console.error = originalError;
+        // Try Piston API first (isolated remote container)
+        const response = await fetch("https://emkc.org/api/v2/piston/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            language: "javascript",
+            version: "18.15.0",
+            files: [{ content: currentTab.content }],
+          }),
+        });
 
-        setOutput(logs.length > 0 ? logs.join("\n") : "Code executed successfully (no output).");
-      } catch (err) {
-        setOutput(`❌ Runtime Error: ${err.message}`);
+        if (response.ok) {
+          const data = await response.json();
+          const out = data.run.output || (data.run.stderr ? `❌ Error: ${data.run.stderr}` : "Code executed successfully (no output).");
+          setOutput(out);
+          setLoading(false);
+          return;
+        }
+      } catch (networkErr) {
+        // Piston unreachable, fallback to strictly isolated Web Worker sandbox
       }
-      setLoading(false);
-      return;
+
+      // Fallback: Isolated Web Worker (no access to window, document, or sessionStorage)
+      try {
+        const workerScript = `
+          self.onmessage = function(e) {
+            var logs = [];
+            var originalLog = console.log;
+            var originalError = console.error;
+            console.log = function() {
+              var args = Array.prototype.slice.call(arguments);
+              logs.push(args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '));
+            };
+            console.error = function() {
+              var args = Array.prototype.slice.call(arguments);
+              logs.push("Error: " + args.map(function(a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '));
+            };
+            try {
+              var fn = new Function(e.data);
+              var res = fn();
+              if (res !== undefined) {
+                logs.push("=> " + (typeof res === 'object' ? JSON.stringify(res) : String(res)));
+              }
+              self.postMessage({ success: true, output: logs.length > 0 ? logs.join("\\n") : "Code executed successfully (no output)." });
+            } catch(err) {
+              self.postMessage({ success: false, output: "❌ Runtime Error: " + err.message });
+            }
+          };
+        `;
+        const blob = new Blob([workerScript], { type: "application/javascript" });
+        const workerUrl = URL.createObjectURL(blob);
+        const worker = new Worker(workerUrl);
+
+        const timeout = setTimeout(() => {
+          worker.terminate();
+          URL.revokeObjectURL(workerUrl);
+          setOutput("❌ Execution timed out (3s limit). Infinite loop detected and halted.");
+          setLoading(false);
+        }, 3000);
+
+        worker.onmessage = (e) => {
+          clearTimeout(timeout);
+          worker.terminate();
+          URL.revokeObjectURL(workerUrl);
+          setOutput(e.data.output);
+          setLoading(false);
+        };
+
+        worker.onerror = (err) => {
+          clearTimeout(timeout);
+          worker.terminate();
+          URL.revokeObjectURL(workerUrl);
+          setOutput(`❌ Worker Error: ${err.message}`);
+          setLoading(false);
+        };
+
+        worker.postMessage(currentTab.content);
+        return;
+      } catch (err) {
+        setOutput(`❌ Execution Error: ${err.message}`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {

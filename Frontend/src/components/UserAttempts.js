@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrophyIcon, CalendarDaysIcon, CheckBadgeIcon } from "@heroicons/react/24/solid";
+import { getAuthHeaders } from "../config/api";
 
 export const UserAttempts = () => {
   const [attempts, setAttempts] = useState([]);
@@ -17,7 +18,9 @@ export const UserAttempts = () => {
       : process.env.REACT_APP_LOCAL_API;
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/attempts/user/${userId}`)
+    fetch(`${apiUrl}/api/attempts/user/${userId}`, {
+      headers: { ...getAuthHeaders() },
+    })
       .then((res) => res.json())
       .then((data) => setAttempts(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Error fetching attempts:", err));
@@ -31,7 +34,9 @@ export const UserAttempts = () => {
   }, [apiUrl]);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/certificates/user/${userId}`)
+    fetch(`${apiUrl}/api/certificates/user/${userId}`, {
+      headers: { ...getAuthHeaders() },
+    })
       .then((res) => res.json())
       .then((data) => setCertificates(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Error fetching certificates:", err));
@@ -70,6 +75,7 @@ export const UserAttempts = () => {
 
       const paymentResponse = await fetch(`${apiUrl}/payments/initiate?${params.toString()}`, {
         method: "POST",
+        headers: { ...getAuthHeaders() },
       });
 
       const result = await paymentResponse.json();
@@ -79,39 +85,53 @@ export const UserAttempts = () => {
       }
 
       const options = {
-        key: "rzp_test_mQf2cASnEwehms",
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_mQf2cASnEwehms",
         amount: 5000,
         currency: "INR",
-        name: "Your Company",
-        description: "Exam Payment",
+        name: "Learn Without Limits",
+        description: "Certificate Issuance Verification",
         order_id: result.transactionId,
         handler: async function (response) {
-          const updateParams = new URLSearchParams({
-            transactionId: result.transactionId,
-            status: "SUCCESS",
-          });
+          try {
+            const verifyResponse = await fetch(`${apiUrl}/payments/verify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeaders(),
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id || result.transactionId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
 
-          await fetch(`${apiUrl}/payments/update?${updateParams.toString()}`, {
-            method: "POST",
-          });
+            if (!verifyResponse.ok) {
+              const errData = await verifyResponse.json();
+              throw new Error(errData.message || "Payment verification failed on server");
+            }
 
-          const certParams = new URLSearchParams({
-            userId: attempt.userId,
-            courseId: attempt.courseId,
-            score: attempt.score,
-          });
+            const certParams = new URLSearchParams({
+              userId: attempt.userId,
+              courseId: attempt.courseId,
+              score: attempt.score,
+            });
 
-          await fetch(`${apiUrl}/api/certificates?${certParams.toString()}`, {
-            method: "POST",
-          });
+            await fetch(`${apiUrl}/api/certificates?${certParams.toString()}`, {
+              method: "POST",
+              headers: { ...getAuthHeaders() },
+            });
 
-          alert("Payment Successful! Certificate Issued.");
-          navigate("/certificates");
+            alert("Payment Verified! Certificate Issued Successfully.");
+            navigate("/certificates");
+          } catch (err) {
+            console.error("Verification failed:", err);
+            alert("Payment verification error: " + err.message);
+          }
         },
         prefill: {
-          name: "User Name",
-          email: "user@example.com",
-          contact: "9999999999",
+          name: sessionStorage.getItem("userName") || "User",
+          email: sessionStorage.getItem("userEmail") || "user@example.com",
         },
         theme: { color: "#3399cc" },
       };

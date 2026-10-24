@@ -214,7 +214,11 @@ public class User {
 	}
 
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+		if (role == null || role.isBlank()) {
+			return Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
+		}
+		String auth = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+		return Collections.singletonList(new SimpleGrantedAuthority(auth));
 	}
 
 	public String getBio() {

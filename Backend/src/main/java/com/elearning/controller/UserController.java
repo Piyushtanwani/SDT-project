@@ -1,103 +1,72 @@
 package com.elearning.controller;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
 import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.ApiResponse;
-import com.elearning.response_request.LoginRequest;
-import com.elearning.response_request.LoginResponse;
-import com.elearning.response_request.OtpVerificationRequest;
-import com.elearning.security.JwtService;
-import com.elearning.services.CustomUserDetailsService;
-import com.elearning.services.EmailService;
-import com.elearning.services.OtpService;
-import com.elearning.services.RegistrationService;
-
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-
-
 
 @RestController
 @RequestMapping("/api/auth")
+@PreAuthorize("hasRole('ADMIN')")
 public class UserController {
 
     private final UserRepository userRepository;
 
     public UserController(UserRepository userRepository) {
-      
         this.userRepository = userRepository;
-         }
-    
-    @GetMapping("/getallusers")
-    public List<User> getAllUsers(){
-    	
-    	return userRepository.findAll();
     }
+
+    @GetMapping("/getallusers")
+    public ResponseEntity<List<User>> getAllUsers() {
+        return ResponseEntity.ok(userRepository.findAll());
+    }
+
     @PutMapping("/updateuser/{id}")
-    public ResponseEntity<ApiResponse> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
         Optional<User> existingUser = userRepository.findById(id);
-        if (!existingUser.isPresent()) {
+        if (existingUser.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                .body(new ApiResponse("User not found", null));
+                    .body(new ApiResponse(false, "User not found"));
         }
         User user = existingUser.get();
-        user.setName(updatedUser.getName());
-        user.setRole(updatedUser.getRole());
+        if (updatedUser.getName() != null) {
+            user.setName(updatedUser.getName());
+        }
+        if (updatedUser.getRole() != null && !updatedUser.getRole().isBlank()) {
+            user.setRole(updatedUser.getRole());
+        }
         user.setEnabled(updatedUser.isEnabled());
         userRepository.save(user);
-        return ResponseEntity.ok(new ApiResponse("User updated successfully", user));
+        return ResponseEntity.ok(Map.of("message", "User updated successfully", "data", user));
     }
 
     @DeleteMapping("/deleteuser/{id}")
-    public ResponseEntity<ApiResponse> deleteUser(@PathVariable Long id) {
-        if (!userRepository.existsById(id)) {
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        Optional<User> userOpt = userRepository.findById(id);
+        if (userOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                                .body(new ApiResponse("User not found", null));
+                    .body(new ApiResponse(false, "User not found"));
         }
+
+        // Prevent admin from deleting their own currently logged-in account
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getName().equalsIgnoreCase(userOpt.get().getEmail())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse(false, "Cannot delete your own active administrator account"));
+        }
+
         userRepository.deleteById(id);
-        return ResponseEntity.ok(new ApiResponse("User deleted successfully", null));
+        return ResponseEntity.ok(new ApiResponse(true, "User deleted successfully"));
     }
-    public class ApiResponse {
-        private String message;
-        private Object data;
-        public ApiResponse() {
-        }
-        public ApiResponse(String message, Object data) {
-            this.message = message;
-            this.data = data;
-        }
-		public String getMessage() {
-			return message;
-		}
-		public void setMessage(String message) {
-			this.message = message;
-		}
-		public Object getData() {
-			return data;
-		}
-		public void setData(Object data) {
-			this.data = data;
-		}
-        
-    }
-    
 }
+

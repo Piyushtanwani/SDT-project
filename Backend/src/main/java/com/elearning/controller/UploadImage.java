@@ -1,5 +1,8 @@
 package com.elearning.controller;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.annotation.PostConstruct;
@@ -9,64 +12,79 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/upload")
 public class UploadImage {
 
-    // Define the upload directory (absolute or relative path as needed)
-    private static final String UPLOAD_DIR = "src/main/resources/static/uploads/";
+    @Value("${file.upload-dir:./uploads/}")
+    private String uploadDir;
 
-    // Ensure the upload directory exists at startup (optional, for startup checks)
+    private static final List<String> ALLOWED_EXTENSIONS = Arrays.asList(".jpg", ".jpeg", ".png", ".webp", ".gif");
+    private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
+            "image/jpeg", "image/png", "image/webp", "image/gif"
+    );
+
     @PostConstruct
     public void createUploadDir() {
-        File dir = new File(UPLOAD_DIR);
+        File dir = new File(uploadDir);
         if (!dir.exists()) {
-            boolean isCreated = dir.mkdirs(); // Create the directory if it doesn't exist
-            if (!isCreated) {
-                throw new RuntimeException("Failed to create upload directory: " + UPLOAD_DIR);
-            }
+            dir.mkdirs();
         }
     }
 
     @PostMapping
-    public String uploadFile(@RequestParam("thumbnailUrl") MultipartFile file) {
+    public ResponseEntity<String> uploadFile(@RequestParam("thumbnailUrl") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_MIME_TYPES.contains(contentType.toLowerCase())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Invalid file type. Only JPEG, PNG, WEBP, and GIF images are allowed.");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid filename");
+        }
+
+        String cleanFilename = Paths.get(originalFilename).getFileName().toString();
+        int extIndex = cleanFilename.lastIndexOf('.');
+        if (extIndex == -1) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("File must have an image extension");
+        }
+
+        String extension = cleanFilename.substring(extIndex).toLowerCase();
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Disallowed file extension: " + extension);
+        }
+
         try {
-            // Ensure the upload directory exists
-            File dir = new File(UPLOAD_DIR);
-            if (!dir.exists()) {
-                boolean isCreated = dir.mkdirs(); // Create the directory if it doesn't exist
-                if (!isCreated) {
-                    throw new IOException("Failed to create directory: " + UPLOAD_DIR);
-                }
-            } 
-
-            // Get the file's original filename
-            String fileName = file.getOriginalFilename();
-            if (fileName == null || fileName.isEmpty()) {
-                return "Invalid file name";
+            Path targetDir = Paths.get(uploadDir).toAbsolutePath().normalize();
+            if (!Files.exists(targetDir)) {
+                Files.createDirectories(targetDir);
             }
 
-            // Create a destination file in the uploads folder
-            Path destinationPath = Paths.get(UPLOAD_DIR, fileName);
+            // Generate safe non-guessable UUID filename
+            String safeFileName = UUID.randomUUID().toString() + extension;
+            Path destinationPath = targetDir.resolve(safeFileName).normalize();
 
-            // Check if the file already exists
-            if (Files.exists(destinationPath)) {
-                return fileName;
+            // Verify path traversal prevention
+            if (!destinationPath.startsWith(targetDir)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid file path");
             }
-  
-            // Access the temporary file location handled by Tomcat
-            File tempFile = File.createTempFile("upload-", file.getOriginalFilename());
-            file.transferTo(tempFile); // Transfer the uploaded file to the temporary file
 
-            // Move the file from the temporary location to the target directory
-            Files.move(tempFile.toPath(), destinationPath);
-
-            // Return a success message
-            return fileName;
+            Files.copy(file.getInputStream(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
+            return ResponseEntity.ok("/uploads/" + safeFileName);
         } catch (IOException e) {
-            e.printStackTrace();
-            return "File upload failed: " + e.getMessage();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("File upload failed: " + e.getMessage());
         }
     }
 }

@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch(`${apiUrl}/api/auth/google-auth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, picture }),
+        body: JSON.stringify({ credential: googleToken, email, name, picture }),
       });
   
       const data = await response.json();
