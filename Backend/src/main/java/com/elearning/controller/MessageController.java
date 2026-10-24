@@ -2,6 +2,7 @@ package com.elearning.controller;
 
 import com.elearning.models.Message;
 import com.elearning.models.User;
+import com.elearning.repositories.ConnectionRepository;
 import com.elearning.repositories.MessageRepository;
 import com.elearning.repositories.UserRepository;
 import com.elearning.security.JwtService;
@@ -63,6 +64,9 @@ public class MessageController {
         public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
     }
 
+    @Autowired
+    private ConnectionRepository connectionRepository;
+
     @Transactional
     @PostMapping("/send")
     public MessageDTO sendMessage(@RequestBody MessageDTO messageDTO, @RequestHeader("Authorization") String token) {
@@ -75,6 +79,14 @@ public class MessageController {
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
         User receiver = userRepository.findById(messageDTO.getReceiverId())
                 .orElseThrow(() -> new IllegalArgumentException("Receiver not found"));
+
+        // Validate conversation membership (must be accepted connections)
+        boolean connected = connectionRepository.findBySenderOrReceiverAndStatus(sender.getId(), "ACCEPTED")
+                .stream()
+                .anyMatch(c -> (c.getSender().getId().equals(receiver.getId()) || c.getReceiver().getId().equals(receiver.getId())));
+        if (!connected) {
+            throw new IllegalArgumentException("You can only chat with accepted connections.");
+        }
 
         Message message = new Message();
         message.setSender(sender);
@@ -101,10 +113,42 @@ public class MessageController {
 
     @MessageMapping("/chat.send")
     @Transactional
-    public void handleChatMessage(@Payload MessageDTO messageDTO) {
-        String chatId = Math.min(messageDTO.getSenderId(), messageDTO.getReceiverId()) + "-" +
-                Math.max(messageDTO.getSenderId(), messageDTO.getReceiverId());
-        messagingTemplate.convertAndSend("/topic/messages/" + chatId, messageDTO);
+    public void handleChatMessage(@Payload MessageDTO messageDTO, java.security.Principal principal) {
+        if (messageDTO.getSenderId() == null || messageDTO.getReceiverId() == null ||
+                messageDTO.getContent() == null || messageDTO.getContent().isBlank()) {
+            return;
+        }
+
+        User sender = userRepository.findById(messageDTO.getSenderId()).orElse(null);
+        User receiver = userRepository.findById(messageDTO.getReceiverId()).orElse(null);
+
+        if (sender == null || receiver == null) {
+            return;
+        }
+
+        if (principal != null && !sender.getEmail().equalsIgnoreCase(principal.getName())) {
+            return; // Impersonation attempt
+        }
+
+        boolean connected = connectionRepository.findBySenderOrReceiverAndStatus(sender.getId(), "ACCEPTED")
+                .stream()
+                .anyMatch(c -> (c.getSender().getId().equals(receiver.getId()) || c.getReceiver().getId().equals(receiver.getId())));
+        if (!connected) {
+            return; // Not an accepted connection
+        }
+
+        Message message = new Message();
+        message.setSender(sender);
+        message.setReceiver(receiver);
+        message.setContent(messageDTO.getContent());
+        message.setTimestamp(new java.sql.Timestamp(System.currentTimeMillis()));
+
+        Message savedMessage = messageRepository.save(message);
+        MessageDTO responseDTO = new MessageDTO(savedMessage);
+
+        String chatId = Math.min(sender.getId(), receiver.getId()) + "-" +
+                Math.max(sender.getId(), receiver.getId());
+        messagingTemplate.convertAndSend("/topic/messages/" + chatId, responseDTO);
     }
 
     private Long extractUserIdFromToken(String token) {

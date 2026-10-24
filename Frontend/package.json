@@ -21,7 +21,6 @@
     "@vscode/codicons": "^0.0.36",
     "axios": "^1.7.9",
     "canvas-confetti": "^1.9.3",
-    "elearning": "file:",
     "framer-motion": "^12.7.3",
     "gsap": "^3.12.7",
     "html2canvas": "^1.4.1",
@@ -74,5 +73,10 @@
   },
   "devDependencies": {
     "cra-template": "1.2.0"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^axios$": "axios/dist/node/axios.cjs"
+    }
   }
 }

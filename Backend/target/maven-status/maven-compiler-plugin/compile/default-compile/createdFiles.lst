@@ -1,5 +1,4 @@
 com\elearning\models\ExamAttempt.class
-com\elearning\controller\UserController$ApiResponse.class
 com\elearning\controller\UserController.class
 com\elearning\ELearningBackendApplication.class
 com\elearning\models\Certificate.class

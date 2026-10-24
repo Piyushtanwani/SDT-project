@@ -37,13 +37,51 @@ public class ExamQuestionService {
     }
 
     public double evaluateExam(Map<Long, String> answers) {
-        int totalQuestions = answers.size();
-        long correctAnswers = answers.entrySet().stream()
-                .filter(entry -> {
-                    ExamQuestion question = examQuestionRepository.findById(entry.getKey()).orElse(null);
-                    return question != null && question.getCorrectOption().equals(entry.getValue());
-                })
-                .count();
-        return ((double) correctAnswers / totalQuestions) * 100;
-    }    
+        if (answers == null || answers.isEmpty()) {
+            return 0.0;
+        }
+        Long firstQId = answers.keySet().iterator().next();
+        ExamQuestion q = examQuestionRepository.findById(firstQId).orElse(null);
+        if (q != null) {
+            return evaluateExam(q.getCourseId(), answers);
+        }
+        return 0.0;
+    }
+
+    public double evaluateExam(Long courseId, Map<Long, String> answers) {
+        if (courseId == null) {
+            return evaluateExam(answers);
+        }
+        List<ExamQuestion> courseQuestions = examQuestionRepository.findByCourseId(courseId);
+        if (courseQuestions == null || courseQuestions.isEmpty()) {
+            return 0.0;
+        }
+        int totalQuestions = Math.min(50, courseQuestions.size());
+        if (totalQuestions <= 0) {
+            return 0.0;
+        }
+
+        if (answers == null || answers.isEmpty()) {
+            return 0.0;
+        }
+
+        Map<Long, ExamQuestion> questionMap = courseQuestions.stream()
+                .collect(Collectors.toMap(ExamQuestion::getId, qu -> qu, (a, b) -> a));
+
+        long correctAnswers = 0;
+        for (Map.Entry<Long, String> entry : answers.entrySet()) {
+            ExamQuestion question = questionMap.get(entry.getKey());
+            if (question != null && question.getCorrectOption() != null) {
+                if (question.getCorrectOption().trim().equalsIgnoreCase(entry.getValue() != null ? entry.getValue().trim() : "")) {
+                    correctAnswers++;
+                }
+            }
+        }
+
+        double score = ((double) correctAnswers / totalQuestions) * 100.0;
+        if (Double.isNaN(score) || Double.isInfinite(score) || score < 0.0) {
+            return 0.0;
+        }
+        return Math.min(100.0, score);
+    }
 }

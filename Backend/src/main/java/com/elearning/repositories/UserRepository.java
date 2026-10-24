@@ -13,6 +13,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     Optional<User> findById(Long id);
 
-    @Query("SELECT u FROM User u JOIN u.skills s WHERE s.name IN :skills AND (:role IS NULL OR u.role = :role) AND (:timezone IS NULL OR u.timezone = :timezone)")
-    List<User> findByFilters(List<String> skills, String role, String timezone);
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN u.skills s WHERE " +
+           "(:skillsEmpty = true OR s.name IN :skills) AND " +
+           "(:role IS NULL OR :role = '' OR u.role = :role) AND " +
+           "(:timezone IS NULL OR :timezone = '' OR u.timezone = :timezone)")
+    List<User> findByFilters(
+            @org.springframework.data.repository.query.Param("skills") List<String> skills,
+            @org.springframework.data.repository.query.Param("skillsEmpty") boolean skillsEmpty,
+            @org.springframework.data.repository.query.Param("role") String role,
+            @org.springframework.data.repository.query.Param("timezone") String timezone);
 }

@@ -1,0 +1,25 @@
+# Maven target output
+target/
+*.class
+
+# IDE and Editor files
+.idea/
+*.iml
+.settings/
+.project
+.classpath
+.vscode/
+
+# Logs and Crash Dumps
+*.log
+hs_err_pid*
+
+# Sensitive & Temporary files
+temp_login.json
+payment_response.json
+.env
+.env.*
+
+# Local file uploads directory
+uploads/
+src/main/resources/static/uploads/

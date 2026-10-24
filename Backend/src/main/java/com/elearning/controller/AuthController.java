@@ -18,10 +18,19 @@ import com.elearning.services.CustomUserDetailsService;
 import com.elearning.services.EmailService;
 import com.elearning.services.OtpService;
 import com.elearning.services.RegistrationService;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -33,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -47,6 +57,10 @@ public class AuthController {
     private final OtpService otpService;
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.google.client-id:373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com}")
+    private String googleClientId;
 
     @Autowired
     public AuthController(
@@ -57,7 +71,8 @@ public class AuthController {
             OtpService otpService,
             CustomUserDetailsService userDetailsService,
             SkillRepository skillRepository,
-            ConnectionRepository connectionRepository) {
+            ConnectionRepository connectionRepository,
+            PasswordEncoder passwordEncoder) {
         this.registrationService = registrationService;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -66,73 +81,117 @@ public class AuthController {
         this.otpService = otpService;
         this.skillRepository = skillRepository;
         this.connectionRepository = connectionRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    
-
-        @PutMapping("/update/{id}")
-        public ResponseEntity<?> updateUser(@PathVariable String id, @RequestBody UserUpdateDTO updatedUser) {
+    @PutMapping("/update/{id}")
+    public ResponseEntity<?> updateUser(@PathVariable String id, @RequestBody UserUpdateDTO updatedUser) {
+        try {
+            Long parsedId;
             try {
-                Long parsedId;
-                try {
-                    parsedId = Long.valueOf(id);
-                } catch (NumberFormatException e) {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                            .body(new ApiResponse(false, "Invalid user ID: " + id));
-                }
-                User existingUser = userRepository.findById(parsedId)
-                        .orElseThrow(() -> new UsernameNotFoundException("User not found with ID: " + parsedId));
-
-                // Update basic fields
-                if (updatedUser.getUsername() != null) existingUser.setUsername(updatedUser.getUsername());
-                if (updatedUser.getName() != null) existingUser.setName(updatedUser.getName());
-                if (updatedUser.getProfileurl() != null) existingUser.setProfileurl(updatedUser.getProfileurl());
-                if (updatedUser.getPhonenum() != null) existingUser.setPhonenum(updatedUser.getPhonenum());
-                if (updatedUser.getState() != null) existingUser.setState(updatedUser.getState());
-                if (updatedUser.getPassword() != null) existingUser.setPassword(updatedUser.getPassword());
-                if (updatedUser.getBio() != null) existingUser.setBio(updatedUser.getBio());
-                if (updatedUser.getRole() != null) existingUser.setRole(updatedUser.getRole());
-                if (updatedUser.getTimezone() != null) existingUser.setTimezone(updatedUser.getTimezone());
-                if (updatedUser.getAvailability() != null) existingUser.setAvailability(updatedUser.getAvailability());
-
-                // Update skills
-                List<Skill> updatedSkills = new ArrayList<>();
-                if (updatedUser.getSkillIds() != null && !updatedUser.getSkillIds().isEmpty()) {
-                    List<Skill> foundSkills = skillRepository.findAllById(updatedUser.getSkillIds());
-                    if (foundSkills.size() != updatedUser.getSkillIds().size()) {
-                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                .body(new ApiResponse(false, "One or more skill IDs are invalid"));
-                    }
-                    updatedSkills.addAll(foundSkills);
-                }
-                existingUser.setSkills(updatedSkills); // Updates the user_skills join table
-
-                userRepository.save(existingUser);
-                return ResponseEntity.ok(new ApiResponse(true, "User updated successfully."));
-            } catch (UsernameNotFoundException e) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(new ApiResponse(false, e.getMessage()));
-            } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(new ApiResponse(false, "Update failed: " + e.getMessage()));
+                parsedId = Long.valueOf(id);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse(false, "Invalid user ID: " + id));
             }
-        }
-    
+            User existingUser = userRepository.findById(parsedId)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found with ID: " + parsedId));
 
-    
+            // SEC-03: Ensure caller is authorized (either account owner or ADMIN)
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            boolean isAdmin = auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            String currentEmail = auth.getName();
+            if (!isAdmin && !existingUser.getEmail().equalsIgnoreCase(currentEmail)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "You are not authorized to update another user's profile."));
+            }
+
+            // Update basic fields
+            if (updatedUser.getUsername() != null) existingUser.setUsername(updatedUser.getUsername());
+            if (updatedUser.getName() != null) existingUser.setName(updatedUser.getName());
+            if (updatedUser.getProfileurl() != null) existingUser.setProfileurl(updatedUser.getProfileurl());
+            if (updatedUser.getPhonenum() != null) existingUser.setPhonenum(updatedUser.getPhonenum());
+            if (updatedUser.getState() != null) existingUser.setState(updatedUser.getState());
+            if (updatedUser.getBio() != null) existingUser.setBio(updatedUser.getBio());
+            if (updatedUser.getTimezone() != null) existingUser.setTimezone(updatedUser.getTimezone());
+            if (updatedUser.getAvailability() != null) existingUser.setAvailability(updatedUser.getAvailability());
+
+            // Password hashing
+            if (updatedUser.getPassword() != null && !updatedUser.getPassword().isBlank()) {
+                existingUser.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+            }
+
+            // Only ADMIN can change role
+            if (isAdmin && updatedUser.getRole() != null && !updatedUser.getRole().isBlank()) {
+                existingUser.setRole(updatedUser.getRole());
+            }
+
+            // Update skills
+            List<Skill> updatedSkills = new ArrayList<>();
+            if (updatedUser.getSkillIds() != null && !updatedUser.getSkillIds().isEmpty()) {
+                List<Skill> foundSkills = skillRepository.findAllById(updatedUser.getSkillIds());
+                if (foundSkills.size() != updatedUser.getSkillIds().size()) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(new ApiResponse(false, "One or more skill IDs are invalid"));
+                }
+                updatedSkills.addAll(foundSkills);
+            }
+            existingUser.setSkills(updatedSkills);
+
+            userRepository.save(existingUser);
+            return ResponseEntity.ok(new ApiResponse(true, "User updated successfully."));
+        } catch (UsernameNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse(false, e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse(false, "Update failed: " + e.getMessage()));
+        }
+    }
 
     @PostMapping("/google-auth")
     public ResponseEntity<?> googleAuth(@RequestBody Map<String, String> request) {
         try {
-            String email = request.get("email");
-            String name = request.get("name");
-            String picture = request.get("picture");
-            String password = "Google";
-            String username = name;
+            String idTokenString = request.get("credential");
+            if (idTokenString == null || idTokenString.isBlank()) {
+                idTokenString = request.get("token");
+            }
+
+            String email = null;
+            String name = null;
+            String picture = null;
+
+            if (idTokenString != null && !idTokenString.isBlank()) {
+                try {
+                    GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                            new NetHttpTransport(),
+                            GsonFactory.getDefaultInstance())
+                            .setAudience(Collections.singletonList(googleClientId))
+                            .build();
+
+                    GoogleIdToken idToken = verifier.verify(idTokenString);
+                    if (idToken != null) {
+                        Payload payload = idToken.getPayload();
+                        Boolean emailVerified = Boolean.valueOf(payload.getEmailVerified());
+                        if (emailVerified != null && emailVerified) {
+                            email = payload.getEmail();
+                            name = (String) payload.get("name");
+                            picture = (String) payload.get("picture");
+                        }
+                    }
+                } catch (Exception e) {
+                    // Verifier error (e.g. offline testing or network issue)
+                }
+            }
 
             if (email == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(Map.of("success", false, "message", "Google OAuth failed: Email is missing."));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("success", false, "message", "Google OAuth failed: Invalid or unverified Google token."));
             }
 
             Optional<User> existingUser = userRepository.findByEmail(email);
@@ -140,29 +199,35 @@ public class AuthController {
 
             if (existingUser.isPresent()) {
                 user = existingUser.get();
+                if (picture != null && (user.getProfileurl() == null || user.getProfileurl().isBlank())) {
+                    user.setProfileurl(picture);
+                }
+                if (name != null && (user.getName() == null || user.getName().isBlank())) {
+                    user.setName(name);
+                }
             } else {
                 user = new User();
                 user.setEmail(email);
                 user.setName(name != null ? name : "Google User");
                 user.setProfileurl(picture != null ? picture : "https://webcrumbs.cloud/placeholder");
                 user.setUsername(email.split("@")[0]);
-                user.setPassword(password);
+                user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
                 user.setRole("USER");
                 user.setEnabled(true);
-                userRepository.save(user);
             }
+            userRepository.save(user);
 
             String jwtToken = jwtService.generateToken(user.getEmail(), user.getId());
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Google login successful",
                     "token", jwtToken,
-                    "username", user.getUsername(),
+                    "username", user.getUsername() != null ? user.getUsername() : "",
                     "email", user.getEmail(),
-                    "profileurl", user.getProfileurl(),
+                    "profileurl", user.getProfileurl() != null ? user.getProfileurl() : "",
                     "userid", user.getId(),
-                    "name", user.getName(),
-                    "role",user.getRole()
+                    "name", user.getName() != null ? user.getName() : "",
+                    "role", user.getRole() != null ? user.getRole() : "USER"
             ));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -262,12 +327,27 @@ public class AuthController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-            if (password.equals(user.getPassword())) {
+            if (!user.isEnabled()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "Account email is not verified. Please verify your OTP."));
+            }
+
+            boolean matches = false;
+            if (passwordEncoder.matches(password, user.getPassword())) {
+                matches = true;
+            } else if (password.equals(user.getPassword())) {
+                // Safe migration: legacy plaintext upgraded to BCrypt
+                user.setPassword(passwordEncoder.encode(password));
+                userRepository.save(user);
+                matches = true;
+            }
+
+            if (matches) {
                 String token = jwtService.generateToken(user.getEmail(), user.getId());
-                String username = user.getUsername();
+                String username = user.getUsername() != null ? user.getUsername() : "";
                 String phonenum = (user.getPhonenum() != null) ? user.getPhonenum() : "";
                 String state = (user.getState() != null) ? user.getState() : "";
-                Long userid = (user.getId() != null) ? user.getId() : 0;
+                Long userid = (user.getId() != null) ? user.getId() : 0L;
                 String profileurl = (user.getProfileurl() != null) ? user.getProfileurl() : "";
                 String name = (user.getName() != null) ? user.getName() : "";
                 String role = (user.getRole() != null) ? user.getRole() : "USER";
@@ -278,8 +358,8 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse(false, "Invalid email or password."));
         } catch (UsernameNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse(false, e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse(false, "Invalid email or password."));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse(false, "Login failed: " + e.getMessage()));
@@ -303,8 +383,10 @@ public class AuthController {
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String timezone) {
         try {
+            boolean skillsEmpty = (skills == null || skills.isEmpty());
             List<User> users = userRepository.findByFilters(
-                    skills != null ? skills : Collections.emptyList(),
+                    skillsEmpty ? Collections.singletonList("") : skills,
+                    skillsEmpty,
                     role,
                     timezone);
             return ResponseEntity.ok(users);
@@ -321,6 +403,16 @@ public class AuthController {
                     .orElseThrow(() -> new UsernameNotFoundException("Sender not found."));
             User receiver = userRepository.findById(request.getReceiverId())
                     .orElseThrow(() -> new UsernameNotFoundException("Receiver not found."));
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            if (!sender.getEmail().equalsIgnoreCase(auth.getName())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "Cannot send connection request on behalf of another user."));
+            }
 
             // Prevent self-connection
             if (sender.getId().equals(receiver.getId())) {
@@ -358,6 +450,16 @@ public class AuthController {
     @GetMapping("/pending/{userId}")
     public ResponseEntity<?> getPendingRequests(@PathVariable Long userId) {
         try {
+            User target = userRepository.findById(userId).orElse(null);
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (target != null && auth != null && !target.getEmail().equalsIgnoreCase(auth.getName())) {
+                boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                if (!isAdmin) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(new ApiResponse(false, "Unauthorized to view pending requests for another user."));
+                }
+            }
+
             List<Connection> requests = connectionRepository.findByReceiverAndStatus(userId, "PENDING");
             List<Map<String, Object>> response = new ArrayList<>();
             Set<Long> seenUserIds = new HashSet<>();
@@ -394,6 +496,17 @@ public class AuthController {
         try {
             Connection connection = connectionRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Connection not found."));
+
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            if (!connection.getReceiver().getEmail().equalsIgnoreCase(auth.getName())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "Only the designated recipient can accept or reject this connection."));
+            }
+
             if (!connection.getStatus().equals("PENDING")) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(new ApiResponse(false, "Connection is not pending."));

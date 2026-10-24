@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ArrowLeft, ChevronLeft, ChevronRight, Image, X, BookOpen, Award, Clock } from "lucide-react";
@@ -11,7 +11,6 @@ const CourseModuleDetail = () => {
   const [loading, setLoading] = useState(true);
   const [totalModules, setTotalModules] = useState(0);
   const [activeImageIndex, setActiveImageIndex] = useState(null);
-  const hasFetched = useRef(false);
 
   const apiUrl =
     process.env.REACT_APP_ENV === "production"
@@ -23,28 +22,31 @@ const CourseModuleDetail = () => {
   }, [moduleNumber]);
 
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
+    let isMounted = true;
 
     const fetchModuleData = async () => {
       try {
+        setLoading(true);
         const response = await axios.get(
           `${apiUrl}/module/course/${courseId}/module/${moduleNumber}`
         );
-        setModule(response.data);
+        if (isMounted) setModule(response.data);
 
         const totalResponse = await axios.get(
           `${apiUrl}/module/course/${courseId}`
         );
-        setTotalModules(totalResponse.data.length);
+        if (isMounted) setTotalModules(totalResponse.data.length);
       } catch (error) {
         console.error("Error fetching module:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchModuleData();
+    return () => {
+      isMounted = false;
+    };
   }, [courseId, moduleNumber, apiUrl]);
 
   const handleNavigation = (direction) => {
@@ -55,7 +57,6 @@ const CourseModuleDetail = () => {
         : parseInt(moduleNumber) - 1;
 
     navigate(`/course/${courseId}/module/${newModuleNumber}`);
-    hasFetched.current = false;
   };
 
   const handleTakeExam = () => {

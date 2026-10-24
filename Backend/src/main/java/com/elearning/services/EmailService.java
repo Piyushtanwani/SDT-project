@@ -1,6 +1,7 @@
 package com.elearning.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -9,10 +10,14 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final String fromAddress;
 
     @Autowired
-    public EmailService(JavaMailSender mailSender) {
+    public EmailService(
+            JavaMailSender mailSender,
+            @Value("${app.mail.from:${spring.mail.username:learn.without.limits.ahmedabad@gmail.com}}") String fromAddress) {
         this.mailSender = mailSender;
+        this.fromAddress = fromAddress;
     }
 
     public void sendEmail(String to, String subject, String message) {
@@ -21,11 +26,13 @@ public class EmailService {
             mailMessage.setTo(to);
             mailMessage.setSubject(subject);
             mailMessage.setText(message);
-            mailMessage.setFrom("your-email@example.com"); // Replace with your sender email address
+            if (fromAddress != null && !fromAddress.isBlank()) {
+                mailMessage.setFrom(fromAddress);
+            }
 
             mailSender.send(mailMessage);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to send email: " + e.getMessage());
+            throw new RuntimeException("Failed to send email: " + e.getMessage(), e);
         }
     }
 

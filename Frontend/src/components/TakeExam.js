@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { getAuthHeaders } from "../config/api";
 
 export const TakeExam = () => {
   const { courseId } = useParams();
@@ -10,6 +11,7 @@ export const TakeExam = () => {
   const modalRef = useRef(null);
   const firstFocusableElementRef = useRef(null);
   const lastFocusableElementRef = useRef(null);
+  const submittedRef = useRef(false);
   
   // State for popup modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,17 +29,31 @@ export const TakeExam = () => {
 
   const apiUrl = useMemo(() => 
     process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API,
+      ? process.env.REACT_APP_LIVE_API || "https://elearningbackend.bitecodes.com"
+      : process.env.REACT_APP_LOCAL_API || "http://localhost:8080",
     []
   );
+
+  // Restore scrolling when component unmounts or exam finishes (BUG-06)
+  useEffect(() => {
+    if (examStarted) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [examStarted]);
 
   // Fetch questions when component mounts
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${apiUrl}/api/exams/course/${courseId}/random`);
+        const response = await fetch(`${apiUrl}/api/exams/course/${courseId}/random`, {
+          headers: { ...getAuthHeaders() },
+        });
         
         if (!response.ok) {
           throw new Error(`Server responded with status ${response.status}`);
@@ -46,11 +62,10 @@ export const TakeExam = () => {
         const data = await response.json();
         setQuestions(data);
       } catch (err) {
-        console.error("Error fetching questions:", err);
+        console.error("Error fetching exam questions:", err);
         setError("Failed to load exam questions. Please try again.");
       } finally {
         setLoading(false);
-        // Auto-open modal when questions are loaded
         setIsModalOpen(true);
       }
     };
@@ -60,18 +75,68 @@ export const TakeExam = () => {
     }
   }, [courseId, apiUrl]);
 
-  // Timer effect
+  // Submit exam function
+  const submitExam = useCallback(async () => {
+    if (submitting || submittedRef.current) return;
+    submittedRef.current = true;
+    
+    try {
+      setSubmitting(true);
+      
+      // Create completed answers with 'E' for unanswered questions
+      const completedAnswers = questions.reduce((acc, question) => {
+        acc[question.id] = answers[question.id] || 'E';
+        return acc;
+      }, {});
+
+      const response = await fetch(`${apiUrl}/api/exams/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ userId, courseId, answers: completedAnswers }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      document.body.style.overflow = "auto";
+      setIsModalOpen(false);
+      navigate(`/result/${data.id}`);
+    } catch (err) {
+      console.error("Error submitting exam:", err);
+      setError("Failed to submit exam. Please try again.");
+      setSubmitting(false);
+      submittedRef.current = false;
+    }
+  }, [apiUrl, userId, courseId, answers, navigate, submitting, questions]);
+
+  // Timer interval effect (BUG-01)
   useEffect(() => {
     if (!examStarted || timeLeft <= 0) return;
     
-    const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    
-    if (timeLeft <= 0) {
-      submitExam();
-    }
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
     
     return () => clearInterval(timer);
-  }, [timeLeft, examStarted]);
+  }, [examStarted, timeLeft]);
+
+  // Auto-submit trigger when timer reaches 0
+  useEffect(() => {
+    if (examStarted && timeLeft === 0 && !submittedRef.current && !submitting) {
+      submitExam();
+    }
+  }, [examStarted, timeLeft, submitting, submitExam]);
 
   // Format time
   const formattedTime = useMemo(() => {
@@ -115,39 +180,6 @@ export const TakeExam = () => {
       setCurrentQuestionIndex(index);
     }
   }, [questions.length]);
-
-  // Submit exam function
-  const submitExam = useCallback(async () => {
-    if (submitting) return;
-    
-    try {
-      setSubmitting(true);
-      
-      // Create completed answers with 'E' for unanswered questions
-      const completedAnswers = questions.reduce((acc, question) => {
-        acc[question.id] = answers[question.id] || 'E';
-        return acc;
-      }, {});
-
-      const response = await fetch(`${apiUrl}/api/exams/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, courseId, answers: completedAnswers }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setIsModalOpen(false);
-      navigate(`/result/${data.id}`);
-    } catch (err) {
-      console.error("Error submitting exam:", err);
-      setError("Failed to submit exam. Please try again.");
-      setSubmitting(false);
-    }
-  }, [apiUrl, userId, courseId, answers, navigate, submitting, questions]);
 
   // Handle start exam
   const handleStartExam = () => {

@@ -3,11 +3,15 @@ package com.elearning.models;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 
 @Entity
 public class Module {
@@ -19,9 +23,17 @@ public class Module {
 	private long courseId;
 	private int moduleNumber;
 	private String moduleTitle;
+
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "module_image_urls", joinColumns = @JoinColumn(name = "module_id"))
+	@Column(name = "image_url", length = 1000)
 	private List<String> imageUrls;
-	@Column(length = 2000)
+
+	@ElementCollection(fetch = FetchType.EAGER)
+	@CollectionTable(name = "module_content", joinColumns = @JoinColumn(name = "module_id"))
+	@Column(name = "content_item", columnDefinition = "TEXT")
 	private List<String> content;
+
 	private LocalDateTime lastUpdated;
 	
 	public Long getId() {

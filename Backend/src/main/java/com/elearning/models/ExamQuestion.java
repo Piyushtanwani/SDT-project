@@ -1,5 +1,6 @@
 package com.elearning.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -29,6 +30,7 @@ public class ExamQuestion {
     private String optionD;
 
     @Column(nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String correctOption; // Stores 'A', 'B', 'C', or 'D'
 
     private LocalDateTime createdAt = LocalDateTime.now();
