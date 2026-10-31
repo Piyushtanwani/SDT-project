@@ -1,6 +1,5 @@
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import "./App.css";
-import { About } from "./components/About";
 import { AddCourse } from "./components/AddCourse";
 import AddModule from "./components/AddModule";
 import { AdminCoursePanel } from "./components/AdminCoursesPanel";
@@ -57,7 +56,6 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/about" element={<About />} />
             <Route path="/credential/:credentialId" element={<CertificateQr />} />
             <Route path="/socialmedia" element={<SocialMedia />} />
             <Route path="/terms" element={<LegalTermsPage />} />

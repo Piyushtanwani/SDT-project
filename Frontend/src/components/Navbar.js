@@ -70,7 +70,6 @@ export const Navbar = () => {
     { title: "Community", path: "/community" },
     { title: "LeaderBoard", path: "/leaderboard" },
     { title: "Credential", path: "/credential-verify" },
-    { title: "About", path: "/about" },
     { title: "Contact", path: "/contact" },
   ];
 
