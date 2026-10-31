@@ -22,6 +22,9 @@ public class Course {
     private Double rating;
     private String slug;
 
+    @jakarta.persistence.Transient
+    private Integer modulesCount;
+
     @PrePersist
     @PreUpdate
     public void generateSlug() {
@@ -43,6 +46,14 @@ public class Course {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public Integer getModulesCount() {
+        return modulesCount;
+    }
+
+    public void setModulesCount(Integer modulesCount) {
+        this.modulesCount = modulesCount;
     }
 
 	public Long getId() {

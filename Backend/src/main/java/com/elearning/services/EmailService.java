@@ -11,13 +11,16 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final String fromAddress;
+    private final boolean logFallback;
 
     @Autowired
     public EmailService(
             JavaMailSender mailSender,
-            @Value("${app.mail.from:${spring.mail.username:learn.without.limits.ahmedabad@gmail.com}}") String fromAddress) {
+            @Value("${app.mail.from:no-reply@localhost}") String fromAddress,
+            @Value("${app.mail.log-fallback:false}") boolean logFallback) {
         this.mailSender = mailSender;
         this.fromAddress = fromAddress;
+        this.logFallback = logFallback;
     }
 
     public void sendEmail(String to, String subject, String message) {
@@ -32,6 +35,13 @@ public class EmailService {
 
             mailSender.send(mailMessage);
         } catch (Exception e) {
+            if (logFallback) {
+                // Local development fallback: surface the message in the server log so the
+                // flow stays usable without SMTP credentials.
+                System.err.println("[mail-fallback] To: " + to + " | Subject: " + subject);
+                System.err.println(message);
+                return;
+            }
             throw new RuntimeException("Failed to send email: " + e.getMessage(), e);
         }
     }
@@ -43,7 +53,7 @@ public class EmailService {
 
                 Your One-Time Password (OTP) for account verification is: %s
 
-                This OTP is valid for 10 minutes. Please use it to complete your registration.
+                This OTP is valid for 5 minutes. Please use it to complete your registration.
 
                 If you didn't request this, please ignore this email.
 

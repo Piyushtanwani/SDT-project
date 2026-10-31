@@ -20,7 +20,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "users")
@@ -39,8 +38,7 @@ public class User {
 	@Column()
 	private String profileurl;
 	
-    @Size(min = 10, max = 15, message = "Phone number must be between 10 to 15 digits")
-    @Pattern(regexp = "^[0-9]{10,15}$", message = "Phone number must contain only digits")
+    @Pattern(regexp = "^$|^[0-9]{10,15}$", message = "Phone number must be 10 to 15 digits")
     @Column(nullable = true, unique = true)
     private String phonenum;
 	

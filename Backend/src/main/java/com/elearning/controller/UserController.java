@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
+import com.elearning.response_request.AdminUserUpdateDTO;
 import com.elearning.response_request.ApiResponse;
 
 @RestController
@@ -32,20 +33,48 @@ public class UserController {
     }
 
     @PutMapping("/updateuser/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody AdminUserUpdateDTO updatedUser) {
         Optional<User> existingUser = userRepository.findById(id);
         if (existingUser.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, "User not found"));
         }
         User user = existingUser.get();
+
+        String newRole = null;
+        if (updatedUser.getRole() != null && !updatedUser.getRole().isBlank()) {
+            newRole = updatedUser.getRole().trim().toUpperCase();
+            if (newRole.startsWith("ROLE_")) {
+                newRole = newRole.substring(5);
+            }
+            if (!newRole.equals("USER") && !newRole.equals("ADMIN")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse(false, "Role must be USER or ADMIN"));
+            }
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean editingOwnAccount = auth != null && auth.getName().equalsIgnoreCase(user.getEmail());
+        if (editingOwnAccount) {
+            if (Boolean.FALSE.equals(updatedUser.getEnabled())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse(false, "You cannot disable your own account"));
+            }
+            if (newRole != null && !newRole.equalsIgnoreCase(user.getRole())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse(false, "You cannot change your own role"));
+            }
+        }
+
         if (updatedUser.getName() != null) {
             user.setName(updatedUser.getName());
         }
-        if (updatedUser.getRole() != null && !updatedUser.getRole().isBlank()) {
-            user.setRole(updatedUser.getRole());
+        if (newRole != null) {
+            user.setRole(newRole);
         }
-        user.setEnabled(updatedUser.isEnabled());
+        if (updatedUser.getEnabled() != null) {
+            user.setEnabled(updatedUser.getEnabled());
+        }
         userRepository.save(user);
         return ResponseEntity.ok(Map.of("message", "User updated successfully", "data", user));
     }

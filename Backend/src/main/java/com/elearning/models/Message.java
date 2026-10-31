@@ -4,7 +4,10 @@ import jakarta.persistence.*;
 import java.sql.Timestamp;
 
 @Entity
-@Table(name = "messages")
+@Table(name = "messages", indexes = {
+        @Index(name = "idx_messages_sender", columnList = "sender_id"),
+        @Index(name = "idx_messages_receiver", columnList = "receiver_id")
+})
 public class Message {
 
     @Id

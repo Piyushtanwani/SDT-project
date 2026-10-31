@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { motion } from "framer-motion";
+import formatRole from "../utils/formatRole";
 
 export const Profile = () => {
   const navigate = useNavigate();
@@ -118,7 +119,7 @@ export const Profile = () => {
                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Role
                 </label>
-                <p className="text-gray-900 dark:text-gray-100">{userData.role}</p>
+                <p className="text-gray-900 dark:text-gray-100">{formatRole(userData.role)}</p>
               </div>
             )}
 

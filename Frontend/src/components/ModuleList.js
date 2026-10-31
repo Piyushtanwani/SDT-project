@@ -1,55 +1,88 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "./AdminSlidebar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ChevronDown, BookOpen } from "lucide-react";
+import { API_BASE_URL } from "../config/api";
+
+const formatUpdatedAt = (value) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+};
 
 const ModuleList = () => {
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [coursesError, setCoursesError] = useState("");
+  const [modulesError, setModulesError] = useState("");
+  const latestModulesRequest = useRef(0);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
-  // Fetch all courses
-  useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        const { data } = await axios.get(`${apiUrl}/course/getCourses`);
-        setCourses(data);
-        if (data.length > 0) {
-          setSelectedCourse(data[0].id);
+  const fetchCourses = useCallback(async () => {
+    setCoursesLoading(true);
+    setCoursesError("");
+    try {
+      const { data } = await axios.get(`${apiUrl}/course/getCourses`);
+      const courseList = Array.isArray(data) ? data : [];
+      setCourses(courseList);
+      setSelectedCourse((current) => {
+        if (current && courseList.some((course) => String(course.id) === String(current))) {
+          return current;
         }
-      } catch (error) {
-        console.error("Error fetching courses:", error);
-      }
-    };
+        return courseList.length > 0 ? courseList[0].id : "";
+      });
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+      setCourses([]);
+      setSelectedCourse("");
+      setCoursesError("We couldn't load the course list. Please try again.");
+    } finally {
+      setCoursesLoading(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
     fetchCourses();
+  }, [fetchCourses]);
+
+  const fetchModules = useCallback(async (courseId) => {
+    const requestId = latestModulesRequest.current + 1;
+    latestModulesRequest.current = requestId;
+    setLoading(true);
+    setModulesError("");
+    try {
+      const { data } = await axios.get(`${apiUrl}/module/course/${courseId}`);
+      if (latestModulesRequest.current !== requestId) return;
+      setModules(Array.isArray(data) ? data : []);
+    } catch (error) {
+      if (latestModulesRequest.current !== requestId) return;
+      console.error("Error fetching modules:", error);
+      setModules([]);
+      setModulesError("We couldn't load the modules for this course. Please try again.");
+    } finally {
+      if (latestModulesRequest.current === requestId) setLoading(false);
+    }
   }, [apiUrl]);
 
   // Fetch modules when course changes
   useEffect(() => {
     if (selectedCourse) {
       fetchModules(selectedCourse);
-    }
-  }, [selectedCourse]);
-
-  const fetchModules = async (courseId) => {
-    setLoading(true);
-    try {
-      const { data } = await axios.get(`${apiUrl}/module/course/${courseId}`);
-      setModules(data);
-    } catch (error) {
-      console.error("Error fetching modules:", error);
-    } finally {
+    } else {
+      setModules([]);
+      setModulesError("");
       setLoading(false);
     }
-  };
+  }, [selectedCourse, fetchModules]);
+
+  const showLoading = coursesLoading || loading;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
@@ -77,10 +110,16 @@ const ModuleList = () => {
                 <motion.select
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover"
-                  whileHover={{ scale: 1.02 }}
+                  disabled={coursesLoading}
+                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
+                  whileHover={coursesLoading ? undefined : { scale: 1.02 }}
                   whileFocus={{ scale: 1.02 }}
                 >
+                  {courses.length === 0 && (
+                    <option value="">
+                      {coursesLoading ? "Loading courses…" : "No courses available"}
+                    </option>
+                  )}
                   {courses.map((course) => (
                     <option key={course.id} value={course.id}>
                       {course.name}
@@ -92,10 +131,37 @@ const ModuleList = () => {
                   size={20}
                 />
               </div>
+
+              {coursesError && (
+                <div
+                  role="alert"
+                  className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+                >
+                  <span>{coursesError}</span>
+                  <button
+                    type="button"
+                    onClick={fetchCourses}
+                    disabled={coursesLoading}
+                    className="font-semibold underline underline-offset-2 hover:no-underline disabled:opacity-60"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {!coursesLoading && !coursesError && courses.length === 0 && (
+                <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                  No courses yet.{" "}
+                  <Link to="/admincourses" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                    Create a course
+                  </Link>{" "}
+                  before adding modules.
+                </p>
+              )}
             </div>
 
             {/* Modules List */}
-            {loading ? (
+            {showLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <motion.div
                   animate={{ rotate: 360 }}
@@ -105,6 +171,20 @@ const ModuleList = () => {
                 <p className="mt-4 text-blue-600 dark:text-blue-400 font-medium">
                   Loading modules...
                 </p>
+              </div>
+            ) : modulesError ? (
+              <div
+                role="alert"
+                className="text-center py-12 rounded-xl border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/30"
+              >
+                <p className="text-gray-700 dark:text-gray-300">{modulesError}</p>
+                <button
+                  type="button"
+                  onClick={() => fetchModules(selectedCourse)}
+                  className="mt-4 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition"
+                >
+                  Try again
+                </button>
               </div>
             ) : modules.length > 0 ? (
               <motion.div
@@ -152,7 +232,7 @@ const ModuleList = () => {
                             Module {mod[0]}: {mod[1]}
                           </h3>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last Updated: {mod[2]}
+                            Last Updated: {formatUpdatedAt(mod[2])}
                           </p>
                         </div>
                       </div>
@@ -182,7 +262,9 @@ const ModuleList = () => {
                   />
                 </svg>
                 <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400">
-                  No modules available for this course.
+                  {courses.length === 0
+                    ? "Add a course to start creating modules."
+                    : "No modules available for this course."}
                 </p>
               </motion.div>
             )}

@@ -33,6 +33,12 @@ public class ExamQuestion {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String correctOption; // Stores 'A', 'B', 'C', or 'D'
 
+    @Column(columnDefinition = "TEXT")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String explanation;
+
+    private String difficulty; // EASY, MEDIUM, HARD
+
     private LocalDateTime createdAt = LocalDateTime.now();
 
 	public Long getId() {
@@ -97,6 +103,22 @@ public class ExamQuestion {
 
 	public void setCorrectOption(String correctOption) {
 		this.correctOption = correctOption;
+	}
+
+	public String getExplanation() {
+		return explanation;
+	}
+
+	public void setExplanation(String explanation) {
+		this.explanation = explanation;
+	}
+
+	public String getDifficulty() {
+		return difficulty;
+	}
+
+	public void setDifficulty(String difficulty) {
+		this.difficulty = difficulty;
 	}
 
 	public LocalDateTime getCreatedAt() {

@@ -52,13 +52,20 @@ export const AuthProvider = ({ children }) => {
         setUserFirstName(data.name);
         setRole(data.role);
 
-        return true;
+        return { success: true };
       } else {
-        return false;
+        let message = "Invalid email or password.";
+        try {
+          const data = await response.json();
+          if (data?.message) message = data.message;
+        } catch (parseError) {
+          console.error("Could not read login error response:", parseError);
+        }
+        return { success: false, error: message };
       }
     } catch (error) {
       console.error("Login Error:", error);
-      return false;
+      return { success: false, error: "Unable to reach the server. Please try again." };
     }
   };
 

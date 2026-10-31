@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import { PlusCircle, X, Play, Copy, Save, Loader2, Code, FileCode, CheckCircle, ExternalLink, BookOpen, Trophy, Users, Star, Menu } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { createTheme } from '@uiw/codemirror-themes';
@@ -154,10 +154,22 @@ export default function CodingPlatform() {
     if (saved) setSavedCodes(JSON.parse(saved));
   }, []);
 
+  const updatePreview = useCallback(() => {
+    if (!previewIframeRef.current) return;
+    const currentTab = tabs[activeTab];
+    if (currentTab.language === "html") {
+      const iframe = previewIframeRef.current;
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write(currentTab.content);
+      doc.close();
+    }
+  }, [tabs, activeTab]);
+
   // Update HTML Preview
   useEffect(() => {
     if (previewVisible && tabs[activeTab]?.language === "html") updatePreview();
-  }, [previewVisible, tabs, activeTab]);
+  }, [previewVisible, tabs, activeTab, updatePreview]);
 
   // Handle Tab Change
   const handleTabChange = (index) => {
@@ -198,18 +210,6 @@ export default function CodingPlatform() {
   };
 
   // Update HTML Preview
-  const updatePreview = () => {
-    if (!previewIframeRef.current) return;
-    const currentTab = tabs[activeTab];
-    if (currentTab.language === "html") {
-      const iframe = previewIframeRef.current;
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      doc.open();
-      doc.write(currentTab.content);
-      doc.close();
-    }
-  };
-
   // Execute Code
   const executeCode = async () => {
     setLoading(true);

@@ -3,7 +3,9 @@ package com.elearning.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import com.elearning.models.ExamAttempt;
@@ -12,6 +14,7 @@ import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.ApiResponse;
 import com.elearning.response_request.ExamAttemptRequest;
+import com.elearning.services.CertificateService;
 import com.elearning.services.ExamAttemptService;
 import com.elearning.services.ExamQuestionService;
 
@@ -61,11 +64,11 @@ public class ExamController {
         }
 
         double score = examQuestionService.evaluateExam(request.getCourseId(), request.getAnswers());
-        boolean passed = score >= 80.0;
         if (!(score >= 0.0 && score <= 100.0)) {
             score = 0.0;
         }
         score = Math.round(score);
+        boolean passed = score >= CertificateService.PASSING_SCORE;
 
         ExamAttempt attempt = new ExamAttempt(null, user.getId(), request.getCourseId(), score, passed, LocalDateTime.now());
         ExamAttempt savedAttempt = examAttemptService.saveAttempt(attempt);
@@ -74,9 +77,22 @@ public class ExamController {
     }
 
     @GetMapping("/result/{attemptId}")
-    public ResponseEntity<?> getExamResult(@PathVariable Long attemptId) {
+    public ResponseEntity<?> getExamResult(
+            @PathVariable Long attemptId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User caller = userDetails == null ? null : userRepository.findByEmail(userDetails.getUsername()).orElse(null);
+        if (caller == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse(false, "Authentication required."));
+        }
         return examAttemptService.getAttemptById(attemptId)
-                .map(ResponseEntity::ok)
+                .map(attempt -> {
+                    boolean isAdmin = "ADMIN".equalsIgnoreCase(caller.getRole());
+                    if (!isAdmin && !caller.getId().equals(attempt.getUserId())) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body((Object) new ApiResponse(false, "Cannot read another user's result."));
+                    }
+                    return ResponseEntity.ok((Object) attempt);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 }

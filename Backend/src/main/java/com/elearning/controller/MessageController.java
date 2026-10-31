@@ -6,18 +6,30 @@ import com.elearning.repositories.ConnectionRepository;
 import com.elearning.repositories.MessageRepository;
 import com.elearning.repositories.UserRepository;
 import com.elearning.security.JwtService;
+import com.elearning.services.RequestThrottle;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/messages")
 public class MessageController {
+
+    private static final int MAX_CONTENT_LENGTH = 2000;
+    private static final int MAX_MESSAGES_PER_WINDOW = 20;
+    private static final Duration MESSAGE_WINDOW = Duration.ofSeconds(10);
 
     @Autowired
     private MessageRepository messageRepository;
@@ -30,6 +42,9 @@ public class MessageController {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private RequestThrottle requestThrottle;
 
     public static class MessageDTO {
         private Long id;
@@ -69,23 +84,45 @@ public class MessageController {
 
     @Transactional
     @PostMapping("/send")
-    public MessageDTO sendMessage(@RequestBody MessageDTO messageDTO, @RequestHeader("Authorization") String token) {
-        Long userId = extractUserIdFromToken(token);
-        if (!userId.equals(messageDTO.getSenderId())) {
-            throw new IllegalArgumentException("Token user ID does not match sender ID");
+    public ResponseEntity<?> sendMessage(@RequestBody MessageDTO messageDTO, @RequestHeader("Authorization") String token) {
+        Long userId;
+        try {
+            userId = extractUserIdFromToken(token);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        }
+        if (messageDTO.getSenderId() == null || !userId.equals(messageDTO.getSenderId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Token user ID does not match sender ID");
+        }
+        if (messageDTO.getContent() == null || messageDTO.getContent().isBlank()) {
+            return ResponseEntity.badRequest().body("Message cannot be empty");
+        }
+        if (messageDTO.getContent().length() > MAX_CONTENT_LENGTH) {
+            return ResponseEntity.badRequest().body("Message is too long (maximum " + MAX_CONTENT_LENGTH + " characters)");
+        }
+        if (messageDTO.getReceiverId() == null) {
+            return ResponseEntity.badRequest().body("Receiver is required");
+        }
+        if (!requestThrottle.tryAcquire("chat:" + userId, MAX_MESSAGES_PER_WINDOW, MESSAGE_WINDOW)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(MESSAGE_WINDOW.toSeconds()))
+                    .body("You are sending messages too quickly. Please wait a few seconds.");
         }
 
-        User sender = userRepository.findById(messageDTO.getSenderId())
-                .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
-        User receiver = userRepository.findById(messageDTO.getReceiverId())
-                .orElseThrow(() -> new IllegalArgumentException("Receiver not found"));
+        User sender = userRepository.findById(messageDTO.getSenderId()).orElse(null);
+        User receiver = userRepository.findById(messageDTO.getReceiverId()).orElse(null);
+        if (sender == null || receiver == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
 
         // Validate conversation membership (must be accepted connections)
         boolean connected = connectionRepository.findBySenderOrReceiverAndStatus(sender.getId(), "ACCEPTED")
                 .stream()
                 .anyMatch(c -> (c.getSender().getId().equals(receiver.getId()) || c.getReceiver().getId().equals(receiver.getId())));
         if (!connected) {
-            throw new IllegalArgumentException("You can only chat with accepted connections.");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("You can only chat with accepted connections.");
         }
 
         Message message = new Message();
@@ -101,14 +138,35 @@ public class MessageController {
                 Math.max(messageDTO.getSenderId(), messageDTO.getReceiverId());
         messagingTemplate.convertAndSend("/topic/messages/" + chatId, responseDTO);
 
-        return responseDTO;
+        return ResponseEntity.ok(responseDTO);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     @GetMapping("/history/{receiverId}")
-    public List<Message> getMessageHistory(@PathVariable Long receiverId, @RequestHeader("Authorization") String token) {
-        Long userId = extractUserIdFromToken(token);
-        return messageRepository.findBySenderIdAndReceiverIdOrReceiverIdAndSenderId(userId, receiverId, userId, receiverId);
+    public ResponseEntity<?> getMessageHistory(@PathVariable Long receiverId,
+                                               @RequestHeader("Authorization") String token,
+                                               @RequestParam(required = false) Long beforeId,
+                                               @RequestParam(defaultValue = "100") int limit) {
+        Long userId;
+        try {
+            userId = extractUserIdFromToken(token);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        }
+
+        int pageSize = Math.max(1, Math.min(limit, 200));
+        Pageable page = PageRequest.of(0, pageSize + 1);
+        List<Message> found = beforeId == null
+                ? messageRepository.findConversation(userId, receiverId, page)
+                : messageRepository.findConversationBefore(userId, receiverId, beforeId, page);
+
+        boolean hasMore = found.size() > pageSize;
+        List<Message> pageMessages = hasMore ? found.subList(0, pageSize) : found;
+        List<MessageDTO> messages = new java.util.ArrayList<>(
+                pageMessages.stream().map(MessageDTO::new).toList());
+        java.util.Collections.reverse(messages);
+
+        return ResponseEntity.ok(Map.of("messages", messages, "hasMore", hasMore));
     }
 
     @MessageMapping("/chat.send")
@@ -126,8 +184,8 @@ public class MessageController {
             return;
         }
 
-        if (principal != null && !sender.getEmail().equalsIgnoreCase(principal.getName())) {
-            return; // Impersonation attempt
+        if (principal == null || !sender.getEmail().equalsIgnoreCase(principal.getName())) {
+            return; // Require an authenticated sender matching the claimed identity
         }
 
         boolean connected = connectionRepository.findBySenderOrReceiverAndStatus(sender.getId(), "ACCEPTED")

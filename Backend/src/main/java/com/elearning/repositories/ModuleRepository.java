@@ -10,6 +10,10 @@ import com.elearning.models.Module;
 
 public interface ModuleRepository extends JpaRepository<Module, Long> {
 
+	 long countByCourseId(Long courseId);
+
+	 void deleteByCourseId(Long courseId);
+
 	 // ✅ Find the last module number for a given course (default 0 if no module exists)
     @Query("SELECT COALESCE(MAX(m.moduleNumber), 0) FROM Module m WHERE m.courseId = :courseId")
     int findLastModuleNumberByCourseId(Long courseId);

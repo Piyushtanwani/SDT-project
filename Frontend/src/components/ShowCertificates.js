@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
@@ -15,6 +16,7 @@ import { DiJava } from "react-icons/di";
 import { BsCodeSquare, BsShield } from "react-icons/bs";
 import { FaGraduationCap, FaMedal } from "react-icons/fa";
 import confetti from "canvas-confetti";
+import { getAuthHeaders } from "../config/api";
 
 // Extended course icons with fallback categories
 const courseIcons = {
@@ -56,6 +58,7 @@ export const ShowCertificates = () => {
   const certificateRef = useRef(null);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState("all");
+  const navigate = useNavigate();
 
   const { userFirstName, userId } = useAuth();
 
@@ -67,9 +70,15 @@ export const ShowCertificates = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const certRes = await fetch(`${apiUrl}/api/certificates/user/${userId}`);
-        const certData = await certRes.json();
-        setCertificates(Array.isArray(certData) ? certData : []);
+        const certRes = await fetch(`${apiUrl}/api/certificates/user/${userId}`, {
+          headers: { ...getAuthHeaders() },
+        });
+        if (certRes.ok) {
+          const certData = await certRes.json();
+          setCertificates(Array.isArray(certData) ? certData : []);
+        } else {
+          setCertificates([]);
+        }
 
         const courseRes = await fetch(`${apiUrl}/course/getCourses`);
         const courseData = await courseRes.json();
@@ -350,8 +359,14 @@ export const ShowCertificates = () => {
             </div>
             <h3 className="text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">No Certificates Yet</h3>
             <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-              Complete a course and pass the final exam to earn your first certificate.
+              Pass a final exam with 80% or higher, then issue your certificate from My Exam History.
             </p>
+            <button
+              onClick={() => navigate("/attempts")}
+              className="mt-5 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Go to My Exam History
+            </button>
           </motion.div>
         )}
 
@@ -449,7 +464,7 @@ export const ShowCertificates = () => {
                   <div className="mt-8 flex justify-center">
                     <div className="bg-white dark:bg-gray-700 p-3 rounded-xl shadow-md border border-gray-200 dark:border-gray-600">
                       <QRCodeCanvas
-                        value={`elearning.bitecodes.com/credential/${selectedCertificate.credentialId}`}
+                        value={`${window.location.origin}/credential/${selectedCertificate.credentialId}`}
                         size={120}
                         bgColor="#ffffff"
                         fgColor="#1F2937"

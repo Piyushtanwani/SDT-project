@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, Upload, X } from "lucide-react";
+import { API_BASE_URL } from "../config/api";
+import { useNavigate } from "react-router-dom";
 
 // AddCourse Modal Component
 export const AddCourse = ({ closeModal, refreshCourses }) => {
+  const navigate = useNavigate();
+  const handleClose = closeModal || (() => navigate("/admincourses"));
+  const notifyRefresh = refreshCourses || (() => {});
   const [courseName, setCourseName] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
@@ -14,10 +19,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
   const { userToken } = useAuth();
 
   const handleFileChange = (e) => {
@@ -30,49 +32,50 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!image) {
-      setError("Please upload an image.");
-      return;
-    }
     setLoading(true);
     setError("");
 
-    const formData = new FormData();
-    formData.append("thumbnailUrl", image);
+    // The cover image is optional: course creation must not depend on external storage.
+    let imageUrl = "";
+    if (image) {
+      const formData = new FormData();
+      formData.append("thumbnailUrl", image);
+      try {
+        const uploadResponse = await axios.post(`${apiUrl}/upload/profilephoto`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${userToken}`,
+          },
+        });
+        imageUrl = uploadResponse.data;
+      } catch (uploadError) {
+        console.warn("Cover image upload failed; creating the course without it.", uploadError);
+      }
+    }
 
     try {
-      const response = await axios.post(`${apiUrl}/upload/profilephoto`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${userToken}`,
-        },
+      const courseData = {
+        name: courseName,
+        description: description,
+        duration: parseInt(duration, 10),
+        thumbnailUrl: imageUrl,
+      };
+
+      const courseResponse = await axios.post(`${apiUrl}/course/add`, courseData, {
+        headers: { Authorization: `Bearer ${userToken}` },
       });
 
-      if (response.status === 200) {
-        const imageUrl = response.data;
-
-        const courseData = {
-          name: courseName,
-          description: description,
-          duration: parseInt(duration, 10),
-          thumbnailUrl: imageUrl,
-        };
-
-        const courseResponse = await axios.post(`${apiUrl}/course/add`, courseData, {
-          headers: { Authorization: `Bearer ${userToken}` },
-        });
-
-        if (courseResponse.status === 200) {
-          setSuccess(true);
-          refreshCourses();
-          setTimeout(() => {
-            setSuccess(false);
-            closeModal();
-          }, 2000);
-        }
+      if (courseResponse.status === 200) {
+        setSuccess(true);
+        notifyRefresh();
+        setTimeout(() => {
+          setSuccess(false);
+          handleClose();
+        }, 2000);
       }
     } catch (error) {
-      setError(error.response?.data?.message || "Failed to add course. Please try again.");
+      const data = error.response?.data;
+      setError((typeof data === "string" ? data : data?.message) || "Failed to add course. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -88,7 +91,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
       <div className="relative max-w-md w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
         {/* Close Button */}
         <button
-          onClick={closeModal}
+          onClick={handleClose}
           className="absolute top-4 right-4 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
         >
           <X size={24} />
@@ -177,7 +180,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
           {/* Image Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-              Course Thumbnail
+              Course Thumbnail <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <div className="mt-1 flex items-center justify-center px-4 py-6 bg-white/30 dark:bg-gray-800/30 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-all duration-300">
               <label
@@ -186,7 +189,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
               >
                 <Upload className="text-gray-400 dark:text-gray-500 mb-2" size={24} />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {image ? image.name : "Upload an image"}
+                  {image ? image.name : "Upload a cover image"}
                 </span>
                 <input
                   id="file-upload"
@@ -251,7 +254,7 @@ const CourseList = () => {
       ? process.env.REACT_APP_LIVE_API
       : process.env.REACT_APP_LOCAL_API;
 
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await axios.get(`${apiUrl}/course`, {
         headers: { Authorization: `Bearer ${userToken}` },
@@ -260,11 +263,11 @@ const CourseList = () => {
     } catch (error) {
       console.error("Failed to fetch courses:", error);
     }
-  };
+  }, [apiUrl, userToken]);
 
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [fetchCourses]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 py-12 px-4">

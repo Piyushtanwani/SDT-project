@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "./AdminSlidebar";
 import { motion, AnimatePresence } from "framer-motion";
-import { PlusCircle, CheckCircle, Upload } from "lucide-react";
+import { PlusCircle, CheckCircle, Upload, AlertCircle } from "lucide-react";
+import { API_BASE_URL } from "../config/api";
 
 const AddModule = () => {
   const [courses, setCourses] = useState([]);
@@ -10,18 +12,31 @@ const AddModule = () => {
   const [moduleTitle, setModuleTitle] = useState("");
   const [content, setContent] = useState([{ text: "", imageUrl: "" }]);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [coursesError, setCoursesError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
-  useEffect(() => {
+  const fetchCourses = useCallback(() => {
+    setCoursesLoading(true);
+    setCoursesError("");
     axios
       .get(`${apiUrl}/course/getCourses`)
-      .then((response) => setCourses(response.data))
-      .catch((error) => console.error("Error fetching courses:", error));
-  }, []);
+      .then((response) => setCourses(Array.isArray(response.data) ? response.data : []))
+      .catch((error) => {
+        console.error("Error fetching courses:", error);
+        setCourses([]);
+        setCoursesError("We couldn't load the course list. Please try again.");
+      })
+      .finally(() => setCoursesLoading(false));
+  }, [apiUrl]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
 
   const handleContentChange = (e, index) => {
     setContent((prev) =>
@@ -32,6 +47,7 @@ const AddModule = () => {
   const handleImageChange = async (e, index) => {
     const file = e.target.files[0];
     if (!file) return;
+    setUploadError("");
 
     const formData = new FormData();
     formData.append("thumbnailUrl", file);
@@ -44,23 +60,46 @@ const AddModule = () => {
       setContent((prev) =>
         prev.map((item, i) => (i === index ? { ...item, imageUrl: data.imageUrl || data } : item))
       );
-    } catch (error) {
-      console.error("Error uploading image:", error);
+    } catch (uploadFailure) {
+      console.warn("Image upload failed; the module can be saved without it.", uploadFailure);
+      setUploadError("Image upload is unavailable right now. You can still add the module without an image.");
+    } finally {
+      e.target.value = "";
     }
   };
 
   const handleAddModule = async (e) => {
     e.preventDefault();
+    setError("");
     if (!selectedCourse) {
-      alert("Please select a course");
+      setError("Please select a course.");
       return;
     }
 
+    const title = moduleTitle.trim();
+    if (!title) {
+      setError("Enter a module title.");
+      return;
+    }
+    if (title.length > 255) {
+      setError("Module title must be 255 characters or fewer.");
+      return;
+    }
+
+    const trimmedContent = content.map((item) => item.text.trim());
+    if (trimmedContent.some((text) => !text)) {
+      setError("Content sections cannot be empty.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
       await axios.post(`${apiUrl}/module/add/${selectedCourse}`, {
-        moduleTitle,
-        content: content.map((item) => item.text),
-        imageUrls: content.map((item) => item.imageUrl || ""),
+        moduleTitle: title,
+        content: trimmedContent,
+        imageUrls: content.some((item) => item.imageUrl)
+          ? content.map((item) => item.imageUrl || "")
+          : [],
       });
 
       setShowSuccess(true);
@@ -68,10 +107,20 @@ const AddModule = () => {
       setModuleTitle("");
       setContent([{ text: "", imageUrl: "" }]);
       setSelectedCourse("");
-    } catch (error) {
-      console.error("Error adding module:", error);
+    } catch (submitFailure) {
+      console.error("Error adding module:", submitFailure);
+      const data = submitFailure.response?.data;
+      setError(
+        (typeof data === "string" && data) ||
+          data?.message ||
+          "Could not add the module. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const submitDisabled = submitting || coursesLoading || courses.length === 0;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
@@ -90,6 +139,15 @@ const AddModule = () => {
 
           {/* Main Content */}
           <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 ring-1 ring-gray-200/50 dark:ring-gray-700/50">
+            {error && (
+              <div
+                role="alert"
+                className="mb-6 flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+              >
+                <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             <form onSubmit={handleAddModule} className="space-y-6">
               {/* Course Selection */}
               <div>
@@ -98,14 +156,21 @@ const AddModule = () => {
                 </label>
                 <div className="relative">
                   <motion.select
-                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover"
+                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCourse}
                     onChange={(e) => setSelectedCourse(e.target.value)}
                     required
-                    whileHover={{ scale: 1.02 }}
+                    disabled={coursesLoading}
+                    whileHover={coursesLoading ? undefined : { scale: 1.02 }}
                     whileFocus={{ scale: 1.02 }}
                   >
-                    <option value="">-- Select Course --</option>
+                    <option value="">
+                      {coursesLoading
+                        ? "Loading courses…"
+                        : courses.length === 0
+                          ? "No courses available"
+                          : "-- Select Course --"}
+                    </option>
                     {courses.map((course) => (
                       <option key={course.id} value={course.id}>
                         {course.name}
@@ -126,6 +191,33 @@ const AddModule = () => {
                     />
                   </svg>
                 </div>
+
+                {coursesError && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+                  >
+                    <span>{coursesError}</span>
+                    <button
+                      type="button"
+                      onClick={fetchCourses}
+                      disabled={coursesLoading}
+                      className="font-semibold underline underline-offset-2 hover:no-underline disabled:opacity-60"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!coursesLoading && !coursesError && courses.length === 0 && (
+                  <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    No courses yet.{" "}
+                    <Link to="/admincourses" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                      Create a course
+                    </Link>{" "}
+                    before adding modules.
+                  </p>
+                )}
               </div>
 
               {/* Module Title */}
@@ -166,7 +258,7 @@ const AddModule = () => {
                   {/* Image Upload */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                      Upload Image
+                      Content Image <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
                     </label>
                     <div className="relative">
                       <motion.label
@@ -178,6 +270,7 @@ const AddModule = () => {
                         {item.imageUrl ? "Change Image" : "Upload Image"}
                         <input
                           type="file"
+                          accept="image/*"
                           className="hidden"
                           onChange={(e) => handleImageChange(e, index)}
                         />
@@ -197,6 +290,13 @@ const AddModule = () => {
                 </div>
               ))}
 
+              {uploadError && (
+                <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                  <AlertCircle size={16} className="shrink-0" />
+                  {uploadError}
+                </p>
+              )}
+
               {/* Add More Content Button */}
               <motion.button
                 type="button"
@@ -212,11 +312,12 @@ const AddModule = () => {
               {/* Submit Button */}
               <motion.button
                 type="submit"
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white py-3 rounded-lg font-medium shadow-glow hover:shadow-glow-hover transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                disabled={submitDisabled}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white py-3 rounded-lg font-medium shadow-glow hover:shadow-glow-hover transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                whileHover={submitDisabled ? undefined : { scale: 1.05 }}
+                whileTap={submitDisabled ? undefined : { scale: 0.95 }}
               >
-                Add Module
+                {submitting ? "Adding Module..." : "Add Module"}
               </motion.button>
             </form>
           </div>

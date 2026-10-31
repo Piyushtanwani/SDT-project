@@ -1,42 +1,64 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./AdminSlidebar"; // Assuming this is unchanged
 import { AddCourse } from "./AddCourse"; // Using the modernized AddCourse
-import { X, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { API_BASE_URL } from "../config/api";
+
+const formatDuration = (duration) => {
+  if (duration === null || duration === undefined || String(duration).trim() === "") {
+    return "Self-paced";
+  }
+  const text = String(duration).trim();
+  return /^\d+$/.test(text) ? `${text} hours` : text;
+};
 
 export const AdminCoursePanel = () => {
   const [courses, setCourses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
+
+  const fetchCourses = useCallback(async () => {
+    try {
+      setLoadError("");
+      const response = await axios.get(`${apiUrl}/course/getCourses`);
+      setCourses(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      setLoadError("Could not load courses. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiUrl]);
 
   useEffect(() => {
     fetchCourses();
-  }, []);
-
-  const fetchCourses = async () => {
-    try {
-      const response = await axios.get(`${apiUrl}/course/getCourses`);
-      setCourses(response.data);
-    } catch (error) {
-      console.error("Error fetching courses:", error);
-    }
-  };
+  }, [fetchCourses]);
 
   const handleDeleteCourse = async () => {
     if (!selectedCourseId) return;
     try {
+      setIsDeleting(true);
+      setDeleteError("");
       await axios.delete(`${apiUrl}/course/deletecourse/${selectedCourseId}`);
-      setCourses(courses.filter((course) => course.id !== selectedCourseId));
+      setCourses((prev) => prev.filter((course) => course.id !== selectedCourseId));
       setIsConfirmOpen(false);
     } catch (error) {
-      console.error("Error deleting course:", error);
+      const data = error.response?.data;
+      setDeleteError(
+        typeof data === "string" && data.trim()
+          ? data
+          : "Could not delete the course. Please try again."
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -68,6 +90,32 @@ export const AdminCoursePanel = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8 }}
         >
+          {isLoading && courses.length === 0 && (
+            <p className="col-span-full text-center text-gray-600 dark:text-gray-400 py-10">
+              Loading courses...
+            </p>
+          )}
+          {!isLoading && loadError && courses.length === 0 && (
+            <div className="col-span-full text-center py-10">
+              <p className="text-red-600 dark:text-red-400 mb-4" role="alert">
+                {loadError}
+              </p>
+              <button
+                onClick={() => {
+                  setIsLoading(true);
+                  fetchCourses();
+                }}
+                className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+          {!isLoading && !loadError && courses.length === 0 && (
+            <p className="col-span-full text-center text-gray-600 dark:text-gray-400 py-10">
+              No courses yet. Add the first course to get started.
+            </p>
+          )}
           {courses.map((course, index) => (
             <motion.div
               key={course.id}
@@ -79,10 +127,10 @@ export const AdminCoursePanel = () => {
               whileTap={{ scale: 0.97 }}
             >
               <img
-                src={course.thumbnailUrl || "/default-thumbnail.png"}
+                src={course.thumbnailUrl || "/default-thumbnail.svg"}
                 alt={course.name}
                 className="w-full h-48 object-cover bg-gray-200"
-                onError={(e) => (e.target.src = "/default-thumbnail.png")}
+                onError={(e) => (e.target.src = "/default-thumbnail.svg")}
               />
               <div className="p-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -93,7 +141,7 @@ export const AdminCoursePanel = () => {
                 </p>
                 <div className="mt-4 flex justify-between items-center">
                   <span className="text-sm font-medium text-blue-500 dark:text-blue-400">
-                    ⏳ {course.duration} hrs
+                    ⏳ {formatDuration(course.duration)}
                   </span>
                   <span className="text-sm font-medium text-yellow-500 dark:text-yellow-400">
                     ⭐ {course.rating || "N/A"}
@@ -104,6 +152,7 @@ export const AdminCoursePanel = () => {
               <motion.button
                 onClick={() => {
                   setSelectedCourseId(course.id);
+                  setDeleteError("");
                   setIsConfirmOpen(true);
                 }}
                 className="absolute top-2 right-2 bg-red-500/90 text-white p-2 rounded-full hover:bg-red-600 transition-all duration-300 shadow-sm"
@@ -141,6 +190,11 @@ export const AdminCoursePanel = () => {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                   Are you sure you want to delete this course?
                 </h2>
+                {deleteError && (
+                  <p className="mb-4 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {deleteError}
+                  </p>
+                )}
                 <div className="flex justify-end space-x-4">
                   <motion.button
                     onClick={() => setIsConfirmOpen(false)}
@@ -152,11 +206,12 @@ export const AdminCoursePanel = () => {
                   </motion.button>
                   <motion.button
                     onClick={handleDeleteCourse}
-                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
+                    whileHover={isDeleting ? undefined : { scale: 1.05 }}
+                    whileTap={isDeleting ? undefined : { scale: 0.95 }}
                   >
-                    Delete
+                    {isDeleting ? "Deleting..." : "Delete"}
                   </motion.button>
                 </div>
               </div>

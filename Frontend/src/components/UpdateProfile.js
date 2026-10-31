@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { motion } from "framer-motion";
+import formatRole from "../utils/formatRole";
 
 export const UpdateProfile = () => {
   const navigate = useNavigate();
@@ -54,14 +55,8 @@ export const UpdateProfile = () => {
         setAvailableSkills(response.data);
       } catch (error) {
         console.error("Error fetching skills:", error);
-        setError("Failed to load skills. Using defaults.");
-        setAvailableSkills([
-          { id: 1, name: "JavaScript" },
-          { id: 2, name: "Python" },
-          { id: 3, name: "Java" },
-          { id: 4, name: "React" },
-          { id: 5, name: "Node.js" },
-        ]);
+        setError("Failed to load skills. Please refresh the page and try again.");
+        setAvailableSkills([]);
       } finally {
         setIsLoadingSkills(false);
       }
@@ -121,11 +116,8 @@ export const UpdateProfile = () => {
         bio: userDataUpdated.bio,
         timezone: userDataUpdated.timezone,
         availability: userDataUpdated.availability,
-        role: userDataUpdated.role || null,
-        skillIds: selectedSkillIds, // Send as [1, 2, ...]
+        skillIds: selectedSkillIds,
       };
-
-      console.log("Sending update payload:", updatedUser);
 
       // Send update request
       const response = await axios.put(`${apiUrl}/api/auth/update/${userId}`, updatedUser, {
@@ -153,13 +145,31 @@ export const UpdateProfile = () => {
   if (!userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950">
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-gray-600 dark:text-gray-400 text-lg font-semibold"
-        >
-          Loading profile...
-        </motion.p>
+        {error ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            <p className="text-red-600 dark:text-red-400 text-lg font-semibold mb-4" role="alert">
+              {error}
+            </p>
+            <button
+              onClick={() => navigate("/profile")}
+              className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Back to Profile
+            </button>
+          </motion.div>
+        ) : (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-gray-600 dark:text-gray-400 text-lg font-semibold"
+          >
+            Loading profile...
+          </motion.p>
+        )}
       </div>
     );
   }
@@ -197,7 +207,7 @@ export const UpdateProfile = () => {
                   />
                 </div>
                 <label
-                  html melodicFor="profilePhoto"
+                  htmlFor="profilePhoto"
                   className="absolute -bottom-2 right-0 bg-indigo-500 dark:bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors"
                 >
                   <svg
@@ -336,21 +346,14 @@ export const UpdateProfile = () => {
 
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                  Role
+                  Account Role
                 </label>
-                <select
-                  name="role"
-                  defaultValue={userData.role || ""}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
-                >
-                  <option value="">Select your role</option>
-                  <option value="Software Developer">Software Developer</option>
-                  <option value="Data Scientist">Data Scientist</option>
-                  <option value="UI/UX Designer">UI/UX Designer</option>
-                  <option value="DevOps Engineer">DevOps Engineer</option>
-                  <option value="Product Manager">Product Manager</option>
-                  <option value="Other">Other</option>
-                </select>
+                <input
+                  type="text"
+                  value={formatRole(userData.role) || "Community Member"}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
+                />
               </div>
 
               <div className="space-y-2 sm:col-span-2">

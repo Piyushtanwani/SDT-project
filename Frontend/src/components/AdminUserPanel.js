@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import Sidebar from "./AdminSlidebar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Search, Edit, Trash2, Save, X, User } from "lucide-react";
+import formatRole from "../utils/formatRole";
 
 const AdminUserPanel = () => {
   const [users, setUsers] = useState([]);
@@ -11,7 +12,8 @@ const AdminUserPanel = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", role: "", enabled: false });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const apiUrl =
     process.env.REACT_APP_ENV === "production"
@@ -19,22 +21,24 @@ const AdminUserPanel = () => {
       : process.env.REACT_APP_LOCAL_API;
 
   // Fetch all users
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      try {
-        const { data } = await axios.get(`${apiUrl}/api/auth/getallusers`);
-        setUsers(data);
-        setFilteredUsers(data);
-      } catch (err) {
-        console.error("Error fetching users:", err);
-        setError("Failed to load users. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUsers();
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const { data } = await axios.get(`${apiUrl}/api/auth/getallusers`);
+      setUsers(Array.isArray(data) ? data : []);
+      setFilteredUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+      setLoadError("Failed to load users. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [apiUrl]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Handle search
   useEffect(() => {
@@ -49,11 +53,13 @@ const AdminUserPanel = () => {
   // Handle edit
   const handleEdit = (user) => {
     setEditingUser(user.id);
+    setActionError("");
     setEditForm({ name: user.name || "", role: user.role || "", enabled: user.enabled });
   };
 
   const handleSave = async (id) => {
     try {
+      setActionError("");
       await axios.put(`${apiUrl}/api/auth/updateuser/${id}`, editForm);
       setUsers((prev) =>
         prev.map((user) =>
@@ -68,7 +74,9 @@ const AdminUserPanel = () => {
       setEditingUser(null);
     } catch (err) {
       console.error("Error updating user:", err);
-      setError("Failed to update user. Please try again.");
+      setActionError(
+        err.response?.data?.message || "Failed to update user. Please try again."
+      );
     }
   };
 
@@ -76,12 +84,15 @@ const AdminUserPanel = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     try {
+      setActionError("");
       await axios.delete(`${apiUrl}/api/auth/deleteuser/${id}`);
       setUsers((prev) => prev.filter((user) => user.id !== id));
       setFilteredUsers((prev) => prev.filter((user) => user.id !== id));
     } catch (err) {
       console.error("Error deleting user:", err);
-      setError("Failed to delete user. Please try again.");
+      setActionError(
+        err.response?.data?.message || "Failed to delete user. Please try again."
+      );
     }
   };
 
@@ -118,6 +129,15 @@ const AdminUserPanel = () => {
               </div>
             </div>
 
+            {actionError && (
+              <div
+                className="mb-6 flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+                role="alert"
+              >
+                <span>{actionError}</span>
+              </div>
+            )}
+
             {/* Users List */}
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -130,7 +150,7 @@ const AdminUserPanel = () => {
                   Loading users...
                 </p>
               </div>
-            ) : error ? (
+            ) : loadError ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -150,14 +170,9 @@ const AdminUserPanel = () => {
                     d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <p className="text-red-800 dark:text-red-300">{error}</p>
+                <p className="text-red-800 dark:text-red-300">{loadError}</p>
                 <motion.button
-                  onClick={() => {
-                    setError(null);
-                    setLoading(true);
-                    setUsers([]);
-                    setFilteredUsers([]);
-                  }}
+                  onClick={fetchUsers}
                   className="mt-4 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -224,8 +239,8 @@ const AdminUserPanel = () => {
                             className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none"
                           >
                             <option value="">Select Role</option>
-                            <option value="USER">User</option>
-                            <option value="ADMIN">Admin</option>
+                            <option value="USER">Community Member</option>
+                            <option value="ADMIN">Administrator</option>
                           </select>
                           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                             <input
@@ -269,7 +284,7 @@ const AdminUserPanel = () => {
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             <span className="font-medium">Role:</span>{" "}
-                            {user.role || "N/A"}
+                            {formatRole(user.role) || "N/A"}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             <span className="font-medium">Status:</span>{" "}

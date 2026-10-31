@@ -1,29 +1,41 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import Stomp from "stompjs";
 import SockJS from "sockjs-client";
-import ScrollToTop from "./ScrollToTop";
+import { API_BASE_URL } from "../config/api";
+import formatRole from "../utils/formatRole";
+
+const toMessage = (msg) => ({
+  id: msg.id,
+  content: msg.content,
+  timestamp: msg.timestamp,
+  sender: {
+    id: msg.senderId ?? msg.sender?.id,
+    username: msg.senderUsername ?? msg.sender?.username,
+  },
+});
 
 const ChatPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const userId = sessionStorage.getItem("userId");
   const token = sessionStorage.getItem("authToken");
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   const [currentUser, setCurrentUser] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [earlierError, setEarlierError] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState("");
   const stompClient = useRef(null);
   const messagesEndRef = useRef(null);
+  const lastMessageIdRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 3;
 
@@ -33,122 +45,155 @@ const ChatPage = () => {
       : null;
 
   useEffect(() => {
-    console.log("ChatPage mounted, useParams:", { id }, "URL:", window.location.pathname);
     if (!userId || !token) {
-      setError("Please log in to chat.");
-      navigate("/");
+      navigate("/login");
       return;
     }
     if (!id || isNaN(id)) {
-      console.error("Invalid chat ID from useParams:", id, "URL:", window.location.pathname);
-      setError("Invalid user ID. Please select a valid user to chat with.");
-      navigate("/profile");
+      setError("That conversation does not exist.");
       return;
     }
 
+    let cancelled = false;
+    setError("");
+    setOtherUser(null);
+
     const fetchUsers = async () => {
       try {
-        console.log("Fetching data for chat with ID:", id);
         const currentUserResponse = await axios.get(`${apiUrl}/api/auth/user/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (cancelled) return;
         setCurrentUser(currentUserResponse.data);
-
-        const otherUserResponse = await axios.get(`${apiUrl}/api/auth/user/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setOtherUser(otherUserResponse.data);
 
         const connectionsResponse = await axios.get(`${apiUrl}/api/auth/connections/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const validConnections = connectionsResponse.data.filter((conn) => conn.id && !isNaN(conn.id));
-        console.log("Connections in ChatPage:", validConnections);
+        const validConnections = (connectionsResponse.data || []).filter((conn) => conn.id && !isNaN(conn.id));
+
+        // Check the connection before revealing the other user's profile
         if (!validConnections.some((conn) => conn.id === parseInt(id))) {
-          setError("You can only chat with connected users.");
-          navigate("/profile");
+          if (!cancelled) setError("You can only chat with people you are connected to.");
           return;
         }
+
+        const otherUserResponse = await axios.get(`${apiUrl}/api/auth/user/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+        setOtherUser(otherUserResponse.data);
 
         try {
           const messagesResponse = await axios.get(`${apiUrl}/api/messages/history/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          setMessages(messagesResponse.data.map(msg => ({
-            id: msg.id,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            sender: { id: msg.sender.id, username: msg.sender.username }
-          })));
+          if (cancelled) return;
+          const history = Array.isArray(messagesResponse.data)
+            ? messagesResponse.data
+            : messagesResponse.data.messages || [];
+          setMessages(history.map(toMessage));
+          setHasMore(Boolean(messagesResponse.data.hasMore));
         } catch (historyErr) {
           console.error("Failed to fetch message history:", historyErr);
-          setError("Could not load chat history. You can still send messages.");
-          setMessages([]);
+          if (!cancelled) {
+            setError("Could not load this conversation's history. Please try again.");
+          }
         }
       } catch (err) {
         console.error("Error fetching chat data:", err);
-        setError(err.response?.data?.message || "Failed to load chat. Please try again.");
+        if (cancelled) return;
+        if (err.response?.status === 404) {
+          setError("This user no longer exists.");
+        } else {
+          setError("Failed to load chat. Please try again.");
+        }
       }
     };
 
     fetchUsers();
+    return () => {
+      cancelled = true;
+    };
   }, [userId, token, id, apiUrl, navigate]);
 
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
     if (!chatId || error) return;
 
-    console.log("Attempting WebSocket connection to:", `${apiUrl}/ws`);
-    const socket = new SockJS(`${apiUrl}/ws`, null, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const socket = new SockJS(`${apiUrl}/ws`);
     stompClient.current = Stomp.over(socket);
+    stompClient.current.debug = () => {};
     stompClient.current.connect(
-      {},
+      { Authorization: `Bearer ${token}` },
       () => {
-        console.log("WebSocket connected for chatId:", chatId);
+        stompClient.current.subscribe(`/topic/messages/${chatId}`, (message) => {
+          try {
+            const receivedMessage = JSON.parse(message.body);
+            setMessages((prev) => {
+              if (prev.some((msg) => msg.id === receivedMessage.id)) {
+                return prev;
+              }
+              return [...prev, toMessage(receivedMessage)];
+            });
+          } catch (parseError) {
+            console.error("Ignoring malformed chat message:", parseError);
+          }
+        });
         setIsConnected(true);
         reconnectAttempts.current = 0;
-        stompClient.current.subscribe(`/topic/messages/${chatId}`, (message) => {
-          console.log("Received message:", message.body);
-          const receivedMessage = JSON.parse(message.body);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: receivedMessage.id,
-              content: receivedMessage.content,
-              timestamp: receivedMessage.timestamp,
-              sender: { id: receivedMessage.senderId, username: receivedMessage.senderUsername }
-            }
-          ]);
-        });
       },
       (err) => {
         console.error("WebSocket connection failed:", err);
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current += 1;
-          console.log(`Reconnecting WebSocket, attempt ${reconnectAttempts.current}/${maxReconnectAttempts}`);
           setTimeout(connectWebSocket, 3000);
         } else {
-          setError("Failed to connect to chat after multiple attempts. Please refresh.");
+          setError("Chat is unavailable right now. Please refresh the page to try again.");
         }
       }
     );
-  };
+  }, [chatId, apiUrl, token, error]);
 
   useEffect(() => {
+    if (!currentUser || !otherUser || error) return undefined;
     connectWebSocket();
     return () => {
-      if (stompClient.current) {
-        console.log("Disconnecting WebSocket for chatId:", chatId);
-        stompClient.current.disconnect();
-        setIsConnected(false);
+      try {
+        stompClient.current?.disconnect();
+      } catch (disconnectError) {
+        console.error("Failed to close chat connection:", disconnectError);
       }
+      stompClient.current = null;
+      setIsConnected(false);
     };
-  }, [chatId, error, apiUrl, token]);
+  }, [currentUser, otherUser, error, connectWebSocket]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const newestId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    if (newestId !== null && newestId !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = newestId;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  const loadEarlierMessages = async () => {
+    if (!hasMore || loadingEarlier || messages.length === 0) return;
+    setLoadingEarlier(true);
+    setEarlierError("");
+    try {
+      const response = await axios.get(`${apiUrl}/api/messages/history/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { beforeId: messages[0].id },
+      });
+      const older = (response.data.messages || []).map(toMessage);
+      setMessages((prev) => [...older, ...prev]);
+      setHasMore(Boolean(response.data.hasMore));
+    } catch (err) {
+      console.error("Failed to load earlier messages:", err);
+      setEarlierError("Could not load earlier messages. Please try again.");
+    } finally {
+      setLoadingEarlier(false);
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !isConnected || !currentUser) return;
@@ -186,9 +231,15 @@ const ChatPage = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-red-600 dark:text-red-400 text-center"
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-md"
         >
-          {error}
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <Link
+            to="/connections"
+            className="inline-block px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+          >
+            Back to Connections
+          </Link>
         </motion.div>
       </div>
     );
@@ -228,26 +279,42 @@ const ChatPage = () => {
               <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
                 {otherUser.name || "@"+otherUser.username}
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {otherUser.role}
-              </p>
+              {formatRole(otherUser.role) && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatRole(otherUser.role)}
+                </p>
+              )}
             </div>
           </div>
         </div>
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+          {hasMore && (
+            <div className="flex flex-col items-center gap-1 mb-4">
+              <button
+                onClick={loadEarlierMessages}
+                disabled={loadingEarlier}
+                className="px-3 py-1.5 text-xs font-medium rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-gray-600 hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-60"
+              >
+                {loadingEarlier ? "Loading..." : "Load earlier messages"}
+              </button>
+              {earlierError && (
+                <p className="text-xs text-red-600 dark:text-red-400">{earlierError}</p>
+              )}
+            </div>
+          )}
           {messages.map((msg) => (
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className={`mb-4 flex ${msg.sender.id === parseInt(userId) ? "justify-end" : "justify-start"}`}
+              className={`mb-4 flex ${msg.sender?.id === parseInt(userId) ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-[70%] p-3 rounded-lg shadow-sm ${
-                  msg.sender.id === parseInt(userId)
+                  msg.sender?.id === parseInt(userId)
                     ? "bg-indigo-600 text-white"
                     : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 }`}
@@ -270,6 +337,7 @@ const ChatPage = () => {
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
+              maxLength={2000}
               className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 resize-none text-sm"
               rows="2"
             />

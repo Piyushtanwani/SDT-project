@@ -1,22 +1,22 @@
 package com.elearning.services;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import com.elearning.models.Module;
 import com.elearning.repositories.ModuleRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Service
 public class ModuleService {
 
-    @Autowired
-    private ModuleRepository moduleRepository;
+    private final ModuleRepository moduleRepository;
+
+    public ModuleService(ModuleRepository moduleRepository) {
+        this.moduleRepository = moduleRepository;
+    }
 
     
     // ✅ Add a module with auto-increment moduleNumber for the same course
@@ -31,7 +31,8 @@ public class ModuleService {
  // ✅ Get a module by Course ID and Module Number
     public Module getModuleByCourseAndModuleNumber(Long courseId, int moduleNumber) {
         return moduleRepository.findByCourseIdAndModuleNumber(courseId, moduleNumber)
-                .orElseThrow(() -> new RuntimeException("Module not found for Course ID: " + courseId + " and Module Number: " + moduleNumber));
+                .orElseThrow(() -> new NoSuchElementException(
+                        "Module " + moduleNumber + " was not found for this course."));
     }
 
     // ✅ Get all modules for a course (returns only moduleNumber, title, and timestamp)
@@ -41,7 +42,8 @@ public class ModuleService {
 
     // ✅ Get a module by ID
     public Module getModuleById(Long moduleId) {
-        return moduleRepository.findById(moduleId).orElseThrow(() -> new RuntimeException("Module not found"));
+        return moduleRepository.findById(moduleId)
+                .orElseThrow(() -> new NoSuchElementException("Module not found."));
     }
 
     // ✅ Update a module
@@ -56,6 +58,9 @@ public class ModuleService {
 
     // ✅ Delete a module
     public void deleteModule(Long moduleId) {
+        if (!moduleRepository.existsById(moduleId)) {
+            throw new NoSuchElementException("Module not found.");
+        }
         moduleRepository.deleteById(moduleId);
     }
 }

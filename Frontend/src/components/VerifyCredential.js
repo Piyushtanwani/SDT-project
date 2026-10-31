@@ -47,22 +47,7 @@ export const VerifyCredential = () => {
 
       const certData = await certResponse.json();
 
-      const [userResponse, courseResponse] = await Promise.all([
-        fetch(`${apiUrl}/api/auth/getUsername/${certData.userId}`),
-        fetch(`${apiUrl}/course/getCourseName/${certData.courseId}`),
-      ]);
-
-      if (!userResponse.ok) throw new Error("User information unavailable");
-      if (!courseResponse.ok) throw new Error("Course information unavailable");
-
-      const userName = await userResponse.text();
-      const courseName = await courseResponse.text();
-
-      setCertificate({
-        ...certData,
-        userFirstName: userName,
-        courseName: courseName,
-      });
+      setCertificate(certData);
     } catch (err) {
       setError(err.message || "An unexpected error occurred");
       console.error("Verification error:", err);
@@ -83,8 +68,8 @@ export const VerifyCredential = () => {
     }
   };
 
-  // Sample credential ID for demonstration
-  const sampleCredentialId = "bcd-5678-efgh-9012";
+  // Credential IDs are issued in the form BC########
+  const sampleCredentialId = "BC7A3F91C2";
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center">
@@ -131,7 +116,7 @@ export const VerifyCredential = () => {
                   animate={{ opacity: 1 }}
                   className="mt-4 text-xs text-gray-400 dark:text-gray-500"
                 >
-                  Sample ID: {sampleCredentialId}
+                  Format: BC######## (example {sampleCredentialId})
                 </motion.div>
               )}
             </div>
@@ -212,7 +197,7 @@ export const VerifyCredential = () => {
                   <div className="text-center space-y-3">
                     <div className="mb-4">
                       <h2 className="text-2xl md:text-4xl font-serif font-bold text-indigo-800 dark:text-indigo-300">
-                        {certificate.userFirstName}
+                        {certificate.holderName}
                       </h2>
                       <p className="text-gray-600 dark:text-gray-400 text-sm md:text-lg">
                         has successfully completed
@@ -250,12 +235,12 @@ export const VerifyCredential = () => {
                     <span className="block sm:inline text-center sm:text-left">
                       <strong>Verify at:</strong>
                       <a
-                        href="https://elearning.bitecodes.com/credential-verify"
+                        href={`${window.location.origin}/credential-verify`}
                         className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline ml-1"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        elearning.bitecodes.com/credential-verify
+                        {window.location.host}/credential-verify
                       </a>
                     </span>
                     <span className="block sm:inline text-center sm:text-right mt-2 sm:mt-0">
@@ -300,25 +285,25 @@ export const VerifyCredential = () => {
           >
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow ring-1 ring-gray-200/50 dark:ring-gray-800">
               <FiShield className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Secure Verification</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Recorded Verification</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Blockchain-powered verification ensures credentials are tamper-proof and authentic
+                Every credential is checked against the certificate recorded on this server when it was issued
               </p>
             </div>
 
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow ring-1 ring-gray-200/50 dark:ring-gray-800">
               <FiClock className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Lifetime Validity</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">No Expiry</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Digital credentials never expire and can be verified anytime, anywhere
+                Issued certificates stay verifiable for the life of the course record
               </p>
             </div>
 
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow ring-1 ring-gray-200/50 dark:ring-gray-800">
               <FiUsers className="w-8 h-8 text-green-600 dark:text-green-400 mb-4" />
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Global Recognition</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Shareable Proof</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Accepted by employers and institutions worldwide
+                Share the credential ID so an employer or institution can verify it in seconds
               </p>
             </div>
           </motion.div>

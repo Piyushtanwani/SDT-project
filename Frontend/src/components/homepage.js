@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { SiPython, SiMysql, SiMongodb, SiRust, SiCplusplus } from "react-icons/si";
@@ -32,14 +32,7 @@ export const HomePage = () => {
 
   const apiUrl = API_BASE_URL;
 
-  useEffect(() => {
-    if (!hasFetched.current) {
-      hasFetched.current = true;
-      fetchCourses();
-    }
-  }, []);
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await axios.get(`${apiUrl}/course/getCourses`);
       setCourses(response.data);
@@ -48,7 +41,14 @@ export const HomePage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl]);
+
+  useEffect(() => {
+    if (!hasFetched.current) {
+      hasFetched.current = true;
+      fetchCourses();
+    }
+  }, [fetchCourses]);
 
   const courseIcons = {
     python: <SiPython size={40} />,
@@ -84,7 +84,7 @@ export const HomePage = () => {
           <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center">
               <FaBookOpen className="mr-1" />
-              {course.modulesCount || ((Number(course.id) || 1) % 6 + 6)} modules
+              {course.modulesCount ?? 0} modules
             </span>
             
             <div className="flex items-center">

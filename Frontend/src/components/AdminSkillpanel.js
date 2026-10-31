@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import Sidebar from "./AdminSlidebar";
 import { X, Trash2, Edit, Plus, Search } from "lucide-react";
 
@@ -14,15 +14,31 @@ export const AdminSkillPanel = () => {
   const [newSkillName, setNewSkillName] = useState("");
   const [editSkillId, setEditSkillId] = useState(null);
   const [editSkillName, setEditSkillName] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const apiUrl =
     process.env.REACT_APP_ENV === "production"
       ? process.env.REACT_APP_LIVE_API
       : process.env.REACT_APP_LOCAL_API;
 
+  const fetchSkills = useCallback(async () => {
+    try {
+      setLoadError("");
+      const response = await axios.get(`${apiUrl}/api/skills`);
+      setSkills(response.data);
+      setFilteredSkills(response.data);
+    } catch (error) {
+      setLoadError("Could not load skills. Please try again.");
+    }
+  }, [apiUrl]);
+
   useEffect(() => {
     fetchSkills();
-  }, []);
+  }, [fetchSkills]);
 
   useEffect(() => {
     setFilteredSkills(
@@ -32,57 +48,75 @@ export const AdminSkillPanel = () => {
     );
   }, [searchQuery, skills]);
 
-  const fetchSkills = async () => {
-    try {
-      const response = await axios.get(`${apiUrl}/api/skills`);
-      setSkills(response.data);
-      setFilteredSkills(response.data);
-    } catch (error) {
-      console.error("Error fetching skills:", error);
-    }
-  };
-
   const handleCreateSkill = async () => {
-    if (!newSkillName.trim()) return;
+    const name = newSkillName.trim();
+    if (!name) {
+      setModalError("Enter a skill name.");
+      return;
+    }
     try {
-      const response = await axios.post(`${apiUrl}/api/skills`, {
-        name: newSkillName,
-      });
+      setIsSaving(true);
+      setModalError("");
+      const response = await axios.post(`${apiUrl}/api/skills`, { name });
       if (response.data.success) {
         setNewSkillName("");
         setIsModalOpen(false);
         fetchSkills();
+      } else {
+        setModalError(response.data.message || "Could not create skill.");
       }
     } catch (error) {
-      console.error("Error creating skill:", error);
+      setModalError(
+        error.response?.data?.message || "Could not create skill. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleUpdateSkill = async () => {
-    if (!editSkillName.trim() || !editSkillId) return;
+    const name = editSkillName.trim();
+    if (!name) {
+      setModalError("Enter a skill name.");
+      return;
+    }
     try {
+      setIsSaving(true);
+      setModalError("");
       const response = await axios.put(`${apiUrl}/api/skills/${editSkillId}`, {
-        name: editSkillName,
+        name,
       });
       if (response.data.success) {
         setEditSkillId(null);
         setEditSkillName("");
         setIsModalOpen(false);
         fetchSkills();
+      } else {
+        setModalError(response.data.message || "Could not update skill.");
       }
     } catch (error) {
-      console.error("Error updating skill:", error);
+      setModalError(
+        error.response?.data?.message || "Could not update skill. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDeleteSkill = async () => {
     if (!selectedSkillId) return;
     try {
+      setIsDeleting(true);
+      setConfirmError("");
       await axios.delete(`${apiUrl}/api/skills/${selectedSkillId}`);
       setIsConfirmOpen(false);
       fetchSkills();
     } catch (error) {
-      console.error("Error deleting skill:", error);
+      setConfirmError(
+        error.response?.data?.message || "Could not delete skill. Please try again."
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -109,6 +143,7 @@ export const AdminSkillPanel = () => {
             onClick={() => {
               setEditSkillId(null);
               setNewSkillName("");
+              setModalError("");
               setIsModalOpen(true);
             }}
             className="flex items-center gap-2 py-2 px-4 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
@@ -135,6 +170,7 @@ export const AdminSkillPanel = () => {
                   onClick={() => {
                     setEditSkillId(skill.id);
                     setEditSkillName(skill.name);
+                    setModalError("");
                     setIsModalOpen(true);
                   }}
                   className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2"
@@ -147,6 +183,7 @@ export const AdminSkillPanel = () => {
                 <button
                   onClick={() => {
                     setSelectedSkillId(skill.id);
+                    setConfirmError("");
                     setIsConfirmOpen(true);
                   }}
                   className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center"
@@ -160,7 +197,21 @@ export const AdminSkillPanel = () => {
           ))}
           {filteredSkills.length === 0 && (
             <div className="col-span-full text-center py-10">
-              <p className="text-gray-500 dark:text-gray-400 text-lg">No skills found.</p>
+              {loadError ? (
+                <>
+                  <p className="text-red-600 dark:text-red-400 text-lg mb-4" role="alert">
+                    {loadError}
+                  </p>
+                  <button
+                    onClick={fetchSkills}
+                    className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-lg">No skills found.</p>
+              )}
             </div>
           )}
         </div>
@@ -190,6 +241,11 @@ export const AdminSkillPanel = () => {
                   placeholder="Enter skill name"
                   className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 dark:bg-gray-700 focus:outline-none focus:border-indigo-500"
                 />
+                {modalError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {modalError}
+                  </p>
+                )}
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setIsModalOpen(false)}
@@ -199,9 +255,10 @@ export const AdminSkillPanel = () => {
                   </button>
                   <button
                     onClick={editSkillId ? handleUpdateSkill : handleCreateSkill}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {editSkillId ? "Update" : "Create"}
+                    {isSaving ? "Saving..." : editSkillId ? "Update" : "Create"}
                   </button>
                 </div>
               </div>
@@ -216,6 +273,11 @@ export const AdminSkillPanel = () => {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">
                   Are you sure you want to delete this skill?
                 </h2>
+                {confirmError && (
+                  <p className="mb-4 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {confirmError}
+                  </p>
+                )}
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsConfirmOpen(false)}
@@ -225,9 +287,10 @@ export const AdminSkillPanel = () => {
                   </button>
                   <button
                     onClick={handleDeleteSkill}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Delete
+                    {isDeleting ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>

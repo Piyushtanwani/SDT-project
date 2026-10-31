@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Menu, X, Send, Square, Volume2, Save, Trash, Palette, Mic, ChevronDown, Code } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { API_BASE_URL } from "../config/api";
+
+const AI_SERVICE_URL =
+  process.env.REACT_APP_AI_SERVICE_URL || "https://ai.bitecodes.com/api/generate";
+const AI_TIMEOUT_MS = 20000;
 
 // Simplified language detection - uses first line as language identifier
 const detectLanguage = (firstLine) => {
@@ -75,7 +80,6 @@ const LearnWithoutLimitsAI = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [progress, setProgress] = useState({ topics: [] });
   const [showActions, setShowActions] = useState(false);
   const [streamingState, setStreamingState] = useState({
     tempText: "",
@@ -84,6 +88,7 @@ const LearnWithoutLimitsAI = () => {
     isInCodeBlock: false,
   });
   const [showCodeSections, setShowCodeSections] = useState({});
+  const [channels, setChannels] = useState(null);
 
   const chatContainerRef = useRef(null);
   const controllerRef = useRef(null);
@@ -91,7 +96,6 @@ const LearnWithoutLimitsAI = () => {
   const recognitionRef = useRef(null);
   const localStorageKey = "LearnWithoutLimitsChat";
   const historyStorageKey = "LearnWithoutLimitsHistory";
-  const progressStorageKey = "LearnWithoutLimitsProgress";
 
   // Extract code blocks from text (simplified version)
   const extractCodeFromText = (text) => {
@@ -221,13 +225,47 @@ const LearnWithoutLimitsAI = () => {
     }, 2000);
   };
 
+  // Load messaging channel links (Telegram / WhatsApp) when the server has them configured
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/api/assistant/channels`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setChannels(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Deterministic fallback used whenever the external AI service is unavailable
+  const askOfflineAssistant = async (text) => {
+    const response = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+    if (!response.ok) throw new Error(`Assistant responded with ${response.status}`);
+    const data = await response.json();
+    if (!data?.reply) throw new Error("Empty assistant reply");
+    return `Offline study assistant (AI service unavailable)\n\n${data.reply}`;
+  };
+
   const generate = async () => {
     if (!message.trim()) return;
     const userMessage = message;
     setMessage("");
     setLoading(true);
     appendMessage(userMessage, "user-message");
-    controllerRef.current = new AbortController();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    let timedOut = false;
+    let placeholderAdded = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, AI_TIMEOUT_MS);
     setStreamingState({
       tempText: "",
       currentCodeBlock: "",
@@ -236,11 +274,11 @@ const LearnWithoutLimitsAI = () => {
     });
 
     try {
-      const response = await fetch("https://ai.bitecodes.com/api/generate", {
+      const response = await fetch(AI_SERVICE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "stable-code:3b", prompt: userMessage, stream: true }),
-        signal: controllerRef.current.signal,
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error("Failed to fetch response");
@@ -248,6 +286,7 @@ const LearnWithoutLimitsAI = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       appendMessage("", "ai-message", null, true);
+      placeholderAdded = true;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -344,16 +383,37 @@ const LearnWithoutLimitsAI = () => {
       }
     } catch (error) {
       console.error("Generate error:", error);
-      if (error.name === "AbortError") {
-        const { code, text } = extractCodeFromText(
-          streamingState.tempText +
-            (streamingState.isInCodeBlock ? `\`\`\`${streamingState.codeLanguage}\n${streamingState.currentCodeBlock}\n\`\`\`` : "")
-        );
-        updateLastMessage(text, code, false);
+      if (error.name === "AbortError" && !timedOut) {
+        if (placeholderAdded) {
+          const { code, text } = extractCodeFromText(
+            streamingState.tempText +
+              (streamingState.isInCodeBlock ? `\`\`\`${streamingState.codeLanguage}\n${streamingState.currentCodeBlock}\n\`\`\`` : "")
+          );
+          updateLastMessage(text || "Generation stopped.", code, false);
+        }
       } else {
-        appendMessage("⚠️ An error occurred. Please try again.", "ai-message");
+        try {
+          const reply = await askOfflineAssistant(userMessage);
+          if (placeholderAdded) {
+            updateLastMessage(reply, null, false);
+          } else {
+            appendMessage(reply, "ai-message");
+          }
+          showToast("AI offline: answered by the built-in assistant");
+        } catch (fallbackError) {
+          console.error("Offline assistant error:", fallbackError);
+          const failure =
+            "The AI service is unavailable and the built-in assistant could not be reached. " +
+            "Please check your connection and try again.";
+          if (placeholderAdded) {
+            updateLastMessage(failure, null, false);
+          } else {
+            appendMessage(failure, "ai-message");
+          }
+        }
       }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
       controllerRef.current = null;
       setStreamingState({
@@ -576,6 +636,28 @@ const LearnWithoutLimitsAI = () => {
               >
                 Learn Without Limits AI
               </motion.h1>
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              {channels?.telegram?.url && (
+                <a
+                  href={channels.telegram.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                >
+                  Telegram
+                </a>
+              )}
+              {channels?.whatsapp?.url && (
+                <a
+                  href={channels.whatsapp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                >
+                  WhatsApp
+                </a>
+              )}
             </div>
           </header>
 

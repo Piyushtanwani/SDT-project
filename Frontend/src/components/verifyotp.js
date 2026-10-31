@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiAlertCircle } from "react-icons/fi";
+import { API_BASE_URL } from "../config/api";
 
 export const VerifyOtp = () => {
   const location = useLocation();
@@ -12,13 +13,16 @@ export const VerifyOtp = () => {
   const [resendMessage, setResendMessage] = useState("");
   const [isResending, setIsResending] = useState(false);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
+
+  useEffect(() => {
+    if (!email) {
+      navigate("/register", { replace: true });
+    }
+  }, [email, navigate]);
 
   const handleOtpChange = (e) => {
-    setOtp(e.target.value);
+    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
   };
 
   const handleSubmit = async (e) => {
@@ -101,6 +105,8 @@ export const VerifyOtp = () => {
             onChange={handleOtpChange}
             placeholder="Enter OTP"
             maxLength="6"
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-full px-4 py-3 border rounded-xl text-center text-lg tracking-widest bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 outline-none"
           />
           <motion.button

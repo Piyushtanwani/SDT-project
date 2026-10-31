@@ -21,6 +21,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.elearning.services.CustomUserDetailsService;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -68,6 +70,11 @@ public class SecurityConfig {
                                 "/api/certificates/credential/**",
                                 "/api/certificates/leaderboard"
                         ).permitAll()
+                        // Public offline assistant and messaging webhooks (webhooks authenticate themselves)
+                        .requestMatchers(
+                                "/api/assistant/**",
+                                "/webhooks/**"
+                        ).permitAll()
                         // Public WebSocket handshake & docs / static assets
                         .requestMatchers(
                                 "/ws/**",
@@ -99,6 +106,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/skills/**").hasRole("ADMIN")
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"success\":false,\"message\":\"Authentication required.\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"success\":false,\"message\":\"You do not have permission to perform this action.\"}");
+                        })
                 )
                 .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { motion } from "framer-motion";
+import formatRole from "../utils/formatRole";
 
 export const Connections = () => {
   const navigate = useNavigate();
@@ -9,8 +10,12 @@ export const Connections = () => {
   const token = sessionStorage.getItem("authToken");
   const [acceptedConnections, setAcceptedConnections] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [newConnectionId, setNewConnectionId] = useState("");
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [usersError, setUsersError] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedConnection, setSelectedConnection] = useState(null);
 
@@ -19,89 +24,115 @@ export const Connections = () => {
       ? process.env.REACT_APP_LIVE_API
       : process.env.REACT_APP_LOCAL_API;
 
-  useEffect(() => {
-    const fetchConnections = async () => {
-      try {
-        if (!userId || !token) {
-          setError("Please log in to view your connections.");
-          navigate("/");
-          return;
-        }
+  const loadConnections = useCallback(async () => {
+    if (!userId || !token) {
+      setError("Please log in to view your connections.");
+      navigate("/");
+      return;
+    }
 
-        const acceptedResponse = await axios.get(`${apiUrl}/api/auth/connections/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setAcceptedConnections(acceptedResponse.data);
+    setIsLoading(true);
+    setError("");
+    try {
+      const acceptedResponse = await axios.get(`${apiUrl}/api/auth/connections/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setAcceptedConnections(acceptedResponse.data);
 
-        const pendingResponse = await axios.get(`${apiUrl}/api/auth/pending/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setPendingRequests(pendingResponse.data);
+      const pendingResponse = await axios.get(`${apiUrl}/api/auth/pending/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPendingRequests(pendingResponse.data);
 
-        if (acceptedResponse.data.length > 0) {
-          setSelectedConnection(acceptedResponse.data[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching connections:", error);
-        setError("Failed to load connections. Using mock data.");
-        setAcceptedConnections([
-          {
-            id: 2,
-            username: "johndoe",
-            name: "John Doe",
-            profileurl: "https://webcrumbs.cloud/placeholder",
-            role: "Software Developer",
-            skills: ["JavaScript", "Python"],
-            bio: "Passionate coder and tech enthusiast.",
-          },
-        ]);
-        setPendingRequests([
-          {
-            connectionId: 1,
-            id: 3,
-            username: "janedoe",
-            name: "Jane Doe",
-            profileurl: "https://webcrumbs.cloud/placeholder",
-            role: "Data Scientist",
-            skills: ["Python"],
-            bio: "Loves data and AI.",
-          },
-        ]);
-        setSelectedConnection({
-          id: 2,
-          username: "johndoe",
-          name: "John Doe",
-          profileurl: "https://webcrumbs.cloud/placeholder",
-          role: "Software Developer",
-          skills: ["JavaScript", "Python"],
-          bio: "Passionate coder and tech enthusiast.",
-        });
-      } finally {
-        setIsLoading(false);
+      if (acceptedResponse.data.length > 0) {
+        setSelectedConnection(acceptedResponse.data[0]);
       }
-    };
+    } catch (error) {
+      console.error("Error fetching connections:", error);
+      setError(error.response?.data?.message || "Unable to load your connections. Please try again.");
+      setAcceptedConnections([]);
+      setPendingRequests([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiUrl, navigate, token, userId]);
 
-    fetchConnections();
-  }, [userId, token, apiUrl, navigate]);
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
+
+  const loadAvailableUsers = useCallback(async () => {
+    if (!userId || !token) {
+      setIsLoadingUsers(false);
+      return;
+    }
+    setIsLoadingUsers(true);
+    setUsersError("");
+    try {
+      const [response, statusResponse] = await Promise.all([
+        axios.get(`${apiUrl}/api/auth/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`${apiUrl}/api/auth/connection-status/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const users = Array.isArray(response.data) ? response.data : [];
+      const connectedIds = new Set(
+        Object.keys(statusResponse.data?.statuses || {})
+      );
+      setAvailableUsers(
+        users
+          .filter(
+            (candidate) =>
+              Number(candidate.id) !== Number(userId) &&
+              !connectedIds.has(String(candidate.id))
+          )
+          .sort((a, b) =>
+            (a.name || a.username || "").localeCompare(b.name || b.username || "")
+          )
+      );
+    } catch (err) {
+      console.error("Error fetching community members:", err);
+      setAvailableUsers([]);
+      setUsersError("Could not load community members. Use the Community page to find people.");
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, [apiUrl, token, userId]);
+
+  useEffect(() => {
+    loadAvailableUsers();
+  }, [loadAvailableUsers]);
 
   const handleSendConnectionRequest = async (e) => {
     e.preventDefault();
-    if (!newConnectionId) return;
+    if (!selectedUserId) return;
 
     try {
       await axios.post(
         `${apiUrl}/api/auth/connect`,
-        { senderId: userId, receiverId: parseInt(newConnectionId) },
+        { senderId: userId, receiverId: parseInt(selectedUserId) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setNewConnectionId("");
+      const target = availableUsers.find(
+        (candidate) => Number(candidate.id) === Number(selectedUserId)
+      );
+      setNotice(
+        `Connection request sent${target ? ` to ${target.name || target.username}` : ""}.`
+      );
+      setSelectedUserId("");
       setError("");
+      setAvailableUsers((prev) =>
+        prev.filter((candidate) => Number(candidate.id) !== Number(selectedUserId))
+      );
       const pendingResponse = await axios.get(`${apiUrl}/api/auth/pending/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPendingRequests(pendingResponse.data);
     } catch (error) {
       console.error("Error sending connection request:", error);
+      setNotice("");
       setError(error.response?.data?.message || "Failed to send connection request.");
     }
   };
@@ -169,20 +200,43 @@ export const Connections = () => {
                   Connect with Someone
                 </h2>
                 <form onSubmit={handleSendConnectionRequest} className="flex flex-col gap-3">
-                  <input
-                    type="number"
-                    value={newConnectionId}
-                    onChange={(e) => setNewConnectionId(e.target.value)}
-                    placeholder="Enter user ID"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none text-sm"
-                  />
+                  <select
+                    aria-label="Select a community member"
+                    value={selectedUserId}
+                    onChange={(e) => {
+                      setSelectedUserId(e.target.value);
+                      setNotice("");
+                    }}
+                    disabled={isLoadingUsers || availableUsers.length === 0}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none text-sm disabled:opacity-60"
+                  >
+                    <option value="">
+                      {isLoadingUsers
+                        ? "Loading members..."
+                        : availableUsers.length > 0
+                          ? "Select a community member"
+                          : "No new members available"}
+                    </option>
+                    {availableUsers.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name
+                          ? `${candidate.name} (@${candidate.username})`
+                          : `@${candidate.username}`}
+                      </option>
+                    ))}
+                  </select>
+                  {usersError && (
+                    <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                      {usersError}
+                    </p>
+                  )}
                   <motion.button
                     type="submit"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    disabled={!newConnectionId}
+                    disabled={!selectedUserId}
                     className={`w-full py-2 rounded-lg text-white text-sm font-medium transition-colors ${
-                      newConnectionId
+                      selectedUserId
                         ? "bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700"
                         : "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
                     }`}
@@ -190,6 +244,18 @@ export const Connections = () => {
                     Send Request
                   </motion.button>
                 </form>
+                <button
+                  type="button"
+                  onClick={() => navigate("/community")}
+                  className="mt-3 w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Browse members in the Community
+                </button>
+                {notice && (
+                  <p className="mt-3 text-sm text-green-600 dark:text-green-400" role="status">
+                    {notice}
+                  </p>
+                )}
               </div>
 
               {/* Pending Requests */}
@@ -329,9 +395,9 @@ export const Connections = () => {
                       <p className="text-gray-500 dark:text-gray-400 text-sm">
                         @{selectedConnection.username}
                       </p>
-                      {selectedConnection.role && (
+                      {formatRole(selectedConnection.role) && (
                         <p className="text-gray-600 dark:text-gray-300 text-sm mt-1">
-                          {selectedConnection.role}
+                          {formatRole(selectedConnection.role)}
                         </p>
                       )}
                     </div>
@@ -391,9 +457,15 @@ export const Connections = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mt-6 flex items-center justify-center text-red-600 dark:text-red-400 text-sm"
+            className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-red-600 dark:text-red-400 text-sm"
           >
             <span>{error}</span>
+            <button
+              onClick={loadConnections}
+              className="px-3 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs"
+            >
+              Try again
+            </button>
           </motion.div>
         )}
       </motion.div>

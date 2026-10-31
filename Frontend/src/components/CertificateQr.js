@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiAlertCircle, FiAward, FiCalendar, FiCheckCircle, FiHash } from "react-icons/fi";
+import { API_BASE_URL } from "../config/api";
 
 export const CertificateQr = () => {
   const { credentialId } = useParams();
@@ -9,32 +10,20 @@ export const CertificateQr = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
     const fetchCertificate = async () => {
       try {
         const certResponse = await fetch(`${apiUrl}/api/certificates/credential/${credentialId}`);
-        const certText = await certResponse.text();
-        if (!certText) throw new Error("Certificate not found");
+        if (!certResponse.ok) {
+          throw new Error(certResponse.status === 404 ? "Certificate not found" : "Verification service unavailable");
+        }
 
-        const certData = JSON.parse(certText);
-        const userResponse = await fetch(`${apiUrl}/api/auth/getUsername/${certData.userId}`);
-        const userText = await userResponse.text();
-        if (!userText) throw new Error("User not found");
+        const certData = await certResponse.json();
+        if (!certData?.credentialId) throw new Error("Certificate not found");
 
-        const courseResponse = await fetch(`${apiUrl}/course/getCourseName/${certData.courseId}`);
-        const courseText = await courseResponse.text();
-        if (!courseText) throw new Error("Course not found");
-
-        setCertificate({
-          ...certData,
-          userFirstName: userText,
-          courseName: courseText,
-        });
+        setCertificate(certData);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -69,7 +58,7 @@ export const CertificateQr = () => {
             className="bg-gradient-to-br from-blue-50 to-purple-100 dark:from-gray-900 dark:to-indigo-900/30 p-6 rounded-xl border border-blue-200 dark:border-gray-600 shadow-md"
           >
             <div className="text-center space-y-4">
-              <h2 className="text-3xl font-serif font-bold text-blue-800 dark:text-blue-300">{certificate.userFirstName}</h2>
+              <h2 className="text-3xl font-serif font-bold text-blue-800 dark:text-blue-300">{certificate.holderName}</h2>
               <p className="text-gray-700 dark:text-gray-300 text-lg">has successfully completed</p>
 
               <div className="bg-white dark:bg-gray-700 p-4 rounded-lg shadow-inner">
@@ -110,10 +99,10 @@ export const CertificateQr = () => {
               <span className="block sm:inline text-center sm:text-left">
                 <strong>Verify at:</strong>
                 <a
-                  href="https://elearning.bitecodes.com/credential-verify"
+                  href={`${window.location.origin}/credential-verify`}
                   className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
                 >
-                  elearning.bitecodes.com/credential-verify
+                  {window.location.host}/credential-verify
                 </a>
               </span>
               <span className="block sm:inline text-center sm:text-right mt-2 sm:mt-0">
@@ -129,7 +118,7 @@ export const CertificateQr = () => {
             className="text-center p-5 bg-red-50 dark:bg-red-900/30 rounded-xl mt-4 flex items-center justify-center gap-3"
           >
             <FiAlertCircle className="text-red-600 dark:text-red-400 w-6 h-6" />
-            <span className="text-red-700 dark:text-red-300 text-lg font-medium">No certificate found for this ID</span>
+            <span className="text-red-700 dark:text-red-300 text-lg font-medium">{error || "No certificate found for this ID"}</span>
           </motion.div>
         )}
       </motion.div>

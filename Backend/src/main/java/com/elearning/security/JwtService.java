@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,8 +21,16 @@ public class JwtService {
     private final long expirationTime;
 
     public JwtService(
-            @Value("${app.jwt.secret:ismailkaranhamzahabcd12349999zahabcd12349999d12349999}") String secretKey,
+            @Value("${app.jwt.secret:}") String secretKey,
             @Value("${app.jwt.expiration-ms:86400000}") long expirationTime) {
+        if (secretKey == null || secretKey.isBlank()) {
+            // Development fallback: rotate on every restart rather than ship a known key.
+            byte[] generated = new byte[32];
+            new SecureRandom().nextBytes(generated);
+            secretKey = Base64.getEncoder().encodeToString(generated);
+            System.err.println("WARN: app.jwt.secret is not set. Generated an ephemeral signing key; "
+                    + "existing sessions will be invalidated on restart.");
+        }
         this.secretKey = secretKey;
         this.expirationTime = expirationTime;
     }

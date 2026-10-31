@@ -7,9 +7,13 @@ import org.springframework.stereotype.Service;
 import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class RegistrationService {
@@ -18,6 +22,9 @@ public class RegistrationService {
     private final OtpService otpService;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private final Map<String, Integer> failedOtpAttempts = new ConcurrentHashMap<>();
 
     @Autowired
     public RegistrationService(
@@ -32,21 +39,43 @@ public class RegistrationService {
     }
 
     public boolean validUser(User user) {
-        User existingEmail = userRepository.findByEmail(user.getEmail()).orElse(null);
-        User existingUserName = userRepository.findByUsername(user.getUsername()).orElse(null);
-        if (existingEmail == null && existingUserName == null) {
-            return true;
+        if (user.getEmail() == null || user.getUsername() == null) {
+            return false;
+        }
+        User existingEmail = userRepository.findByEmailIgnoreCase(user.getEmail().trim()).orElse(null);
+        User existingUserName = userRepository.findByUsernameIgnoreCase(user.getUsername().trim()).orElse(null);
+
+        // A username or phone number belongs to at most one account, regardless of whether
+        // that account has verified its email yet.
+        if (existingUserName != null && !sameAccount(existingEmail, existingUserName)) {
+            return false;
+        }
+        if (user.getPhonenum() != null && !user.getPhonenum().isBlank()) {
+            User existingPhone = userRepository.findByPhonenum(user.getPhonenum().trim()).orElse(null);
+            if (existingPhone != null && !sameAccount(existingEmail, existingPhone)) {
+                return false;
+            }
         }
 
-        if ((existingEmail != null && !existingEmail.isEnabled()) || (existingUserName != null && !existingUserName.isEnabled())) {
-            return true;
-        }
+        return existingEmail == null || !existingEmail.isEnabled();
+    }
 
-        return false;
+    private static boolean sameAccount(User emailOwner, User other) {
+        return emailOwner != null && other != null && emailOwner.getId() != null
+                && emailOwner.getId().equals(other.getId());
     }
 
     public void registerUser(User user) {
-        Optional<User> existingUserOptional = userRepository.findByEmail(user.getEmail());
+        Optional<User> existingUserOptional = userRepository.findByEmailIgnoreCase(user.getEmail().trim());
+        user.setEmail(user.getEmail().trim());
+        if (user.getUsername() != null) {
+            user.setUsername(user.getUsername().trim());
+        }
+        if (user.getPhonenum() != null) {
+            String phone = user.getPhonenum().trim();
+            user.setPhonenum(phone.isEmpty() ? null : phone);
+        }
+        resetOtpAttempts(user.getEmail());
 
         String otp = otpService.generateOtp();
         LocalDateTime otpExpiry = otpService.getOtpExpiryTime();
@@ -94,26 +123,48 @@ public class RegistrationService {
     }
 
     public boolean verifyOtp(String email, String otp) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        if (user.getOtp() != null && user.getOtp().equals(otp) &&
-                user.getOtpExpiry() != null && user.getOtpExpiry().isAfter(LocalDateTime.now())) {
-            user.setEnabled(true);
-            user.setOtp(null);
-            user.setOtpExpiry(null);
-            userRepository.save(user);
-
-            CompletableFuture.runAsync(() -> {
-                try {
-                    sendRegistrationSuccessEmail(user.getEmail());
-                } catch (Exception e) {
-                    System.err.println("Async success email failed: " + e.getMessage());
-                }
-            });
-            return true;
+        if (email == null || otp == null) {
+            return false;
         }
-        return false;
+        String attemptKey = email.trim().toLowerCase();
+        if (failedOtpAttempts.getOrDefault(attemptKey, 0) >= MAX_OTP_ATTEMPTS) {
+            return false;
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(email.trim()).orElse(null);
+        boolean matches = user != null
+                && user.getOtp() != null
+                && MessageDigest.isEqual(
+                        user.getOtp().getBytes(StandardCharsets.UTF_8),
+                        otp.trim().getBytes(StandardCharsets.UTF_8))
+                && user.getOtpExpiry() != null
+                && user.getOtpExpiry().isAfter(LocalDateTime.now());
+
+        if (!matches) {
+            failedOtpAttempts.merge(attemptKey, 1, Integer::sum);
+            return false;
+        }
+
+        failedOtpAttempts.remove(attemptKey);
+        user.setEnabled(true);
+        user.setOtp(null);
+        user.setOtpExpiry(null);
+        userRepository.save(user);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                sendRegistrationSuccessEmail(user.getEmail());
+            } catch (Exception e) {
+                System.err.println("Async success email failed: " + e.getMessage());
+            }
+        });
+        return true;
+    }
+
+    public void resetOtpAttempts(String email) {
+        if (email != null) {
+            failedOtpAttempts.remove(email.trim().toLowerCase());
+        }
     }
 
     private void sendRegistrationSuccessEmail(String email) {

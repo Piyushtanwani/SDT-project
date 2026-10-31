@@ -4,6 +4,9 @@ import { motion } from "framer-motion";
 import { TrophyIcon, CalendarDaysIcon, CheckBadgeIcon } from "@heroicons/react/24/solid";
 import { getAuthHeaders } from "../config/api";
 
+const PASSING_SCORE = 80;
+const CERTIFICATE_FEE_INR = 50;
+
 export const UserAttempts = () => {
   const [attempts, setAttempts] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -63,64 +66,77 @@ export const UserAttempts = () => {
     return course ? course.name : "Unknown Course";
   };
 
+  const issueCertificate = async (attempt) => {
+    const certParams = new URLSearchParams({
+      userId: attempt.userId,
+      courseId: attempt.courseId,
+    });
+    const response = await fetch(`${apiUrl}/api/certificates?${certParams.toString()}`, {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "Certificate issuance failed.");
+    }
+    return response.json();
+  };
+
   const handlePayment = async (attempt) => {
     try {
-      const params = new URLSearchParams({
-        userId: attempt.userId,
-        amount: 50,
-        paymentMethod: "UPI",
-        upiId: "user@upi",
-        appName: "PhonePe",
-      });
+      const params = new URLSearchParams({ userId: attempt.userId });
 
       const paymentResponse = await fetch(`${apiUrl}/payments/initiate?${params.toString()}`, {
         method: "POST",
         headers: { ...getAuthHeaders() },
       });
 
-      const result = await paymentResponse.json();
-      if (!result.transactionId) {
-        alert("Payment initiation failed. Please try again.");
+      const result = await paymentResponse.json().catch(() => ({}));
+
+      if (paymentResponse.status === 503) {
+        // Payments are unavailable; passing learners can still issue their certificate.
+        await issueCertificate(attempt);
+        alert("Payments are not configured on this server. Your certificate was issued without a fee.");
+        navigate("/certificates");
+        return;
+      }
+
+      if (!paymentResponse.ok || !result.transactionId) {
+        alert(result.message || "Payment initiation failed. Please try again.");
+        return;
+      }
+
+      if (!window.Razorpay) {
+        alert("The payment window could not load. Please disable any blockers and try again.");
         return;
       }
 
       const options = {
         key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_mQf2cASnEwehms",
-        amount: 5000,
+        amount: CERTIFICATE_FEE_INR * 100,
         currency: "INR",
         name: "Learn Without Limits",
         description: "Certificate Issuance Verification",
         order_id: result.transactionId,
         handler: async function (response) {
           try {
-            const verifyResponse = await fetch(`${apiUrl}/payments/verify`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...getAuthHeaders(),
-              },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id || result.transactionId,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
+            const verifyParams = new URLSearchParams({
+              razorpay_order_id: response.razorpay_order_id || result.transactionId,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
             });
 
-            if (!verifyResponse.ok) {
-              const errData = await verifyResponse.json();
-              throw new Error(errData.message || "Payment verification failed on server");
-            }
-
-            const certParams = new URLSearchParams({
-              userId: attempt.userId,
-              courseId: attempt.courseId,
-              score: attempt.score,
-            });
-
-            await fetch(`${apiUrl}/api/certificates?${certParams.toString()}`, {
+            const verifyResponse = await fetch(`${apiUrl}/payments/verify?${verifyParams.toString()}`, {
               method: "POST",
               headers: { ...getAuthHeaders() },
             });
+
+            if (!verifyResponse.ok) {
+              const errData = await verifyResponse.json().catch(() => ({}));
+              throw new Error(errData.message || "Payment verification failed on server");
+            }
+
+            await issueCertificate(attempt);
 
             alert("Payment Verified! Certificate Issued Successfully.");
             navigate("/certificates");
@@ -211,7 +227,7 @@ export const UserAttempts = () => {
                     <TrophyIcon className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                     <span
                       className={`text-sm font-medium ${
-                        attempt.score >= 70 ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"
+                        attempt.score >= PASSING_SCORE ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"
                       }`}
                     >
                       {attempt.score}% Score
@@ -231,14 +247,14 @@ export const UserAttempts = () => {
                         <CheckBadgeIcon className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
                         Certificate Issued
                       </div>
-                    ) : attempt.score >= 70 ? (
+                    ) : attempt.score >= PASSING_SCORE ? (
                       <motion.button
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => handlePayment(attempt)}
                         className="w-full bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-700 dark:to-blue-700 text-white py-2.5 rounded-xl text-sm font-medium shadow-md hover:shadow-lg transition-all"
                       >
-                        Get Certificate - ₹49
+                        Get Certificate - ₹{CERTIFICATE_FEE_INR}
                       </motion.button>
                     ) : (
                       <div className="flex items-center justify-center gap-2 bg-rose-100/80 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 py-2.5 rounded-xl text-sm">

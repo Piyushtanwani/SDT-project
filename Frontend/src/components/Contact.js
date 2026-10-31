@@ -9,9 +9,13 @@ import React, { useState } from "react";
 
 export const Contact = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setIsSending(true);
     const formData = new FormData(e.target);
 
     try {
@@ -24,9 +28,14 @@ export const Contact = () => {
         setIsSubmitted(true);
         e.target.reset();
         setTimeout(() => setIsSubmitted(false), 2500);
+      } else {
+        setError("We couldn't send your message right now. Please email us at bitecodes.global@gmail.com.");
       }
     } catch (error) {
       console.error("Form submission error:", error);
+      setError("We couldn't send your message right now. Please email us at bitecodes.global@gmail.com.");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -126,9 +135,17 @@ export const Contact = () => {
                   />
                 </div>
 
-                <button className="w-full bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-3 rounded-lg transform hover:scale-105 transition-all duration-200">
-                  Send Message
+                <button
+                  disabled={isSending}
+                  className="w-full bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-3 rounded-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {isSending ? "Sending..." : "Send Message"}
                 </button>
+                {error && (
+                  <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                    {error}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-8">
@@ -184,14 +201,16 @@ export const Contact = () => {
                   <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Follow Us</h3>
                   <div className="flex space-x-4">
                     <a
-                      href="/"
+                      href="/socialmedia"
                       className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      aria-label="Facebook (coming soon)"
                     >
                       <FontAwesomeIcon icon={faFacebookF} className="text-gray-600 dark:text-gray-400" />
                     </a>
                     <a
-                      href="/"
+                      href="/socialmedia"
                       className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      aria-label="X (coming soon)"
                     >
                       <FontAwesomeIcon icon={faXTwitter} className="text-gray-600 dark:text-gray-400" />
                     </a>

@@ -7,10 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -26,15 +24,13 @@ class PaymentServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
 
-    @InjectMocks
     private PaymentService paymentService;
 
     private final String testKeySecret = "test_razorpay_secret_12345";
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(paymentService, "razorpaySecret", testKeySecret);
-        ReflectionTestUtils.setField(paymentService, "razorpayKey", "rzp_test_12345");
+        paymentService = new PaymentService(paymentRepository, "rzp_test_12345", testKeySecret);
     }
 
     private String generateSignature(String data, String secret) throws Exception {
@@ -91,5 +87,31 @@ class PaymentServiceTest {
         assertFalse(paymentService.verifyAndConfirmPayment("order_1", "pay_1", null));
         assertFalse(paymentService.verifyAndConfirmPayment("order_1", "pay_1", "   "));
         assertFalse(paymentService.verifyAndConfirmPayment(null, "pay_1", "sig"));
+    }
+
+    @Test
+    @DisplayName("SEC-06: Without configured keys every signature is rejected")
+    void testUnconfiguredServer_RejectsAllSignatures() throws Exception {
+        PaymentService unconfigured = new PaymentService(paymentRepository, "", "");
+        String orderId = "order_test_98765";
+        String paymentId = "pay_test_12345";
+
+        assertFalse(unconfigured.isConfigured());
+        assertFalse(unconfigured.verifySignature(orderId, paymentId, "any-signature-value"));
+        assertThrows(IllegalStateException.class, () ->
+                unconfigured.createPayment(1L, 50.0, "UPI", "user@upi", "PhonePe"));
+    }
+
+    @Test
+    @DisplayName("SEC-06: A verified SUCCESS payment cannot be downgraded or re-marked")
+    void testUpdatePaymentStatus_ProtectsVerifiedPayments() {
+        Payment success = new Payment();
+        success.setTransactionId("order_success");
+        success.setStatus("SUCCESS");
+        when(paymentRepository.findByTransactionId("order_success")).thenReturn(success);
+
+        assertEquals("Payment already verified successfully",
+                paymentService.updatePaymentStatus("order_success", "FAILED"));
+        verify(paymentRepository, never()).save(any());
     }
 }

@@ -29,7 +29,8 @@ public class CustomUserDetailsService implements org.springframework.security.co
 
         // Return UserDetails with authorities based on the role
         return new org.springframework.security.core.userdetails.User(
-                user.getEmail(), user.getPassword(), user.getAuthorities());
+                user.getEmail(), user.getPassword(), user.isEnabled(),
+                true, true, true, user.getAuthorities());
     }
 
 }

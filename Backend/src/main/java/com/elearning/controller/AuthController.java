@@ -12,17 +12,21 @@ import com.elearning.response_request.ConnectionUpdate;
 import com.elearning.response_request.LoginRequest;
 import com.elearning.response_request.LoginResponse;
 import com.elearning.response_request.OtpVerificationRequest;
+import com.elearning.response_request.PublicUserDTO;
 import com.elearning.response_request.UserUpdateDTO;
 import com.elearning.security.JwtService;
 import com.elearning.services.CustomUserDetailsService;
 import com.elearning.services.EmailService;
 import com.elearning.services.OtpService;
 import com.elearning.services.RegistrationService;
+import com.elearning.services.RequestThrottle;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -31,8 +35,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,8 +65,9 @@ public class AuthController {
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RequestThrottle requestThrottle;
 
-    @Value("${app.google.client-id:373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com}")
+    @Value("${app.google.client-id:}")
     private String googleClientId;
 
     @Autowired
@@ -72,7 +80,8 @@ public class AuthController {
             CustomUserDetailsService userDetailsService,
             SkillRepository skillRepository,
             ConnectionRepository connectionRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            RequestThrottle requestThrottle) {
         this.registrationService = registrationService;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -82,6 +91,7 @@ public class AuthController {
         this.skillRepository = skillRepository;
         this.connectionRepository = connectionRepository;
         this.passwordEncoder = passwordEncoder;
+        this.requestThrottle = requestThrottle;
     }
 
     @PutMapping("/update/{id}")
@@ -112,10 +122,38 @@ public class AuthController {
             }
 
             // Update basic fields
-            if (updatedUser.getUsername() != null) existingUser.setUsername(updatedUser.getUsername());
+            if (updatedUser.getUsername() != null) {
+                String username = updatedUser.getUsername().trim();
+                if (username.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(new ApiResponse(false, "Username cannot be empty."));
+                }
+                Optional<User> holder = userRepository.findByUsernameIgnoreCase(username);
+                if (holder.isPresent() && !holder.get().getId().equals(existingUser.getId())) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(new ApiResponse(false, "Username is already in use."));
+                }
+                existingUser.setUsername(username);
+            }
             if (updatedUser.getName() != null) existingUser.setName(updatedUser.getName());
             if (updatedUser.getProfileurl() != null) existingUser.setProfileurl(updatedUser.getProfileurl());
-            if (updatedUser.getPhonenum() != null) existingUser.setPhonenum(updatedUser.getPhonenum());
+            if (updatedUser.getPhonenum() != null) {
+                String phone = updatedUser.getPhonenum().trim();
+                if (phone.isEmpty()) {
+                    existingUser.setPhonenum(null);
+                } else {
+                    if (!phone.matches("^[0-9]{10,15}$")) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(new ApiResponse(false, "Phone number must be 10 to 15 digits."));
+                    }
+                    Optional<User> phoneHolder = userRepository.findByPhonenum(phone);
+                    if (phoneHolder.isPresent() && !phoneHolder.get().getId().equals(existingUser.getId())) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(new ApiResponse(false, "Phone number is already in use."));
+                    }
+                    existingUser.setPhonenum(phone);
+                }
+            }
             if (updatedUser.getState() != null) existingUser.setState(updatedUser.getState());
             if (updatedUser.getBio() != null) existingUser.setBio(updatedUser.getBio());
             if (updatedUser.getTimezone() != null) existingUser.setTimezone(updatedUser.getTimezone());
@@ -128,20 +166,30 @@ public class AuthController {
 
             // Only ADMIN can change role
             if (isAdmin && updatedUser.getRole() != null && !updatedUser.getRole().isBlank()) {
-                existingUser.setRole(updatedUser.getRole());
+                String role = updatedUser.getRole().trim().toUpperCase();
+                if (role.startsWith("ROLE_")) {
+                    role = role.substring(5);
+                }
+                if (!role.equals("USER") && !role.equals("ADMIN")) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .body(new ApiResponse(false, "Role must be USER or ADMIN."));
+                }
+                existingUser.setRole(role);
             }
 
-            // Update skills
-            List<Skill> updatedSkills = new ArrayList<>();
-            if (updatedUser.getSkillIds() != null && !updatedUser.getSkillIds().isEmpty()) {
-                List<Skill> foundSkills = skillRepository.findAllById(updatedUser.getSkillIds());
-                if (foundSkills.size() != updatedUser.getSkillIds().size()) {
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                            .body(new ApiResponse(false, "One or more skill IDs are invalid"));
+            // Update skills only when the client sends the field; omitting it must not erase them
+            if (updatedUser.getSkillIds() != null) {
+                List<Skill> updatedSkills = new ArrayList<>();
+                if (!updatedUser.getSkillIds().isEmpty()) {
+                    List<Skill> foundSkills = skillRepository.findAllById(updatedUser.getSkillIds());
+                    if (foundSkills.size() != updatedUser.getSkillIds().size()) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .body(new ApiResponse(false, "One or more skill IDs are invalid"));
+                    }
+                    updatedSkills.addAll(foundSkills);
                 }
-                updatedSkills.addAll(foundSkills);
+                existingUser.setSkills(updatedSkills);
             }
-            existingUser.setSkills(updatedSkills);
 
             userRepository.save(existingUser);
             return ResponseEntity.ok(new ApiResponse(true, "User updated successfully."));
@@ -149,8 +197,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
         } catch (Exception e) {
+            System.err.println("Profile update failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Update failed: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Update failed. Please try again."));
         }
     }
 
@@ -165,6 +214,11 @@ public class AuthController {
             String email = null;
             String name = null;
             String picture = null;
+
+            if (googleClientId == null || googleClientId.isBlank()) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(Map.of("success", false, "message", "Google sign-in is not configured on this server."));
+            }
 
             if (idTokenString != null && !idTokenString.isBlank()) {
                 try {
@@ -194,7 +248,7 @@ public class AuthController {
                         .body(Map.of("success", false, "message", "Google OAuth failed: Invalid or unverified Google token."));
             }
 
-            Optional<User> existingUser = userRepository.findByEmail(email);
+            Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
             User user;
 
             if (existingUser.isPresent()) {
@@ -236,35 +290,74 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(@RequestBody User user) {
+    public ResponseEntity<String> registerUser(@Valid @RequestBody User user) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration failed: Email is required.");
+        }
+        if (user.getUsername() == null || user.getUsername().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration failed: Username is required.");
+        }
+        if (user.getPassword() == null || user.getPassword().length() < 6) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Registration failed: Password must be at least 6 characters.");
+        }
+        if (user.getPassword().length() > 72) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Registration failed: Password must be at most 72 characters.");
+        }
         try {
             if (!registrationService.validUser(user)) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration failed: Email or Username Already Exist");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Registration failed: Email, username or phone number is already in use.");
             }
             registrationService.registerUser(user);
             return ResponseEntity.ok("User registered. Check your email for OTP.");
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration failed: " + e.getMessage());
+            System.err.println("Registration failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Registration failed. Please review your details and try again.");
         }
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<String> handleInvalidRegistration(MethodArgumentNotValidException ex) {
+        String detail = ex.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .findFirst()
+                .orElse("Invalid registration details.");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Registration failed: " + detail);
     }
 
     @PostMapping("/resend-otp/{email}")
     public ResponseEntity<String> resendOtp(@PathVariable String email) {
-        String otp = otpService.generateOtp();
-        LocalDateTime otpExpiry = otpService.getOtpExpiryTime();
-        User user = userRepository.findByEmail(email).orElse(null);
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found.");
+        String throttleKey = "resend-otp:" + email.trim().toLowerCase();
+        if (requestThrottle.isBlocked(throttleKey, 5, Duration.ofMinutes(15))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body("Too many verification code requests. Please try again later.");
         }
-        user.setOtp(otp);
-        user.setOtpExpiry(otpExpiry);
-        userRepository.save(user);
-        new Thread(() -> emailService.sendOtpEmail(email, otp)).start();
-        return ResponseEntity.status(HttpStatus.OK).body("OTP Sent Successfully");
+        requestThrottle.hit(throttleKey, Duration.ofMinutes(15));
+
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        // Do not reveal whether an account exists or is already verified.
+        if (user != null && !user.isEnabled()) {
+            registrationService.resetOtpAttempts(email);
+            String otp = otpService.generateOtp();
+            user.setOtp(otp);
+            user.setOtpExpiry(otpService.getOtpExpiryTime());
+            userRepository.save(user);
+            new Thread(() -> emailService.sendOtpEmail(email, otp)).start();
+        }
+        return ResponseEntity.status(HttpStatus.OK)
+                .body("If this email belongs to an unverified account, a new OTP has been sent.");
     }
 
     @PostMapping("/verify-otp")
     public ResponseEntity<ApiResponse> verifyOtp(@RequestBody OtpVerificationRequest request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()
+                || request.getOtp() == null || request.getOtp().isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse(false, "Invalid or expired OTP."));
+        }
         boolean verified = registrationService.verifyOtp(request.getEmail(), request.getOtp());
         if (verified) {
             return ResponseEntity.ok(new ApiResponse(true, "Email verified!"));
@@ -286,7 +379,11 @@ public class AuthController {
             }
             User user = userRepository.findById(parsedId)
                     .orElseThrow(() -> new UsernameNotFoundException("User not found with Id: " + parsedId));
-            return ResponseEntity.ok(user);
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            boolean self = auth != null && user.getEmail().equalsIgnoreCase(auth.getName());
+            boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            return ResponseEntity.ok(self || isAdmin ? user : PublicUserDTO.from(user));
         } catch (UsernameNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
@@ -319,57 +416,69 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         String email = loginRequest.getEmail();
         String password = loginRequest.getPassword();
 
-        try {
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
-
-            if (!user.isEnabled()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ApiResponse(false, "Account email is not verified. Please verify your OTP."));
-            }
-
-            boolean matches = false;
-            if (passwordEncoder.matches(password, user.getPassword())) {
-                matches = true;
-            } else if (password.equals(user.getPassword())) {
-                // Safe migration: legacy plaintext upgraded to BCrypt
-                user.setPassword(passwordEncoder.encode(password));
-                userRepository.save(user);
-                matches = true;
-            }
-
-            if (matches) {
-                String token = jwtService.generateToken(user.getEmail(), user.getId());
-                String username = user.getUsername() != null ? user.getUsername() : "";
-                String phonenum = (user.getPhonenum() != null) ? user.getPhonenum() : "";
-                String state = (user.getState() != null) ? user.getState() : "";
-                Long userid = (user.getId() != null) ? user.getId() : 0L;
-                String profileurl = (user.getProfileurl() != null) ? user.getProfileurl() : "";
-                String name = (user.getName() != null) ? user.getName() : "";
-                String role = (user.getRole() != null) ? user.getRole() : "USER";
-                LoginResponse response = new LoginResponse(true, token, username, email, phonenum, state, userid, profileurl, name, role);
-                return ResponseEntity.ok(response);
-            }
-
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse(false, "Invalid email or password."));
+        }
+
+        String throttleKey = "login:" + email.trim().toLowerCase() + "|" + request.getRemoteAddr();
+        if (requestThrottle.isBlocked(throttleKey, 10, Duration.ofMinutes(15))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new ApiResponse(false, "Too many sign-in attempts. Please try again in a few minutes."));
+        }
+
+        try {
+            User user = userRepository.findByEmailIgnoreCase(email.trim())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+
+            boolean matches = passwordEncoder.matches(password, user.getPassword());
+            if (!matches) {
+                requestThrottle.hit(throttleKey, Duration.ofMinutes(15));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Invalid email or password."));
+            }
+            requestThrottle.reset(throttleKey);
+
+            if (!user.isEnabled()) {
+                boolean awaitingVerification = user.getOtp() != null && !user.getOtp().isBlank();
+                String message = awaitingVerification
+                        ? "Account email is not verified. Please verify your OTP."
+                        : "This account has been disabled. Please contact support.";
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, message));
+            }
+
+            String token = jwtService.generateToken(user.getEmail(), user.getId());
+            String username = user.getUsername() != null ? user.getUsername() : "";
+            String phonenum = (user.getPhonenum() != null) ? user.getPhonenum() : "";
+            String state = (user.getState() != null) ? user.getState() : "";
+            Long userid = (user.getId() != null) ? user.getId() : 0L;
+            String profileurl = (user.getProfileurl() != null) ? user.getProfileurl() : "";
+            String name = (user.getName() != null) ? user.getName() : "";
+            String role = (user.getRole() != null) ? user.getRole() : "USER";
+            LoginResponse response = new LoginResponse(true, token, username, email, phonenum, state, userid, profileurl, name, role);
+            return ResponseEntity.ok(response);
         } catch (UsernameNotFoundException e) {
+            requestThrottle.hit(throttleKey, Duration.ofMinutes(15));
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse(false, "Invalid email or password."));
         } catch (Exception e) {
+            System.err.println("Login failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Login failed: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Login failed. Please try again."));
         }
     }
 
     @GetMapping("/users")
     public ResponseEntity<?> getAllUsers() {
         try {
-            List<User> users = userRepository.findAll();
+            List<PublicUserDTO> users = userRepository.findByEnabledTrue().stream()
+                    .map(PublicUserDTO::from)
+                    .toList();
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -384,11 +493,14 @@ public class AuthController {
             @RequestParam(required = false) String timezone) {
         try {
             boolean skillsEmpty = (skills == null || skills.isEmpty());
-            List<User> users = userRepository.findByFilters(
-                    skillsEmpty ? Collections.singletonList("") : skills,
-                    skillsEmpty,
-                    role,
-                    timezone);
+            List<PublicUserDTO> users = userRepository.findByFilters(
+                            skillsEmpty ? Collections.singletonList("") : skills,
+                            skillsEmpty,
+                            role,
+                            timezone)
+                    .stream()
+                    .map(PublicUserDTO::from)
+                    .toList();
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -447,6 +559,51 @@ public class AuthController {
         }
     }
 
+    @GetMapping("/connection-status/{userId}")
+    public ResponseEntity<?> getConnectionStatuses(@PathVariable Long userId) {
+        try {
+            User target = userRepository.findById(userId).orElse(null);
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (target == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse(false, "User not found."));
+            }
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin && !target.getEmail().equalsIgnoreCase(auth.getName())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "You can only view your own connection statuses."));
+            }
+
+            Map<String, Object> statuses = new HashMap<>();
+            for (Connection c : connectionRepository.findBySenderOrReceiverAndStatus(userId, "ACCEPTED")) {
+                Long otherId = c.getSender().getId().equals(userId)
+                        ? c.getReceiver().getId()
+                        : c.getSender().getId();
+                statuses.put(String.valueOf(otherId), Map.of("status", "CONNECTED"));
+            }
+            for (Connection c : connectionRepository.findBySenderOrReceiverAndStatus(userId, "PENDING")) {
+                boolean outgoing = c.getSender().getId().equals(userId);
+                Long otherId = outgoing ? c.getReceiver().getId() : c.getSender().getId();
+                String key = String.valueOf(otherId);
+                if (statuses.containsKey(key)) {
+                    continue;
+                }
+                Map<String, Object> entry = new HashMap<>();
+                entry.put("status", outgoing ? "PENDING_SENT" : "PENDING_RECEIVED");
+                entry.put("connectionId", c.getId());
+                statuses.put(key, entry);
+            }
+            return ResponseEntity.ok(Map.of("statuses", statuses));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse(false, "Failed to fetch connection statuses: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/pending/{userId}")
     public ResponseEntity<?> getPendingRequests(@PathVariable Long userId) {
         try {
@@ -473,10 +630,8 @@ public class AuthController {
                 userMap.put("connectionId", c.getId());
                 userMap.put("id", sender.getId());
                 userMap.put("username", sender.getUsername());
-                userMap.put("email", sender.getEmail());
-                userMap.put("phonenum", sender.getPhonenum() != null ? sender.getPhonenum() : "");
-                userMap.put("state", sender.getState() != null ? sender.getState() : "");
                 userMap.put("name", sender.getName() != null ? sender.getName() : "");
+                userMap.put("role", sender.getRole() != null ? sender.getRole() : "");
                 userMap.put("profileurl", sender.getProfileurl() != null ? sender.getProfileurl() : "");
                 userMap.put("bio", sender.getBio() != null ? sender.getBio() : "");
                 userMap.put("timezone", sender.getTimezone() != null ? sender.getTimezone() : "");
@@ -531,6 +686,22 @@ public class AuthController {
     @GetMapping("/connections/{userId}")
     public ResponseEntity<?> getAcceptedConnections(@PathVariable Long userId) {
         try {
+            User target = userRepository.findById(userId).orElse(null);
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (target == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse(false, "User not found."));
+            }
+            if (auth == null || !auth.isAuthenticated()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin && !target.getEmail().equalsIgnoreCase(auth.getName())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse(false, "You can only view your own connections."));
+            }
+
             List<Connection> connections = connectionRepository.findBySenderOrReceiverAndStatus(userId, "ACCEPTED");
             List<Map<String, Object>> response = new ArrayList<>();
             Set<Long> seenUserIds = new HashSet<>();
@@ -543,10 +714,8 @@ public class AuthController {
                 Map<String, Object> userMap = new HashMap<>();
                 userMap.put("id", otherUser.getId());
                 userMap.put("username", otherUser.getUsername());
-                userMap.put("email", otherUser.getEmail());
-                userMap.put("phonenum", otherUser.getPhonenum() != null ? otherUser.getPhonenum() : "");
-                userMap.put("state", otherUser.getState() != null ? otherUser.getState() : "");
                 userMap.put("name", otherUser.getName() != null ? otherUser.getName() : "");
+                userMap.put("role", otherUser.getRole() != null ? otherUser.getRole() : "");
                 userMap.put("profileurl", otherUser.getProfileurl() != null ? otherUser.getProfileurl() : "");
                 userMap.put("bio", otherUser.getBio() != null ? otherUser.getBio() : "");
                 userMap.put("timezone", otherUser.getTimezone() != null ? otherUser.getTimezone() : "");

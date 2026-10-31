@@ -14,9 +14,12 @@ import com.razorpay.RazorpayException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 @Service
 public class PaymentService {
+
+    public static final double CERTIFICATE_FEE_INR = 50.0;
 
     private final String razorpayKey;
     private final String razorpaySecret;
@@ -24,15 +27,27 @@ public class PaymentService {
 
     public PaymentService(
             PaymentRepository paymentRepository,
-            @Value("${app.razorpay.key-id:rzp_test_mQf2cASnEwehms}") String razorpayKey,
-            @Value("${app.razorpay.key-secret:unqMoyk2PrStZ0RxViTIrOCa}") String razorpaySecret) {
+            @Value("${app.razorpay.key-id:}") String razorpayKey,
+            @Value("${app.razorpay.key-secret:}") String razorpaySecret) {
         this.paymentRepository = paymentRepository;
         this.razorpayKey = razorpayKey;
         this.razorpaySecret = razorpaySecret;
     }
 
+    public boolean isConfigured() {
+        return razorpayKey != null && !razorpayKey.isBlank()
+                && razorpaySecret != null && !razorpaySecret.isBlank();
+    }
+
+    public Payment findByOrderId(String orderId) {
+        return paymentRepository.findByTransactionId(orderId);
+    }
+
     @Transactional
     public String createPayment(Long userId, Double amount, String paymentMethod, String upiId, String appName) {
+        if (!isConfigured()) {
+            throw new IllegalStateException("Payments are not configured on this server.");
+        }
         try {
             RazorpayClient razorpay = new RazorpayClient(razorpayKey, razorpaySecret);
 
@@ -58,8 +73,7 @@ public class PaymentService {
             paymentRepository.save(payment);
             return orderId;
         } catch (RazorpayException e) {
-            System.err.println("Razorpay Error: " + e.getMessage());
-            return "Error Initiating Payment";
+            throw new IllegalStateException("Unable to reach the payment provider. Please try again later.", e);
         }
     }
 
@@ -92,6 +106,9 @@ public class PaymentService {
     }
 
     public boolean verifySignature(String orderId, String paymentId, String signature) {
+        if (!isConfigured() || orderId == null || paymentId == null || signature == null) {
+            return false;
+        }
         try {
             String payload = orderId + "|" + paymentId;
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -106,7 +123,9 @@ public class PaymentService {
                 hexString.append(hex);
             }
 
-            return hexString.toString().equalsIgnoreCase(signature);
+            return MessageDigest.isEqual(
+                    hexString.toString().toLowerCase().getBytes(StandardCharsets.US_ASCII),
+                    signature.toLowerCase().getBytes(StandardCharsets.US_ASCII));
         } catch (Exception e) {
             System.err.println("Signature verification failed: " + e.getMessage());
             return false;
@@ -130,11 +149,5 @@ public class PaymentService {
             return "Payment Status Updated";
         }
         return "Transaction Not Found";
-    }
-
-    public boolean hasVerifiedPayment(Long userId) {
-        if (userId == null) return false;
-        return paymentRepository.findAll().stream()
-                .anyMatch(p -> userId.equals(p.getUserId()) && "SUCCESS".equalsIgnoreCase(p.getStatus()));
     }
 }

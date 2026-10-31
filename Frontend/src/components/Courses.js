@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { BiSearch } from "react-icons/bi";
@@ -15,11 +15,7 @@ export const Courses = () => {
 
   const apiUrl = API_BASE_URL;
 
-  useEffect(() => {
-    fetchCourses();
-  }, []);
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await axios.get(`${apiUrl}/course/getCourses`);
       setCourses(response.data);
@@ -28,7 +24,11 @@ export const Courses = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
 
   const courseIcons = {
     python: <SiPython size={40} color="#306998" />,
@@ -64,7 +64,7 @@ export const Courses = () => {
           <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center">
               <FaBookOpen className="mr-1" />
-              {Math.floor(Math.random() * 10) + 5} modules
+              {course.modulesCount ?? 0} modules
             </span>
             
             <div className="flex items-center">

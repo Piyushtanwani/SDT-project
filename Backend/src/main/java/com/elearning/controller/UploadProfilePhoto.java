@@ -8,7 +8,6 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +17,7 @@ import java.util.Map;
 public class UploadProfilePhoto {
 
     private final Cloudinary cloudinary;
+    private final boolean configured;
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "image/jpeg", "image/png", "image/webp", "image/gif"
     );
@@ -26,15 +26,26 @@ public class UploadProfilePhoto {
             @Value("${app.cloudinary.cloud-name}") String cloudName,
             @Value("${app.cloudinary.api-key}") String apiKey,
             @Value("${app.cloudinary.api-secret}") String apiSecret) {
-        this.cloudinary = new Cloudinary(ObjectUtils.asMap(
-                "cloud_name", cloudName,
-                "api_key", apiKey,
-                "api_secret", apiSecret
-        ));
+        this.configured = isSet(cloudName) && isSet(apiKey) && isSet(apiSecret);
+        this.cloudinary = configured
+                ? new Cloudinary(ObjectUtils.asMap(
+                        "cloud_name", cloudName,
+                        "api_key", apiKey,
+                        "api_secret", apiSecret))
+                : null;
+    }
+
+    private static boolean isSet(String value) {
+        return value != null && !value.isBlank();
     }
 
     @PostMapping
     public ResponseEntity<String> uploadFile(@RequestParam("thumbnailUrl") MultipartFile file) {
+        if (!configured) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("Image storage is not configured on this server.");
+        }
+
         if (file == null || file.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No file uploaded");
         }
@@ -55,11 +66,15 @@ public class UploadProfilePhoto {
                     "resource_type", "image",
                     "folder", "lwl_uploads"
             ));
-            String secureUrl = uploadResult.get("secure_url").toString();
-            return ResponseEntity.ok(secureUrl);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("File upload failed: " + e.getMessage());
+            Object secureUrl = uploadResult.get("secure_url");
+            if (secureUrl == null) {
+                throw new IllegalStateException("Upload response did not contain a secure URL");
+            }
+            return ResponseEntity.ok(secureUrl.toString());
+        } catch (Exception e) {
+            System.err.println("Image upload failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body("Image upload is unavailable. Please try again later.");
         }
     }
 }

@@ -61,7 +61,8 @@ export const Register = () => {
       navigate("/verify-otp", { state: { email: formData.email } });
     } catch (error) {
       console.error("Registration failed:", error.response?.data || error);
-      setMessage(error.response?.data?.message || "Registration failed.");
+      const data = error.response?.data;
+      setMessage((typeof data === "string" ? data : data?.message) || "Registration failed.");
     }
   };
 
@@ -113,13 +114,13 @@ export const Register = () => {
                   <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
                     {field === "username" && <FiUser className="mr-2 text-indigo-500 dark:text-indigo-400" />}
                     {field === "email" && <FiMail className="mr-2 text-indigo-500 dark:text-indigo-400" />}
-                    {field.includes("password") && <FiLock className="mr-2 text-indigo-500 dark:text-indigo-400" />}
+                    {field.toLowerCase().includes("password") && <FiLock className="mr-2 text-indigo-500 dark:text-indigo-400" />}
                     {field.replace(/([A-Z])/g, " $1").trim()}
                   </label>
                   <div className="relative">
                     <input
                       type={
-                        field.includes("password")
+                        field.toLowerCase().includes("password")
                           ? field === "password"
                             ? showPassword
                               ? "text"
@@ -136,7 +137,7 @@ export const Register = () => {
                       placeholder={`Enter your ${field.replace(/([A-Z])/g, " $1").toLowerCase().trim()}`}
                       required
                     />
-                    {field.includes("password") && (
+                    {field.toLowerCase().includes("password") && (
                       <button
                         type="button"
                         onClick={() =>

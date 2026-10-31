@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "../config/api";
 
 export const CourseModule = () => {
   const { courseId } = useParams();
@@ -9,50 +10,57 @@ export const CourseModule = () => {
   const [courseTitle, setCourseTitle] = useState("");
   const [error, setError] = useState(null);
   const [visitedModules, setVisitedModules] = useState([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const navigate = useNavigate();
-  const hasFetched = useRef(false);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-
-    // Simulate fetching course title (you can replace with actual API call)
-    const fakeCourseNames = {
-      "1": "Web Development Masterclass",
-      "2": "Data Science Fundamentals",
-      "3": "UX/UI Design Principles",
-    };
-    setCourseTitle(fakeCourseNames[courseId] || "Course Content");
+    let isMounted = true;
 
     // Load visited modules from localStorage
-    const storedVisitedModules = localStorage.getItem(`visitedModules_${courseId}`);
-    if (storedVisitedModules) {
-      setVisitedModules(JSON.parse(storedVisitedModules));
+    try {
+      const storedVisitedModules = localStorage.getItem(`visitedModules_${courseId}`);
+      if (storedVisitedModules) {
+        const parsedVisitedModules = JSON.parse(storedVisitedModules);
+        if (Array.isArray(parsedVisitedModules)) {
+          setVisitedModules(parsedVisitedModules);
+        }
+      }
+    } catch (storageError) {
+      console.warn("Could not read saved module progress:", storageError);
     }
 
-    // Fetch modules
-    fetch(`${apiUrl}/module/course/${courseId}`)
-      .then((response) => {
-        if (!response.ok) {
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      fetch(`${apiUrl}/module/course/${courseId}`),
+      fetch(`${apiUrl}/course/getCourseName/${courseId}`),
+    ])
+      .then(async ([modulesResponse, nameResponse]) => {
+        if (!isMounted) return;
+        if (!modulesResponse.ok) {
           throw new Error("Failed to fetch modules");
         }
-        return response.json();
-      })
-      .then((data) => {
-        setModules(data);
+        const modulesData = await modulesResponse.json();
+        const courseName = nameResponse.ok ? (await nameResponse.text()).trim() : "";
+        if (!isMounted) return;
+        setModules(Array.isArray(modulesData) ? modulesData : []);
+        setCourseTitle(courseName || "Course Content");
         setLoading(false);
       })
-      .catch((error) => {
-        console.error("Error fetching modules:", error);
+      .catch((fetchError) => {
+        if (!isMounted) return;
+        console.error("Error fetching modules:", fetchError);
         setError("We couldn't load your modules. Please try again later.");
         setLoading(false);
       });
-  }, [courseId, apiUrl]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, apiUrl, reloadKey]);
 
   const handleModuleClick = (moduleId) => {
     // Mark module as visited
@@ -103,10 +111,14 @@ export const CourseModule = () => {
     return icons[index % icons.length];
   };
 
+  const visitedCount = modules.filter((module) => visitedModules.includes(module[0])).length;
+
   const getProgressPercentage = () => {
     if (modules.length === 0) return 0;
-    return Math.floor((visitedModules.length / modules.length) * 100);
+    return Math.min(100, Math.floor((visitedCount / modules.length) * 100));
   };
+
+  const estimatedMinutes = (moduleNumber) => 15 + ((moduleNumber * 7) % 30);
 
   const isModuleVisited = (moduleId) => {
     return visitedModules.includes(moduleId);
@@ -157,7 +169,7 @@ export const CourseModule = () => {
                   ></div>
                 </div>
                 <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1">
-                  {visitedModules.length} of {modules.length} modules completed ({getProgressPercentage()}%)
+                  {visitedCount} of {modules.length} modules completed ({getProgressPercentage()}%)
                 </p>
               </div>
               <motion.button
@@ -226,11 +238,7 @@ export const CourseModule = () => {
               </svg>
               <p className="text-red-800 dark:text-red-300">{error}</p>
               <button
-                onClick={() => {
-                  hasFetched.current = false;
-                  setLoading(true);
-                  setError(null);
-                }}
+                onClick={() => setReloadKey((key) => key + 1)}
                 className="mt-4 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition duration-300"
               >
                 Try Again
@@ -283,7 +291,7 @@ export const CourseModule = () => {
                             </span>
                             <div className="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div>
                             <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              {Math.floor(Math.random() * 30) + 15} min
+                              {estimatedMinutes(module[0])} min
                             </span>
                           </div>
                           <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">

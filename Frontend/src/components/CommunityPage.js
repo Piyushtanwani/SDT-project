@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiFilter, FiChevronDown } from "react-icons/fi";
 import UserProfileCard from "./UserProfileCard";
 
 const CommunityPage = () => {
-  const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [filters, setFilters] = useState({
     skills: [],
@@ -16,6 +15,8 @@ const CommunityPage = () => {
   const [error, setError] = useState("");
   const [skillSearch, setSkillSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [connectionStates, setConnectionStates] = useState(null);
+  const [allSkills, setAllSkills] = useState([]);
 
   const apiUrl =
     process.env.REACT_APP_ENV === "production"
@@ -25,30 +26,31 @@ const CommunityPage = () => {
   const userId = sessionStorage.getItem("userId");
   const token = sessionStorage.getItem("authToken");
 
-  useEffect(() => {
-    if (!userId || !token) {
-      setLoading(false);
-      return;
-    }
-    fetchCurrentUser();
-    fetchUsers();
-  }, [userId, token, filters]);
-
-  const fetchCurrentUser = async () => {
+  const fetchConnectionStates = useCallback(async () => {
     try {
-      const response = await axios.get(`${apiUrl}/api/auth/user/${userId}`, {
+      const response = await axios.get(`${apiUrl}/api/auth/connection-status/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCurrentUser(response.data);
+      setConnectionStates(response.data?.statuses || {});
     } catch (err) {
-      console.error("Failed to load current user:", err);
-      setError("Failed to load user data. Please log in again.");
-      sessionStorage.removeItem("userId");
-      sessionStorage.removeItem("authToken");
+      console.error("Failed to load connection statuses:", err);
+      setConnectionStates({});
     }
-  };
+  }, [apiUrl, token, userId]);
 
-  const fetchUsers = async () => {
+  const fetchSkills = useCallback(async () => {
+    try {
+      const response = await axios.get(`${apiUrl}/api/skills`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setAllSkills(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error("Failed to load skills:", err);
+      setAllSkills([]);
+    }
+  }, [apiUrl, token]);
+
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -78,6 +80,26 @@ const CommunityPage = () => {
     } finally {
       setLoading(false);
     }
+  }, [apiUrl, token, filters]);
+
+  useEffect(() => {
+    if (!userId || !token) {
+      setLoading(false);
+      return;
+    }
+    fetchConnectionStates();
+    fetchSkills();
+  }, [userId, token, fetchConnectionStates, fetchSkills]);
+
+  useEffect(() => {
+    if (!userId || !token) {
+      return;
+    }
+    fetchUsers();
+  }, [userId, token, fetchUsers]);
+
+  const updateConnectionState = (otherUserId, state) => {
+    setConnectionStates((prev) => ({ ...(prev || {}), [String(otherUserId)]: state }));
   };
 
   const handleFilterChange = (e) => {
@@ -94,30 +116,12 @@ const CommunityPage = () => {
     }));
   };
 
-  const skillsList = [
-    "JavaScript",
-    "Python",
-    "Java",
-    "React",
-    "Node.js",
-    "SQL",
-    "HTML",
-    "CSS",
-    "TypeScript",
-    "Angular",
-    "Vue.js",
-    "MongoDB",
-    "AWS",
-    "Docker",
-    "Kubernetes",
-  ];
+  const skillsList = allSkills
+    .map((skill) => skill?.name)
+    .filter(Boolean);
   const rolesList = [
-    "Software Developer",
-    "Data Scientist",
-    "DevOps Engineer",
-    "UI/UX Designer",
-    "Product Manager",
-    "Other",
+    { value: "USER", label: "Community Member" },
+    { value: "ADMIN", label: "Administrator" },
   ];
   const timezonesList = [
     "UTC",
@@ -135,8 +139,11 @@ const CommunityPage = () => {
   const filteredSkills = skillsList.filter((skill) =>
     skill.toLowerCase().includes(skillSearch.toLowerCase())
   );
-  const displayedSkills = filteredSkills.slice(0, 3);
-  const dropdownSkills = filteredSkills.slice(3);
+  const selectedSkills = skillsList.filter((skill) => filters.skills.includes(skill));
+  const displayedSkills = Array.from(
+    new Set([...selectedSkills, ...filteredSkills.slice(0, 3)])
+  );
+  const dropdownSkills = filteredSkills.filter((skill) => !displayedSkills.includes(skill));
 
   if (!userId || !token) {
     return (
@@ -277,7 +284,7 @@ const CommunityPage = () => {
               >
                 <option value="">Any Role</option>
                 {rolesList.map((role) => (
-                  <option key={role} value={role}>{role}</option>
+                  <option key={role.value} value={role.value}>{role.label}</option>
                 ))}
               </motion.select>
             </div>
@@ -336,7 +343,14 @@ const CommunityPage = () => {
                     whileHover={{ scale: 1.02 }}
                     className="relative z-0"
                   >
-                    <UserProfileCard user={u} currentUserId={currentUser?.id} />
+                    <UserProfileCard
+                      user={u}
+                      currentUserId={Number(userId)}
+                      connectionState={connectionStates ? connectionStates[String(u.id)] : undefined}
+                      statusKnown={connectionStates !== null}
+                      allSkills={allSkills}
+                      onStatusChange={(state) => updateConnectionState(u.id, state)}
+                    />
                   </motion.div>
                 ))
               ) : (

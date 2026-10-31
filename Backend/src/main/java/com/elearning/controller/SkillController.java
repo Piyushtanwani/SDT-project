@@ -2,11 +2,10 @@ package com.elearning.controller;
 
 import com.elearning.models.Skill;
 import com.elearning.repositories.SkillRepository;
+import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.ApiResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,10 +15,15 @@ import java.util.Optional;
 @RequestMapping("/api/skills")
 public class SkillController {
 
-    @Autowired
-    private SkillRepository skillRepository;
+    private final SkillRepository skillRepository;
+    private final UserRepository userRepository;
 
-    // Get all skills (public for UpdateProfile)
+    public SkillController(SkillRepository skillRepository, UserRepository userRepository) {
+        this.skillRepository = skillRepository;
+        this.userRepository = userRepository;
+    }
+
+    // Available to any signed-in user so profile editing can list skills.
     @GetMapping
     public ResponseEntity<List<Skill>> getAllSkills() {
         try {
@@ -42,9 +46,7 @@ public class SkillController {
 
             String skillName = skill.getName().trim();
 
-            // Check for duplicate name
-            Skill existingSkill = skillRepository.findByName(skillName);
-            if (existingSkill != null) {
+            if (skillRepository.findByNameIgnoreCase(skillName).isPresent()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(new ApiResponse(false, "Skill name already exists"));
             }
@@ -55,7 +57,6 @@ public class SkillController {
 
             return ResponseEntity.ok(new ApiResponse(true, "Skill created successfully"));
         } catch (Exception e) {
-            e.printStackTrace(); // helpful for debugging
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ApiResponse(false, "Failed to create skill: " + e.getMessage()));
         }
@@ -76,15 +77,15 @@ public class SkillController {
                         .body(new ApiResponse(false, "Skill name is required"));
             }
 
-            // Check for duplicate name (excluding current skill)
-            Optional<Skill> duplicateSkill = Optional.ofNullable(skillRepository.findByName(updatedSkill.getName().trim()));
-            if (duplicateSkill.isPresent() && !duplicateSkill.get().getId().equals(id)) {
+            String skillName = updatedSkill.getName().trim();
+            Optional<Skill> duplicate = skillRepository.findByNameIgnoreCase(skillName);
+            if (duplicate.isPresent() && !duplicate.get().getId().equals(id)) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(new ApiResponse(false, "Skill name already exists"));
             }
 
             Skill existingSkill = existingSkillOpt.get();
-            existingSkill.setName(updatedSkill.getName().trim());
+            existingSkill.setName(skillName);
             skillRepository.save(existingSkill);
 
             return ResponseEntity.ok(new ApiResponse(true, "Skill updated successfully"));
@@ -101,6 +102,14 @@ public class SkillController {
             if (!skillRepository.existsById(id)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(new ApiResponse(false, "Skill not found with ID: " + id));
+            }
+
+            long assignedUsers = userRepository.countBySkills_Id(id);
+            if (assignedUsers > 0) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(new ApiResponse(false,
+                                "This skill is assigned to " + assignedUsers
+                                        + " member(s). Remove it from their profiles before deleting."));
             }
 
             skillRepository.deleteById(id);
