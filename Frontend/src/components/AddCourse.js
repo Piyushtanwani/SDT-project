@@ -74,8 +74,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
         }, 2000);
       }
     } catch (error) {
-      const data = error.response?.data;
-      setError((typeof data === "string" ? data : data?.message) || "Failed to add course. Please try again.");
+      setError("Could not add the course. Please check the details and try again.");
     } finally {
       setLoading(false);
     }
@@ -88,11 +87,16 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 p-4"
     >
-      <div className="relative max-w-md w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
+      <div
+        className="relative max-w-md w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6"
+        role="dialog"
+        aria-label="Add course"
+      >
         {/* Close Button */}
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+          aria-label="Close"
         >
           <X size={24} />
         </button>
@@ -104,9 +108,10 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mb-4 bg-green-500/90 text-white px-4 py-2 rounded-lg flex items-center shadow-lg"
+              role="status"
+              className="mb-4 bg-green-700 dark:bg-green-800 text-white px-4 py-2 rounded-lg flex items-center shadow-lg"
             >
-              <CheckCircle className="mr-2" size={20} />
+              <CheckCircle className="mr-2" size={20} aria-hidden="true" />
               Course added successfully!
             </motion.div>
           )}
@@ -119,9 +124,10 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mb-4 bg-red-500/90 text-white px-4 py-2 rounded-lg flex items-center shadow-lg"
+              role="alert"
+              className="mb-4 bg-red-600 dark:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center shadow-lg"
             >
-              <AlertCircle className="mr-2" size={20} />
+              <AlertCircle className="mr-2" size={20} aria-hidden="true" />
               {error}
             </motion.div>
           )}
@@ -130,12 +136,13 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Course Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label htmlFor="course-name" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Course Name
             </label>
             <input
+              id="course-name"
               type="text"
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300"
+              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
               value={courseName}
               onChange={(e) => setCourseName(e.target.value)}
               required
@@ -146,11 +153,12 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label htmlFor="course-description" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Description
             </label>
             <textarea
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300"
+              id="course-description"
+              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
@@ -162,12 +170,13 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
 
           {/* Duration */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label htmlFor="course-duration" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Duration (hours)
             </label>
             <input
+              id="course-duration"
               type="number"
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300"
+              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               required
@@ -179,22 +188,22 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
 
           {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-              Course Thumbnail <span className="text-gray-400 font-normal">(optional)</span>
+            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+              Course Thumbnail <span className="text-gray-600 dark:text-gray-300 font-normal">(optional)</span>
             </label>
-            <div className="mt-1 flex items-center justify-center px-4 py-6 bg-white/30 dark:bg-gray-800/30 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-all duration-300">
+            <div className="mt-1 flex items-center justify-center px-4 py-6 bg-white/30 dark:bg-gray-800/30 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-all duration-300 focus-within:ring-2 focus-within:ring-blue-500">
               <label
                 htmlFor="file-upload"
                 className="flex flex-col items-center cursor-pointer"
               >
-                <Upload className="text-gray-400 dark:text-gray-500 mb-2" size={24} />
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <Upload className="text-gray-500 dark:text-gray-400 mb-2" size={24} aria-hidden="true" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
                   {image ? image.name : "Upload a cover image"}
                 </span>
                 <input
                   id="file-upload"
                   type="file"
-                  className="hidden"
+                  className="sr-only"
                   onChange={handleFileChange}
                   accept="image/*"
                   disabled={loading}
@@ -206,7 +215,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
           {/* Submit Button */}
           <motion.button
             type="submit"
-            className="w-full py-3 rounded-lg text-white font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
+            className="w-full py-3 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 disabled:opacity-50 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
             disabled={loading}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
@@ -231,10 +240,10 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
                     d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8 8 8 0 01-8-8z"
                   />
                 </svg>
-                Adding Course...
+                Adding course…
               </span>
             ) : (
-              "Add Course"
+              "Add course"
             )}
           </motion.button>
         </form>
@@ -275,7 +284,7 @@ const CourseList = () => {
       <div className="max-w-7xl mx-auto mb-8">
         <motion.button
           onClick={() => setIsModalOpen(true)}
-          className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
+          className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -306,7 +315,7 @@ const CourseList = () => {
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                 {course.description}
               </p>
-              <p className="mt-2 text-sm font-medium text-blue-500 dark:text-blue-400">
+              <p className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400">
                 {course.duration} hours
               </p>
             </div>

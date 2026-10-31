@@ -41,7 +41,7 @@ export const VerifyCredential = () => {
         throw new Error(
           certResponse.status === 404
             ? "Certificate not found"
-            : `Server error: ${certResponse.status}`
+            : "We could not reach the verification service. Please try again."
         );
       }
 
@@ -49,7 +49,7 @@ export const VerifyCredential = () => {
 
       setCertificate(certData);
     } catch (err) {
-      setError(err.message || "An unexpected error occurred");
+      setError(err.message || "Something went wrong. Please try again.");
       console.error("Verification error:", err);
     } finally {
       setLoading(false);
@@ -73,7 +73,7 @@ export const VerifyCredential = () => {
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         {/* Hero Section */}
         <div className="flex justify-center">
           <div className="max-w-4xl w-full flex flex-col items-center mb-12">
@@ -88,7 +88,7 @@ export const VerifyCredential = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600"
+              className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400"
             >
               Digital Credential Verification
             </motion.h1>
@@ -104,9 +104,9 @@ export const VerifyCredential = () => {
           >
             <div className="text-center mb-6 md:mb-8">
               <FiAward className="w-12 h-12 md:w-16 md:h-16 text-indigo-600 dark:text-indigo-400 mx-auto mb-3" />
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-2">Verify Credential</h2>
-              <p className="text-gray-500 dark:text-gray-400 text-sm md:text-base">
-                Enter your credential ID to verify authenticity
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white mb-2">Verify a certificate</h2>
+              <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+                Enter a credential ID to confirm the certificate is genuine.
               </p>
 
               {/* Sample Credential ID */}
@@ -114,7 +114,7 @@ export const VerifyCredential = () => {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="mt-4 text-xs text-gray-400 dark:text-gray-500"
+                  className="mt-4 text-xs text-gray-600 dark:text-gray-400"
                 >
                   Format: BC######## (example {sampleCredentialId})
                 </motion.div>
@@ -126,13 +126,15 @@ export const VerifyCredential = () => {
               <div className="relative flex-1">
                 <input
                   type="text"
+                  aria-label="Credential ID"
+                  aria-invalid={Boolean(error)}
                   value={credentialId}
                   onChange={(e) => {
                     setCredentialId(e.target.value);
                     if (error) setError("");
                   }}
                   placeholder="Enter Credential ID"
-                  className="pl-4 pr-4 py-3 md:px-6 md:py-4 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 w-full shadow-md hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  className="pl-4 pr-4 py-3 md:px-6 md:py-4 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 w-full min-h-[44px] shadow-md hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
                 <AnimatePresence>
@@ -141,9 +143,10 @@ export const VerifyCredential = () => {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute -bottom-6 left-0 text-red-500 dark:text-red-400 text-xs md:text-sm flex items-center gap-1"
+                      role="alert"
+                      className="absolute -bottom-6 left-0 text-red-600 dark:text-red-400 text-xs md:text-sm flex items-center gap-1"
                     >
-                      <FiAlertCircle /> <span>{error}</span>
+                      <FiAlertCircle aria-hidden="true" /> <span>{error}</span>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -161,13 +164,13 @@ export const VerifyCredential = () => {
               >
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div aria-hidden="true" className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     <span>Verifying...</span>
                   </>
                 ) : (
                   <>
-                    <FiSearch className="text-lg" />
-                    <span>Verify</span>
+                    <FiSearch aria-hidden="true" className="text-lg" />
+                    <span>Verify certificate</span>
                   </>
                 )}
               </button>
@@ -187,14 +190,27 @@ export const VerifyCredential = () => {
                       #{certificate.credentialId}
                     </span>
                     <button
+                      type="button"
                       onClick={handleCopyId}
-                      className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                      aria-label="Copy credential ID"
+                      className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
                     >
-                      {copied ? <FiCheckCircle className="text-green-500 dark:text-green-400" /> : <FiCopy />}
+                      {copied ? (
+                        <>
+                          <FiCheckCircle aria-hidden="true" className="text-green-700 dark:text-green-400" />
+                          <span className="ml-1 text-xs font-medium text-green-700 dark:text-green-400">Copied</span>
+                        </>
+                      ) : (
+                        <FiCopy />
+                      )}
                     </button>
                   </div>
 
-                  <div className="text-center space-y-3">
+                  <div className="text-center space-y-3 pt-8">
+                    <p role="status" className="flex items-center justify-center gap-1 text-sm font-semibold text-green-700 dark:text-green-400">
+                      <FiCheckCircle aria-hidden="true" />
+                      Verified certificate
+                    </p>
                     <div className="mb-4">
                       <h2 className="text-2xl md:text-4xl font-serif font-bold text-indigo-800 dark:text-indigo-300">
                         {certificate.holderName}
@@ -259,14 +275,15 @@ export const VerifyCredential = () => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="text-center p-6 bg-yellow-50 dark:bg-yellow-900/30 rounded-xl mt-4 flex flex-col items-center justify-center gap-3"
+                  role="alert"
                 >
-                  <FiAlertCircle className="text-yellow-600 dark:text-yellow-400 text-2xl" />
+                  <FiAlertCircle aria-hidden="true" className="text-yellow-700 dark:text-yellow-400 text-2xl" />
                   <div>
-                    <p className="text-yellow-700 dark:text-yellow-300 font-medium">
-                      No certificate found with this ID
+                    <p className="text-yellow-800 dark:text-yellow-300 font-medium">
+                      Not verified: no certificate found with this ID
                     </p>
-                    <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-1">
-                      Please check the ID and try again
+                    <p className="text-yellow-700 dark:text-yellow-400 text-sm mt-1">
+                      Check the ID and try again. Credential IDs look like BC########.
                     </p>
                   </div>
                 </motion.div>
@@ -308,7 +325,7 @@ export const VerifyCredential = () => {
             </div>
           </motion.div>
         </div>
-      </main>
+      </div>
 
       {/* CSS Animations */}
       <style>{`

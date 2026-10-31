@@ -31,6 +31,18 @@
     font-family: var(--font-heading);
     letter-spacing: -0.02em;
   }
+
+  /* WCAG 2.4.7: keyboard focus must be visible on every control, including the
+     many that never shipped a Tailwind ring. Zero specificity via :where() so a
+     component's own focus-visible:ring-* or focus:outline-none still wins. */
+  :where(a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+  }
+
+  .dark :where(a, button, input, select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline-color: #818cf8;
+  }
 }
 
 /* Custom Scrollbar */
@@ -109,8 +121,7 @@
 }
 
 /* Shimmer animations */
-@keyframes shimmer {
-  100% {
+@keyframes shimmer {  100% {
     transform: translateX(100%);
   }
 }
@@ -136,4 +147,39 @@
   );
   animation: shimmer 2s infinite;
   content: '';
+}
+
+/* Shared decorative pulse: several components reference this class, but only some
+   define it, so the effect was missing wherever the definition was absent. */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* Respect the OS "reduce motion" setting: keep meaning, drop movement. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-shimmer::after {
+    animation: none;
+  }
+
+  .card-hover-effect:hover {
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

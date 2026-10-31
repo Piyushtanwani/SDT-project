@@ -45,12 +45,13 @@ export const Contact = () => {
         {/* Success Animation */}
         {isSubmitted && (
           <div className="fixed inset-0 bg-black bg-opacity-30 dark:bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm transition-all">
-            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-xl text-center animate-pop-in">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-xl text-center animate-pop-in" role="status">
+              <div className="w-16 h-16 bg-green-700 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg
                   className="checkmark animate-checkmark"
                   viewBox="0 0 52 52"
                   style={{ width: 32, height: 32 }}
+                  aria-hidden="true"
                 >
                   <path
                     className="checkmark__check"
@@ -70,7 +71,7 @@ export const Contact = () => {
           </div>
         )}
 
-        <main className="max-w-7xl mx-auto px-4 py-16">
+        <div className="max-w-7xl mx-auto px-4 py-16">
           <section className="text-left max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 ring-1 ring-gray-200/50 dark:ring-gray-800">
             <h2 className="text-4xl font-bold text-center mb-8 animate-pulse text-gray-900 dark:text-white">
               Contact Us
@@ -87,48 +88,52 @@ export const Contact = () => {
               ></input>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Name</label>
+                  <label htmlFor="contact-name" className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Name</label>
                   <input
                     required
                     type="text"
+                    id="contact-name"
                     name="Name"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="Your Name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  <label htmlFor="contact-email" className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Email
                   </label>
                   <input
                     required
                     type="email"
+                    id="contact-email"
                     name="Email"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="your@email.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  <label htmlFor="contact-subject" className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Subject
                   </label>
                   <input
                     required
                     type="text"
+                    id="contact-subject"
                     name="Query"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="How can we help?"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  <label htmlFor="contact-message" className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                     Message
                   </label>
                   <textarea
                     required
+                    id="contact-message"
                     name="Message"
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 h-32 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="Your message here..."
@@ -136,10 +141,11 @@ export const Contact = () => {
                 </div>
 
                 <button
+                  type="submit"
                   disabled={isSending}
                   className="w-full bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-3 rounded-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
-                  {isSending ? "Sending..." : "Send Message"}
+                  {isSending ? "Sending..." : "Send message"}
                 </button>
                 {error && (
                   <p className="text-sm text-red-600 dark:text-red-400" role="alert">
@@ -160,7 +166,7 @@ export const Contact = () => {
                 <div className="space-y-4">
                   <div className="flex items-center space-x-4 group">
                     <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors duration-200">
-                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">
+                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400" aria-hidden="true">
                         location_on
                       </span>
                     </div>
@@ -172,7 +178,7 @@ export const Contact = () => {
 
                   <div className="flex items-center space-x-4 group">
                     <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-800/30 transition-colors duration-200">
-                      <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">
+                      <span className="material-symbols-outlined text-purple-600 dark:text-purple-400" aria-hidden="true">
                         mail
                       </span>
                     </div>
@@ -186,7 +192,7 @@ export const Contact = () => {
 
                   <div className="flex items-center space-x-4 group">
                     <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center group-hover:bg-green-200 dark:group-hover:bg-green-800/30 transition-colors duration-200">
-                      <span className="material-symbols-outlined text-green-600 dark:text-green-400">
+                      <span className="material-symbols-outlined text-green-600 dark:text-green-400" aria-hidden="true">
                         phone
                       </span>
                     </div>
@@ -218,6 +224,7 @@ export const Contact = () => {
                       href="https://www.linkedin.com/in/bite-codes/"
                       rel="noreferrer"
                       target="_blank"
+                      aria-label="Bite Codes on LinkedIn (opens in a new tab)"
                       className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       <FontAwesomeIcon icon={faLinkedin} className="text-gray-600 dark:text-gray-400" />
@@ -226,6 +233,7 @@ export const Contact = () => {
                       href="https://www.instagram.com/bitecodes.co"
                       rel="noreferrer"
                       target="_blank"
+                      aria-label="Bite Codes on Instagram (opens in a new tab)"
                       className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       <FontAwesomeIcon icon={faInstagram} className="text-gray-600 dark:text-gray-400" />
@@ -235,7 +243,7 @@ export const Contact = () => {
               </div>
             </form>
           </section>
-        </main>
+        </div>
       </div>
     </div>
   );

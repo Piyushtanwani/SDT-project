@@ -4,6 +4,7 @@ import "./index.css";
 import App from "./App";
 import "./config/api";
 import { AuthProvider } from "./context/AuthContext"; // ✅ Import AuthProvider
+import { ThemeProvider } from "./context/ThemeContext";
 import { GoogleOAuthProvider } from "@react-oauth/google"; // ✅ Import GoogleOAuthProvider
 
 const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || "373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com";
@@ -11,9 +12,11 @@ const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || "373447199487-17q7rui
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <GoogleOAuthProvider clientId={clientId}> {/* ✅ Wrap with GoogleOAuthProvider */}
-    <AuthProvider> {/* ✅ Wrap App inside AuthProvider */}
-      <App />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider> {/* ✅ Wrap App inside AuthProvider */}
+        <App />
+      </AuthProvider>
+    </ThemeProvider>
   </GoogleOAuthProvider>
 );
 

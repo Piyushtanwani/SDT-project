@@ -132,7 +132,7 @@ export const UpdateProfile = () => {
       }
     } catch (error) {
       console.error("Update failed:", error.response?.data || error.message);
-      setError("Failed to update profile: " + (error.response?.data?.message || "Please try again."));
+      setError("Couldn't update your profile. Please check your details and try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -208,7 +208,8 @@ export const UpdateProfile = () => {
                 </div>
                 <label
                   htmlFor="profilePhoto"
-                  className="absolute -bottom-2 right-0 bg-indigo-500 dark:bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors"
+                  aria-label="Change profile photo"
+                  className="absolute -bottom-2 right-0 bg-indigo-600 dark:bg-indigo-600 p-2 rounded-full cursor-pointer hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors"
                 >
                   <svg
                     className="w-5 h-5 text-white"
@@ -239,12 +240,14 @@ export const UpdateProfile = () => {
             {/* Form Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="fullName" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Full Name
                 </label>
                 <input
                   type="text"
+                  id="fullName"
                   name="fullName"
+                  autoComplete="name"
                   defaultValue={userData.name}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Enter your full name"
@@ -253,12 +256,14 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="username" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Username
                 </label>
                 <input
                   type="text"
+                  id="username"
                   name="username"
+                  autoComplete="username"
                   defaultValue={userData.username}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Choose a username"
@@ -267,12 +272,14 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Email
                 </label>
                 <input
                   type="email"
+                  id="email"
                   name="email"
+                  autoComplete="email"
                   defaultValue={userData.email}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
                   disabled
@@ -280,12 +287,15 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Phone Number
                 </label>
                 <input
                   type="tel"
+                  id="phone"
                   name="phone"
+                  autoComplete="tel"
+                  inputMode="tel"
                   defaultValue={userData.phonenum}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Enter your phone number"
@@ -293,10 +303,11 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="state" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   State
                 </label>
                 <select
+                  id="state"
                   name="state"
                   defaultValue={userData.state}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
@@ -345,11 +356,12 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="accountRole" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Account Role
                 </label>
                 <input
                   type="text"
+                  id="accountRole"
                   value={formatRole(userData.role) || "Community Member"}
                   disabled
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
@@ -357,10 +369,11 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="bio" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Bio
                 </label>
                 <textarea
+                  id="bio"
                   name="bio"
                   defaultValue={userData.bio}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all resize-none"
@@ -370,10 +383,11 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="timezone" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Timezone
                 </label>
                 <select
+                  id="timezone"
                   name="timezone"
                   defaultValue={userData.timezone}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
@@ -389,11 +403,12 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="availability" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Availability
                 </label>
                 <input
                   type="text"
+                  id="availability"
                   name="availability"
                   defaultValue={userData.availability}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
@@ -402,12 +417,14 @@ export const UpdateProfile = () => {
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                <label htmlFor="skillSearch" className="block text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   Skills
                 </label>
                 <div className="mb-4">
                   <input
                     type="text"
+                    id="skillSearch"
+                    aria-label="Search skills"
                     placeholder="Search skills..."
                     value={skillSearch}
                     onChange={(e) => setSkillSearch(e.target.value)}
@@ -422,12 +439,13 @@ export const UpdateProfile = () => {
                       <motion.button
                         key={skill.id}
                         type="button"
+                        aria-pressed={selectedSkillIds.includes(skill.id)}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleSkillToggle(skill.id)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                           selectedSkillIds.includes(skill.id)
-                            ? "bg-indigo-500 dark:bg-indigo-600 text-white"
+                            ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold"
                             : "bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
                         }`}
                       >
@@ -436,7 +454,7 @@ export const UpdateProfile = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-red-500 dark:text-red-400">
+                  <p className="text-gray-600 dark:text-gray-400">
                     {skillSearch ? "No skills found." : "No skills available."}
                   </p>
                 )}
@@ -453,10 +471,10 @@ export const UpdateProfile = () => {
                 className={`flex-1 py-3 rounded-lg text-white shadow-md ${
                   isUpdating
                     ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
-                    : "bg-indigo-500 dark:bg-indigo-600 hover:bg-indigo-600 dark:hover:bg-indigo-700"
+                    : "bg-indigo-600 dark:bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-700"
                 }`}
               >
-                {isUpdating ? "Updating..." : "Update Profile"}
+                {isUpdating ? "Saving…" : "Update Profile"}
               </motion.button>
               <motion.button
                 type="button"
@@ -474,7 +492,8 @@ export const UpdateProfile = () => {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mt-4 flex items-center justify-center text-green-600 dark:text-green-400"
+                role="status"
+                className="mt-4 flex items-center justify-center text-green-700 dark:text-green-400"
               >
                 <div className="w-6 h-6 bg-green-500 dark:bg-green-600 rounded-full animate-pulse mr-2"></div>
                 <span>Profile updated successfully! Redirecting...</span>
@@ -484,6 +503,7 @@ export const UpdateProfile = () => {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                role="alert"
                 className="mt-4 flex items-center justify-center text-red-600 dark:text-red-400"
               >
                 <span>{error}</span>

@@ -71,11 +71,11 @@ const CommunityPage = () => {
       } else {
         console.error("Expected an array, received:", response.data);
         setUsers([]);
-        setError("Unexpected response from server.");
+        setError("We could not load these profiles. Please try again.");
       }
     } catch (err) {
       console.error("Error fetching users:", err);
-      setError(err.response?.data?.message || "Failed to load users.");
+      setError("We could not load the community. Please try again.");
       setUsers([]);
     } finally {
       setLoading(false);
@@ -197,15 +197,19 @@ const CommunityPage = () => {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">
+              <label
+                htmlFor="skill-search"
+                className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider"
+              >
                 Skills
               </label>
               <input
+                id="skill-search"
                 type="text"
                 placeholder="Search skills..."
                 value={skillSearch}
                 onChange={(e) => setSkillSearch(e.target.value)}
-                className="w-full px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full min-h-[44px] px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
               />
               <div className="flex flex-wrap gap-2">
                 {displayedSkills.map((skill) => (
@@ -215,9 +219,9 @@ const CommunityPage = () => {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleSkillToggle(skill)}
-                    className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                    className={`min-h-[36px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
                       filters.skills.includes(skill)
-                        ? "bg-indigo-600 dark:bg-indigo-500 text-white"
+                        ? "bg-indigo-600 text-white"
                         : "bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
                     }`}
                   >
@@ -230,7 +234,10 @@ const CommunityPage = () => {
                       type="button"
                       whileHover={{ scale: 1.05 }}
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="flex items-center px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gray-200 dark:bg-gray-600 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
+                      aria-expanded={isDropdownOpen}
+                      aria-controls="more-skills-menu"
+                      aria-label={isDropdownOpen ? "Hide more skills" : "Show more skills"}
+                      className="flex items-center min-h-[36px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gray-200 dark:bg-gray-600 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
                     >
                       More
                       <FiChevronDown className="ml-1" />
@@ -242,6 +249,7 @@ const CommunityPage = () => {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
+                          id="more-skills-menu"
                           className="absolute top-8 left-0 w-full sm:w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-48 overflow-y-auto"
                         >
                           <div className="p-2">
@@ -249,15 +257,15 @@ const CommunityPage = () => {
                               <motion.button
                                 key={skill}
                                 type="button"
-                                whileHover={{ backgroundColor: "#e5e7eb" }}
                                 onClick={() => {
                                   handleSkillToggle(skill);
                                   setIsDropdownOpen(false);
                                 }}
-                                className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm rounded-md ${
+                                aria-pressed={filters.skills.includes(skill)}
+                                className={`w-full min-h-[36px] text-left px-3 py-1.5 text-xs sm:text-sm rounded-md ${
                                   filters.skills.includes(skill)
-                                    ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200"
-                                    : "text-gray-800 dark:text-gray-200"
+                                    ? "bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200"
+                                    : "text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 }`}
                               >
                                 {skill}
@@ -272,10 +280,14 @@ const CommunityPage = () => {
               </div>
             </div>
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">
+              <label
+                htmlFor="role-filter"
+                className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider"
+              >
                 Role
               </label>
               <motion.select
+                id="role-filter"
                 name="role"
                 value={filters.role}
                 onChange={handleFilterChange}
@@ -289,10 +301,14 @@ const CommunityPage = () => {
               </motion.select>
             </div>
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">
+              <label
+                htmlFor="timezone-filter"
+                className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider"
+              >
                 Timezone
               </label>
               <motion.select
+                id="timezone-filter"
                 name="timezone"
                 value={filters.timezone}
                 onChange={handleFilterChange}
@@ -309,8 +325,10 @@ const CommunityPage = () => {
         </motion.div>
 
         {loading ? (
-          <div className="flex justify-center">
+          <div className="flex justify-center" role="status">
+            <span className="sr-only">Loading community members...</span>
             <motion.div
+              aria-hidden="true"
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
               className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-indigo-600 dark:border-indigo-400 border-t-purple-500 dark:border-t-purple-400 rounded-full"
@@ -320,9 +338,17 @@ const CommunityPage = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center text-red-600 dark:text-red-400 text-base sm:text-lg"
+            role="alert"
+            className="flex flex-col items-center gap-3 text-center text-red-600 dark:text-red-400 text-base sm:text-lg"
           >
-            {error}
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={fetchUsers}
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+            >
+              Try again
+            </button>
           </motion.div>
         ) : (
           <AnimatePresence>
@@ -359,7 +385,8 @@ const CommunityPage = () => {
                   animate={{ opacity: 1 }}
                   className="text-center text-gray-600 dark:text-gray-400 col-span-1 sm:col-span-2 lg:col-span-3 text-base sm:text-lg"
                 >
-                  No users found matching your criteria.
+                  No people match these filters. Remove a skill, or pick a
+                  different role or timezone, to see more profiles.
                 </motion.p>
               )}
             </motion.div>

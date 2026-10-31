@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../config/api";
 
@@ -257,6 +257,7 @@ export const CourseModule = () => {
                     key={module[0]}
                     variants={itemVariants}
                     whileHover={{ y: -5, boxShadow: "0 10px 25px rgba(99, 102, 241, 0.2)" }}
+                    whileTap={{ scale: 0.98 }}
                     className="bg-gradient-to-br from-white to-indigo-50 dark:from-gray-900 dark:to-indigo-900/30 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
                   >
                     <div
@@ -286,11 +287,11 @@ export const CourseModule = () => {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center mb-2">
-                            <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 mr-2">
+                            <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 mr-2">
                               Module {index + 1}
                             </span>
                             <div className="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
                               {estimatedMinutes(module[0])} min
                             </span>
                           </div>
@@ -373,8 +374,8 @@ export const CourseModule = () => {
               className="mt-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-6 flex flex-col sm:flex-row items-center justify-between border border-indigo-100 dark:border-indigo-800"
             >
               <div className="mb-4 sm:mb-0">
-                <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-300">Ready for assessment?</h3>
-                <p className="text-indigo-700 dark:text-indigo-400">Complete all modules and test your knowledge</p>
+                <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-300">Ready for the Final Exam?</h3>
+                <p className="text-indigo-700 dark:text-indigo-400">Finish the modules above, then test what you learned.</p>
               </div>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -405,9 +406,17 @@ export const CourseModule = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400"
+          className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400"
         >
-          <p>Need help with your course? Contact our support team</p>
+          <p>
+            Need help with your course?{" "}
+            <Link
+              to="/contact"
+              className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Contact our support team
+            </Link>
+          </p>
         </motion.div>
       </motion.div>
       {/* CSS Animations */}

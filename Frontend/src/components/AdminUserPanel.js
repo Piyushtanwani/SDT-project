@@ -11,7 +11,8 @@ const AdminUserPanel = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", role: "", enabled: false });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [pendingUserId, setPendingUserId] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
 
@@ -60,6 +61,7 @@ const AdminUserPanel = () => {
   const handleSave = async (id) => {
     try {
       setActionError("");
+      setPendingUserId(id);
       await axios.put(`${apiUrl}/api/auth/updateuser/${id}`, editForm);
       setUsers((prev) =>
         prev.map((user) =>
@@ -77,22 +79,28 @@ const AdminUserPanel = () => {
       setActionError(
         err.response?.data?.message || "Failed to update user. Please try again."
       );
+    } finally {
+      setPendingUserId(null);
     }
   };
 
   // Handle delete
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+  const handleDelete = async (user) => {
+    const name = user.name || user.username || "this user";
+    if (!window.confirm(`Delete ${name}? Their account and progress will be permanently removed. This cannot be undone.`)) return;
     try {
       setActionError("");
-      await axios.delete(`${apiUrl}/api/auth/deleteuser/${id}`);
-      setUsers((prev) => prev.filter((user) => user.id !== id));
-      setFilteredUsers((prev) => prev.filter((user) => user.id !== id));
+      setPendingUserId(user.id);
+      await axios.delete(`${apiUrl}/api/auth/deleteuser/${user.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setFilteredUsers((prev) => prev.filter((u) => u.id !== user.id));
     } catch (err) {
       console.error("Error deleting user:", err);
       setActionError(
         err.response?.data?.message || "Failed to delete user. Please try again."
       );
+    } finally {
+      setPendingUserId(null);
     }
   };
 
@@ -107,7 +115,7 @@ const AdminUserPanel = () => {
           className="max-w-7xl mx-auto w-full"
         >
           {/* Header */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
             Manage Users
           </h2>
 
@@ -118,14 +126,15 @@ const AdminUserPanel = () => {
               <div className="relative">
                 <motion.input
                   type="text"
-                  placeholder="Search by username or email..."
+                  placeholder="Search by username or email…"
+                  aria-label="Search by username or email"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 pl-10 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 shadow-glow hover:shadow-glow-hover"
+                  className="w-full px-4 py-3 pl-10 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
                   whileHover={{ scale: 1.02 }}
                   whileFocus={{ scale: 1.02 }}
                 />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400" size={20} />
               </div>
             </div>
 
@@ -146,8 +155,8 @@ const AdminUserPanel = () => {
                   transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                   className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full"
                 ></motion.div>
-                <p className="mt-4 text-blue-600 dark:text-blue-400 font-medium">
-                  Loading users...
+                <p className="mt-4 text-blue-600 dark:text-blue-400 font-medium" role="status">
+                  Loading users…
                 </p>
               </div>
             ) : loadError ? (
@@ -155,6 +164,7 @@ const AdminUserPanel = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-center p-8 bg-red-50/50 dark:bg-red-900/20 rounded-xl"
+                role="alert"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -173,7 +183,7 @@ const AdminUserPanel = () => {
                 <p className="text-red-800 dark:text-red-300">{loadError}</p>
                 <motion.button
                   onClick={fetchUsers}
-                  className="mt-4 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300"
+                  className="mt-4 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -221,7 +231,7 @@ const AdminUserPanel = () => {
                           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                             {user.name || user.username || "Unnamed User"}
                           </h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">{user.email}</p>
                         </div>
                       </div>
                       {editingUser === user.id ? (
@@ -231,41 +241,45 @@ const AdminUserPanel = () => {
                             value={editForm.name}
                             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                             placeholder="Name"
-                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                            aria-label="Display name"
+                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           />
                           <select
                             value={editForm.role}
                             onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                            aria-label="Role"
+                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           >
-                            <option value="">Select Role</option>
-                            <option value="USER">Community Member</option>
-                            <option value="ADMIN">Administrator</option>
+                            <option value="" className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">Select Role</option>
+                            <option value="USER" className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">Community Member</option>
+                            <option value="ADMIN" className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">Administrator</option>
                           </select>
                           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                             <input
                               type="checkbox"
                               checked={editForm.enabled}
                               onChange={(e) => setEditForm({ ...editForm, enabled: e.target.checked })}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-400 border-gray-300 rounded"
+                              className="h-4 w-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                             />
                             Enabled
                           </label>
                           <div className="flex gap-2">
                             <motion.button
                               onClick={() => handleSave(user.id)}
-                              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-2 rounded-lg shadow-glow hover:shadow-glow-hover transition-all duration-300 flex items-center justify-center"
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                              disabled={pendingUserId === user.id}
+                              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-700 text-white px-3 py-2 rounded-lg shadow-glow shadow-glow-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
+                              whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
                               <Save size={16} className="mr-1" />
-                              Save
+                              {pendingUserId === user.id ? "Saving…" : "Save"}
                             </motion.button>
                             <motion.button
                               onClick={() => setEditingUser(null)}
-                              className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-all duration-300 flex items-center justify-center"
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                              disabled={pendingUserId === user.id}
+                              className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 dark:hover:text-white transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
+                              whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
                               <X size={16} className="mr-1" />
                               Cancel
@@ -286,28 +300,46 @@ const AdminUserPanel = () => {
                             <span className="font-medium">Role:</span>{" "}
                             {formatRole(user.role) || "N/A"}
                           </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            <span className="font-medium">Status:</span>{" "}
-                            {user.enabled ? "Enabled" : "Disabled"}
+                          <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                            <span className="font-medium">Status:</span>
+                            <span
+                              className={`ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                user.enabled
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                  : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                              }`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  user.enabled ? "bg-green-600 dark:bg-green-400" : "bg-gray-500 dark:bg-gray-400"
+                                }`}
+                              />
+                              {user.enabled ? "Enabled" : "Disabled"}
+                            </span>
                           </p>
                           <div className="flex gap-2 mt-4">
                             <motion.button
                               onClick={() => handleEdit(user)}
-                              className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-2 rounded-lg shadow-glow hover:shadow-glow-hover transition-all duration-300 flex items-center justify-center"
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                              disabled={pendingUserId === user.id}
+                              aria-label={`Edit ${user.name || user.username || "user"}`}
+                              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-700 text-white px-3 py-2 rounded-lg shadow-glow shadow-glow-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
+                              whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
                               <Edit size={16} className="mr-1" />
                               Edit
                             </motion.button>
                             <motion.button
-                              onClick={() => handleDelete(user.id)}
-                              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-2 rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300 flex items-center justify-center"
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleDelete(user)}
+                              disabled={pendingUserId === user.id}
+                              aria-label={`Delete ${user.name || user.username || "user"}`}
+                              className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-3 py-2 rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
+                              whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
                               <Trash2 size={16} className="mr-1" />
-                              Delete
+                              {pendingUserId === user.id ? "Deleting…" : "Delete"}
                             </motion.button>
                           </div>
                         </div>
@@ -325,7 +357,7 @@ const AdminUserPanel = () => {
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-16 w-16 mx-auto text-gray-400 dark:text-gray-500 mb-4"
+                  className="h-16 w-16 mx-auto text-gray-500 dark:text-gray-400 mb-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -338,8 +370,18 @@ const AdminUserPanel = () => {
                   />
                 </svg>
                 <p className="text-lg sm:text-xl text-gray-600 dark:text-gray-400">
-                  No users found.
+                  {searchQuery
+                    ? `No users match “${searchQuery}”.`
+                    : "No users yet."}
                 </p>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="mt-4 px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                  >
+                    Clear search
+                  </button>
+                )}
               </motion.div>
             )}
           </div>

@@ -13,7 +13,8 @@ const AdminPanel = () => {
       label: 'Manage Courses',
       description: 'Add, edit or delete courses.',
       color: 'bg-blue-100 dark:bg-blue-900',
-      textColor: 'text-blue-600 dark:text-blue-300'
+      textColor: 'text-blue-600 dark:text-blue-300',
+      borderColor: 'border-blue-600 dark:border-blue-300'
     },
     {
       to: '/course/add-module',
@@ -21,7 +22,8 @@ const AdminPanel = () => {
       label: 'Add Module',
       description: 'Add new modules to courses.',
       color: 'bg-green-100 dark:bg-green-900',
-      textColor: 'text-green-600 dark:text-green-300'
+      textColor: 'text-green-600 dark:text-green-300',
+      borderColor: 'border-green-700 dark:border-green-300'
     },
     {
       to: '/course/modules',
@@ -29,7 +31,8 @@ const AdminPanel = () => {
       label: 'Module List',
       description: 'View all course modules.',
       color: 'bg-purple-100 dark:bg-purple-900',
-      textColor: 'text-purple-600 dark:text-purple-300'
+      textColor: 'text-purple-600 dark:text-purple-300',
+      borderColor: 'border-purple-600 dark:border-purple-300'
     },
     {
       to: '/admin/skills',
@@ -37,7 +40,8 @@ const AdminPanel = () => {
       label: 'Manage Skills',
       description: 'Manage course-related skills.',
       color: 'bg-yellow-100 dark:bg-yellow-900',
-      textColor: 'text-yellow-600 dark:text-yellow-300'
+      textColor: 'text-yellow-700 dark:text-yellow-300',
+      borderColor: 'border-yellow-700 dark:border-yellow-300'
     },
     {
       to: '/admin/users',
@@ -45,7 +49,8 @@ const AdminPanel = () => {
       label: 'User Management',
       description: 'View and manage platform users.',
       color: 'bg-red-100 dark:bg-red-900',
-      textColor: 'text-red-600 dark:text-red-300'
+      textColor: 'text-red-600 dark:text-red-300',
+      borderColor: 'border-red-600 dark:border-red-300'
     },
     {
       to: '/leaderboard',
@@ -53,7 +58,8 @@ const AdminPanel = () => {
       label: 'Leaderboard',
       description: 'See the top learners by score.',
       color: 'bg-indigo-100 dark:bg-indigo-900',
-      textColor: 'text-indigo-600 dark:text-indigo-300'
+      textColor: 'text-indigo-600 dark:text-indigo-300',
+      borderColor: 'border-indigo-600 dark:border-indigo-300'
     }
   ];
 
@@ -193,7 +199,7 @@ const AdminPanel = () => {
             <h1 className="text-3xl font-extrabold text-indigo-700 dark:text-indigo-400">
               LWL Admin Dashboard
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Last updated: {lastUpdated ? lastUpdated.toLocaleString() : 'Loading…'}
             </p>
           </motion.div>
@@ -221,7 +227,7 @@ const AdminPanel = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-8 space-y-12">
+        <div className="flex-1 overflow-y-auto p-8 space-y-12">
           {/* Welcome Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -304,7 +310,7 @@ const AdminPanel = () => {
                   >
                     <Link
                       to={item.to}
-                      className={`flex flex-col gap-3 p-6 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition border-l-4 ${item.textColor.replace('text', 'border')}`}
+                      className={`flex flex-col gap-3 p-6 bg-white dark:bg-gray-800 rounded-xl shadow hover:shadow-md transition border-l-4 ${item.borderColor}`}
                     >
                       <div className={`p-3 rounded-full ${item.color} ${item.textColor} self-start`}>
                         {item.icon}
@@ -396,7 +402,7 @@ const AdminPanel = () => {
                     isLoading
                       ? 'text-gray-500 dark:text-gray-400'
                       : service.online
-                        ? 'text-green-600 dark:text-green-300'
+                        ? 'text-green-700 dark:text-green-300'
                         : 'text-red-600 dark:text-red-300'
                   }`}>
                     {isLoading ? 'Checking…' : service.online ? 'Online' : 'Unavailable'}
@@ -405,7 +411,7 @@ const AdminPanel = () => {
               ))}
             </div>
           </motion.section>
-        </main>
+        </div>
       </div>
     </div>
   );

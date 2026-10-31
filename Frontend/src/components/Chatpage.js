@@ -222,7 +222,7 @@ const ChatPage = () => {
       setSendError(
         err.response?.status === 429
           ? "You are sending messages too quickly. Please wait a few seconds."
-          : "Failed to send your message. It is still in the box, please try again."
+          : "Your message did not send. It is still in the message field, so you can try again."
       );
     } finally {
       setIsSending(false);
@@ -244,13 +244,22 @@ const ChatPage = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-md"
         >
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-          <Link
-            to="/connections"
-            className="inline-block px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
-          >
-            Back to Connections
-          </Link>
+          <p className="text-red-600 dark:text-red-400 mb-4" role="alert">{error}</p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+            >
+              Try again
+            </button>
+            <Link
+              to="/connections"
+              className="inline-block min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+            >
+              Back to Connections
+            </Link>
+          </div>
         </motion.div>
       </div>
     );
@@ -263,6 +272,7 @@ const ChatPage = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-gray-600 dark:text-gray-300 text-center"
+          role="status"
         >
           Loading chat...
         </motion.div>
@@ -296,22 +306,42 @@ const ChatPage = () => {
                 </p>
               )}
             </div>
+            <p
+              role="status"
+              className={`ml-auto shrink-0 flex items-center gap-2 text-xs font-medium ${
+                isConnected
+                  ? "text-green-700 dark:text-green-400"
+                  : "text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? "bg-green-600 dark:bg-green-400" : "bg-gray-400 dark:bg-gray-500"
+                }`}
+              />
+              {isConnected ? "Connected" : "Connecting to chat..."}
+            </p>
           </div>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
+        <div
+          className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900"
+          aria-live="polite"
+        >
           {hasMore && (
             <div className="flex flex-col items-center gap-1 mb-4">
               <button
+                type="button"
                 onClick={loadEarlierMessages}
                 disabled={loadingEarlier}
-                className="px-3 py-1.5 text-xs font-medium rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-gray-600 hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                className="min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-gray-600 hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-60"
               >
                 {loadingEarlier ? "Loading..." : "Load earlier messages"}
               </button>
               {earlierError && (
-                <p className="text-xs text-red-600 dark:text-red-400">{earlierError}</p>
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">{earlierError}</p>
               )}
             </div>
           )}
@@ -331,12 +361,17 @@ const ChatPage = () => {
                 }`}
               >
                 <p className="text-sm">{msg.content}</p>
-                <p className="text-xs opacity-70 mt-1 text-right">
+                <p className="text-xs opacity-90 mt-1 text-right">
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </motion.div>
           ))}
+          {messages.length === 0 && (
+            <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-4">
+              No messages yet. Say hello to start the conversation.
+            </p>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -347,14 +382,20 @@ const ChatPage = () => {
               {sendError}
             </p>
           )}
+          {!isConnected && !sendError && (
+            <p className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+              Connecting to chat — sending is paused until the connection is ready.
+            </p>
+          )}
           <div className="flex items-end gap-3">
             <textarea
+              aria-label="Message"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
               maxLength={2000}
-              className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 resize-none text-sm"
+              className="flex-1 touch-manipulation p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 resize-none text-sm"
               rows="2"
             />
             <motion.button
@@ -362,13 +403,13 @@ const ChatPage = () => {
               whileTap={{ scale: 0.95 }}
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || !isConnected || isSending}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`min-h-[44px] touch-manipulation px-4 py-2 rounded-lg text-sm font-medium ${
                 !newMessage.trim() || !isConnected || isSending
                   ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                   : "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white"
               }`}
             >
-              {isSending ? "Sending..." : "Send"}
+              {isSending ? "Sending..." : "Send message"}
             </motion.button>
           </div>
         </div>

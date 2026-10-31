@@ -4,6 +4,7 @@ import { Copy, Menu, X, Send, Square, Volume2, Save, Trash, Palette, Mic, Chevro
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { API_BASE_URL } from "../config/api";
+import { useTheme } from "../context/ThemeContext";
 
 const AI_SERVICE_URL =
   process.env.REACT_APP_AI_SERVICE_URL || "https://ai.bitecodes.com/api/generate";
@@ -38,13 +39,13 @@ const speakText = (text, onStart, onEnd) => {
 const themes = {
   dark: {
     bg: "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900",
-    card: "bg-gray-850/90 shadow-gray-900/30 backdrop-blur-xl",
+    card: "bg-gray-800/90 shadow-gray-900/30 backdrop-blur-xl",
     header: "bg-gray-900/80 border-gray-800/30",
     chat: "bg-gray-900/90",
-    input: "bg-gray-800/90 border-gray-700/50 text-gray-100 placeholder-gray-500",
+    input: "bg-gray-800/90 border-gray-700/50 text-gray-100 placeholder-gray-400",
     codeBg: "bg-gray-800/90",
     button: "bg-gray-700/70 text-gray-200",
-    sidebar: "bg-gray-850/95 border-gray-800/50 text-gray-200",
+    sidebar: "bg-gray-800/95 border-gray-800/50 text-gray-200",
     sidebarHover: "hover:bg-gray-700/50",
   },
   light: {
@@ -63,7 +64,7 @@ const themes = {
     card: "bg-gray-900/90 shadow-purple-500/30 backdrop-blur-xl",
     header: "bg-gray-950/80 border-purple-800/30",
     chat: "bg-gray-900/90",
-    input: "bg-gray-800/90 border-purple-700/50 text-purple-100 placeholder-purple-500",
+    input: "bg-gray-800/90 border-purple-700/50 text-purple-100 placeholder-purple-300",
     codeBg: "bg-gray-800/90",
     button: "bg-purple-700/70 text-purple-200",
     sidebar: "bg-gray-900/95 border-purple-800/50 text-purple-200",
@@ -72,6 +73,7 @@ const themes = {
 };
 
 const LearnWithoutLimitsAI = () => {
+  const { resolvedTheme } = useTheme();
   const [theme, setTheme] = useState("dark");
   const [showSidebar, setShowSidebar] = useState(false);
   const [message, setMessage] = useState("");
@@ -176,6 +178,12 @@ const LearnWithoutLimitsAI = () => {
   const toggleTheme = () => {
     setTheme(prev => prev === "dark" ? "light" : prev === "light" ? "neon" : "dark");
   };
+
+  // The app-wide toggle wins over this page's own theme cycle; "neon" stays until
+  // the user changes the global theme again.
+  useEffect(() => {
+    setTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   const appendMessage = useCallback((text, className, code = null, isTyping = false) => {
     const newMessage = {
@@ -568,6 +576,7 @@ const LearnWithoutLimitsAI = () => {
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowSidebar(false)}
+                  aria-label="Close history"
                   className={`p-2 rounded-full ${themes[theme].button}`}
                 >
                   <X className="w-5 h-5" />
@@ -576,16 +585,18 @@ const LearnWithoutLimitsAI = () => {
               <div className="mb-6">
                 {conversationHistory.map((item) => (
                   <div key={item.id} className="flex justify-between items-center mb-2">
-                    <span
-                      className={`cursor-pointer ${themes[theme].sidebarHover} rounded px-2 text-sm truncate`}
+                    <button
+                      type="button"
+                      className={`text-left cursor-pointer ${themes[theme].sidebarHover} rounded px-2 py-1 text-sm truncate`}
                       onClick={() => loadConversation(item)}
                     >
                       {item.title} ({new Date(item.timestamp).toLocaleDateString()})
-                    </span>
+                    </button>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => deleteConversation(item.id)}
+                      aria-label={`Delete ${item.title}`}
                       className="p-1 rounded-full bg-red-500/70"
                     >
                       <Trash className="w-4 h-4" />
@@ -598,6 +609,7 @@ const LearnWithoutLimitsAI = () => {
                 <div className="flex flex-col space-y-2">
                   <button
                     onClick={toggleTheme}
+                    aria-label={`Page theme: ${theme}. Choose another theme.`}
                     className={`flex items-center p-2 rounded-md ${themes[theme].button} ${themes[theme].sidebarHover}`}
                   >
                     <Palette className="w-4 h-4 mr-2" /> Theme
@@ -619,6 +631,8 @@ const LearnWithoutLimitsAI = () => {
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowSidebar(!showSidebar)}
+                aria-expanded={showSidebar}
+                aria-label={showSidebar ? "Hide history" : "Show history"}
                 className={`p-2 sm:p-3 rounded-full ${themes[theme].button}`}
               >
                 <Menu className="w-5 h-5" />
@@ -632,7 +646,7 @@ const LearnWithoutLimitsAI = () => {
               </motion.div>
               <motion.h1
                 whileHover={{ scale: 1.05 }}
-                className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400"
+                className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${theme === "light" ? "from-blue-600 to-indigo-600" : "from-blue-400 to-indigo-400"}`}
               >
                 Learn Without Limits AI
               </motion.h1>
@@ -693,6 +707,7 @@ const LearnWithoutLimitsAI = () => {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => speakMessage(msg.text)}
+                                aria-label="Read message aloud"
                                 className="p-1 text-xs opacity-70 hover:opacity-100"
                               >
                                 <Volume2 className="w-4 h-4" />
@@ -736,6 +751,7 @@ const LearnWithoutLimitsAI = () => {
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         onClick={() => copyToClipboard(code)}
+                                        aria-label="Copy code"
                                         className="p-1 rounded-md bg-opacity-70 hover:bg-opacity-100 transition-all"
                                       >
                                         <Copy className="w-4 h-4" />
@@ -803,6 +819,7 @@ const LearnWithoutLimitsAI = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={stopVoiceInput}
+          aria-label="Stop voice input"
           className="p-2 rounded-full bg-red-500 text-white shadow-md flex items-center justify-center"
         >
           <div className="flex space-x-1 items-center h-5">
@@ -820,6 +837,7 @@ const LearnWithoutLimitsAI = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={startVoiceInput}
+          aria-label="Start voice input"
           className={`p-2 rounded-full ${themes[theme].button} shadow-md flex items-center justify-center`}
         >
           <Mic className="w-5 h-5" />
@@ -832,6 +850,9 @@ const LearnWithoutLimitsAI = () => {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowActions(!showActions)}
+          aria-expanded={showActions}
+          aria-haspopup="true"
+          aria-label="More chat actions"
           className={`p-2 rounded-full ${themes[theme].button} shadow-md`}
         >
           <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${showActions ? "rotate-180" : ""}`} />
@@ -879,6 +900,7 @@ const LearnWithoutLimitsAI = () => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => (loading ? stopGeneration() : generate())}
+        aria-label={loading ? "Stop generating" : "Send message"}
         className="p-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
       >
         {loading ? <Square className="w-5 h-5" /> : <Send className="w-5 h-5" />}

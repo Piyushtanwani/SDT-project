@@ -13,6 +13,7 @@ import { css } from "@codemirror/lang-css";
 import { EditorView } from '@codemirror/view';
 import { keymap } from "@codemirror/view";
 import { autocompletion } from "@codemirror/autocomplete";
+import { useTheme } from "../context/ThemeContext";
 
 // Custom Themes
 const draculaTheme = createTheme({
@@ -132,11 +133,11 @@ const practiceQuestions = {
 // Main Component
 export default function CodingPlatform() {
   // IDE States
+  const { resolvedTheme: theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [tabs, setTabs] = useState([{ name: "main.js", content: boilerplates.javascript, language: "javascript" }]);
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState("dark");
   const [fontSize, setFontSize] = useState(14);
   const [savedCodes, setSavedCodes] = useState([]);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -192,7 +193,9 @@ export default function CodingPlatform() {
     if (tabs.length === 1) return;
     const newTabs = tabs.filter((_, i) => i !== index);
     setTabs(newTabs);
-    setActiveTab(Math.min(activeTab, newTabs.length - 1));
+    const nextActive =
+      index < activeTab ? activeTab - 1 : Math.min(activeTab, newTabs.length - 1);
+    setActiveTab(nextActive);
   };
 
   // Change Language
@@ -411,14 +414,26 @@ export default function CodingPlatform() {
     <div className={`min-h-screen flex flex-col ${theme === 'dark' ? 'bg-gradient-to-br from-gray-900 via-indigo-950 to-gray-800 text-gray-100' : 'bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 text-gray-900'} transition-colors duration-500 font-sans`}>
       {/* Mobile Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-700/20 md:hidden">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center">
+        <h1 className={`text-xl font-bold bg-gradient-to-r bg-clip-text text-transparent flex items-center ${theme === 'dark' ? 'from-indigo-400 via-purple-400 to-pink-400' : 'from-indigo-600 via-purple-600 to-pink-600'}`}>
           <Code className="mr-2 h-5 w-5" /> Learn Without Limits
         </h1>
         <div className="flex gap-2">
-          <button onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)} className="p-2 rounded-lg hover:bg-indigo-500/20">
+          <button
+            type="button"
+            onClick={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+            aria-expanded={isLeftSidebarOpen}
+            aria-label={isLeftSidebarOpen ? "Hide practice questions" : "Show practice questions"}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-indigo-500/20"
+          >
             <Menu className="h-5 w-5 text-indigo-400" />
           </button>
-          <button onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)} className="p-2 rounded-lg hover:bg-indigo-500/20">
+          <button
+            type="button"
+            onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+            aria-expanded={isRightSidebarOpen}
+            aria-label={isRightSidebarOpen ? "Hide saved code" : "Show saved code"}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-indigo-500/20"
+          >
             <Users className="h-5 w-5 text-indigo-400" />
           </button>
         </div>
@@ -428,7 +443,7 @@ export default function CodingPlatform() {
         {/* Left Sidebar */}
         <div className={`w-full md:w-80 flex-shrink-0 border-r border-gray-700/20 backdrop-blur-lg ${theme === 'dark' ? 'bg-gray-800/20' : 'bg-gray-50'} flex flex-col transition-all duration-300 ${isLeftSidebarOpen ? 'block' : 'hidden md:block'}`}>
           <div className="p-4 md:p-6 border-b border-gray-700/20 hidden md:block">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center">
+            <h1 className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent flex items-center ${theme === 'dark' ? 'from-indigo-400 via-purple-400 to-pink-400' : 'from-indigo-600 via-purple-600 to-pink-600'}`}>
               <Code className="mr-2 h-6 w-6" /> Learn Without Limits
             </h1>
           </div>
@@ -469,7 +484,7 @@ export default function CodingPlatform() {
                       >
                         <div className={`text-sm font-medium ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>{question.title}</div>
                         <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{question.difficulty}</div>
-                        <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'} truncate mt-1`}>{question.description}</div>
+                        <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} truncate mt-1`}>{question.description}</div>
                         <div className="flex gap-2 mt-2 flex-wrap">
                           {question.tags.map(tag => (
                             <span key={tag} className={`text-xs px-2 py-0.5 ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-600'} rounded-full`}>{tag}</span>
@@ -485,10 +500,10 @@ export default function CodingPlatform() {
               <h3 className="text-base md:text-lg font-semibold mb-3 flex items-center">
                 <ExternalLink className="h-4 md:h-5 w-4 md:w-5 mr-2 text-indigo-400" /> Resources
               </h3>
-              <div className="space-y-2 text-sm">
-                <a href="https://developer.mozilla.org/" target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 hover:text-indigo-300">MDN Web Docs</a>
-                <a href="https://docs.python.org/3/" target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 hover:text-indigo-300">Python Docs</a>
-                <a href="https://docs.oracle.com/en/java/" target="_blank" rel="noopener noreferrer" className="block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 hover:text-indigo-300">Java Docs</a>
+              <div className={`space-y-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                <a href="https://developer.mozilla.org/" target="_blank" rel="noopener noreferrer" className={`block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 ${theme === 'dark' ? 'hover:text-indigo-300' : 'hover:text-indigo-700'}`}>MDN Web Docs</a>
+                <a href="https://docs.python.org/3/" target="_blank" rel="noopener noreferrer" className={`block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 ${theme === 'dark' ? 'hover:text-indigo-300' : 'hover:text-indigo-700'}`}>Python Docs</a>
+                <a href="https://docs.oracle.com/en/java/" target="_blank" rel="noopener noreferrer" className={`block p-3 rounded-lg hover:bg-indigo-500/20 transition-all duration-300 ${theme === 'dark' ? 'hover:text-indigo-300' : 'hover:text-indigo-700'}`}>Java Docs</a>
               </div>
             </div>
           </div>
@@ -502,23 +517,34 @@ export default function CodingPlatform() {
               {tabs.map((tab, index) => (
                 <div
                   key={index}
-                  onClick={() => handleTabChange(index)}
-                  className={`group flex items-center px-3 md:px-4 py-2 md:py-3 border-r border-gray-700/20 cursor-pointer transition-all duration-300 flex-shrink-0 ${
+                  className={`group flex items-center border-r border-gray-700/20 flex-shrink-0 transition-all duration-300 ${
                     activeTab === index 
                       ? theme === 'dark' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white text-indigo-700' 
                       : theme === 'dark' ? 'bg-gray-800/20 hover:bg-gray-700/20' : 'bg-gray-100/20 hover:bg-gray-50/20'
                   }`}
                 >
-                  <FileCode className="mr-2 h-3 md:h-4 w-3 md:w-4 text-indigo-400" />
-                  <span className="text-xs md:text-sm font-mono">{tab.name}</span>
-                  <X
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange(index)}
+                    aria-current={activeTab === index ? "true" : undefined}
+                    className="flex items-center px-3 md:px-4 py-2 md:py-3"
+                  >
+                    <FileCode className="mr-2 h-3 md:h-4 w-3 md:w-4 text-indigo-400" />
+                    <span className="text-xs md:text-sm font-mono">{tab.name}</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={(e) => closeTab(index, e)}
-                    className="ml-2 h-3 md:h-4 w-3 md:w-4 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all duration-300"
-                  />
+                    aria-label={`Close ${tab.name}`}
+                    className="mr-2 rounded p-1 text-gray-400 opacity-0 transition-all duration-300 hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  >
+                    <X className="h-3 md:h-4 w-3 md:w-4" />
+                  </button>
                 </div>
               ))}
               <button
                 onClick={addNewTab}
+                aria-label="New file"
                 className={`px-3 md:px-4 py-2 md:py-3 ${theme === 'dark' ? 'text-gray-400 hover:text-indigo-300' : 'text-gray-600 hover:text-indigo-700'} transition-colors duration-300 flex-shrink-0`}
               >
                 <PlusCircle className="h-3 md:h-4 w-3 md:w-4" />
@@ -529,8 +555,9 @@ export default function CodingPlatform() {
             <div className={`flex flex-col md:flex-row items-start md:items-center justify-between px-4 py-3 ${theme === 'dark' ? 'bg-gray-800/30' : 'bg-gray-100/30'} space-y-2 md:space-y-0`}>
               <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
                 <div className="flex items-center gap-2 w-full md:w-auto">
-                  <label className="text-xs md:text-sm font-medium">Language:</label>
+                  <label htmlFor="compiler-language" className="text-xs md:text-sm font-medium">Language:</label>
                   <select
+                    id="compiler-language"
                     value={tabs[activeTab]?.language || "javascript"}
                     onChange={changeLanguage}
                     className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
@@ -541,8 +568,9 @@ export default function CodingPlatform() {
                   </select>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
-                  <label className="text-xs md:text-sm font-medium">Theme:</label>
+                  <label htmlFor="compiler-theme" className="text-xs md:text-sm font-medium">Theme:</label>
                   <select
+                    id="compiler-theme"
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}
                     className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
@@ -552,8 +580,9 @@ export default function CodingPlatform() {
                   </select>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
-                  <label className="text-xs md:text-sm font-medium">Font Size:</label>
+                  <label htmlFor="compiler-font-size" className="text-xs md:text-sm font-medium">Font Size:</label>
                   <select
+                    id="compiler-font-size"
                     value={fontSize}
                     onChange={(e) => setFontSize(parseInt(e.target.value))}
                     className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
@@ -568,19 +597,21 @@ export default function CodingPlatform() {
                 <button
                   onClick={executeCode}
                   disabled={loading}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-lg transition-all duration-300 disabled:opacity-50 text-sm shadow-md w-full md:w-auto touch-manipulation"
+                  className="flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 text-sm shadow-md w-full md:w-auto touch-manipulation"
                 >
                   {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />} Run
                 </button>
                 <button
                   onClick={copyCode}
+                  aria-label="Copy code"
                   className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'bg-gray-600/50 hover:bg-gray-500/50' : 'bg-gray-200 hover:bg-gray-300'} ${theme === 'dark' ? 'text-white' : 'text-gray-900'} rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
                 >
                   <Copy className="h-4 w-4" />
                 </button>
                 <button
                   onClick={saveCode}
-                  className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-400 hover:bg-blue-500'} text-white rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
+                  aria-label="Save code"
+                  className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
                 >
                   <Save className="h-4 w-4" />
                 </button>
@@ -622,10 +653,10 @@ export default function CodingPlatform() {
               {previewVisible && tabs[activeTab]?.language === "html" ? (
                 <div className="flex-1 flex flex-col">
                   <div className={`p-3 ${theme === 'dark' ? 'bg-gray-800/30' : 'bg-gray-100/30'} flex justify-between items-center`}>
-                    <h3 className="text-xs md:text-sm font-semibold text-indigo-300">HTML Preview</h3>
+                    <h3 className={`text-xs md:text-sm font-semibold ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-700'}`}>HTML Preview</h3>
                     <button
                       onClick={() => setPreviewVisible(false)}
-                      className={`text-xs md:text-sm px-3 py-1 rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 hover:bg-gray-600/50' : 'bg-gray-200/50 hover:bg-gray-300/50'} transition-all duration-300 text-indigo-300 touch-manipulation`}
+                      className={`text-xs md:text-sm px-3 py-1 rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 hover:bg-gray-600/50 text-indigo-300' : 'bg-gray-200/50 hover:bg-gray-300/50 text-indigo-700'} transition-all duration-300 touch-manipulation`}
                     >
                       Hide
                     </button>
@@ -642,11 +673,11 @@ export default function CodingPlatform() {
               ) : (
                 <div className="flex-1 flex flex-col">
                   <div className={`p-3 ${theme === 'dark' ? 'bg-gray-800/30' : 'bg-gray-100/30'} flex items-center`}>
-                    <h3 className="text-xs md:text-sm font-semibold flex items-center text-indigo-300">
+                    <h3 className={`text-xs md:text-sm font-semibold flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-700'}`}>
                       <ExternalLink className="h-3 md:h-4 w-3 md:w-4 mr-2 text-indigo-400" /> Output Console
                     </h3>
                   </div>
-                  <pre className={`font-mono text-xs md:text-sm ${theme === 'dark' ? 'text-gray-300 bg-gray-850/30' : 'text-gray-700 bg-gray-50'} p-4 overflow-auto flex-1 overscroll-contain`}>
+                  <pre className={`font-mono text-xs md:text-sm ${theme === 'dark' ? 'text-gray-300 bg-gray-800/30' : 'text-gray-700 bg-gray-50'} p-4 overflow-auto flex-1 overscroll-contain`}>
                     {loading ? '⏳ Processing...' : output || "// Output will appear here"}
                   </pre>
                 </div>
@@ -686,7 +717,8 @@ export default function CodingPlatform() {
                       </div>
                       <button
                         onClick={(e) => deleteSavedCode(code.id, e)}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 touch-manipulation"
+                        aria-label={`Delete ${code.name}`}
+                        className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity duration-300 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 touch-manipulation"
                       >
                         <X className="h-3 md:h-4 w-3 md:w-4 text-red-400 hover:text-red-500" />
                       </button>

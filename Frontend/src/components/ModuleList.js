@@ -95,7 +95,7 @@ const ModuleList = () => {
           className="max-w-7xl mx-auto w-full"
         >
           {/* Header */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
             Course Modules
           </h2>
 
@@ -111,7 +111,7 @@ const ModuleList = () => {
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
                   disabled={coursesLoading}
-                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   whileHover={coursesLoading ? undefined : { scale: 1.02 }}
                   whileFocus={{ scale: 1.02 }}
                 >
@@ -196,7 +196,7 @@ const ModuleList = () => {
                 {modules.map((mod, index) => (
                   <motion.div
                     key={mod[0]}
-                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-glow transition-all duration-300 overflow-hidden relative"
+                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden relative"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     whileHover={{ y: -5, scale: 1.02 }}
@@ -231,8 +231,8 @@ const ModuleList = () => {
                           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-1 line-clamp-2">
                             Module {mod[0]}: {mod[1]}
                           </h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Last Updated: {formatUpdatedAt(mod[2])}
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            Last updated: {formatUpdatedAt(mod[2])}
                           </p>
                         </div>
                       </div>

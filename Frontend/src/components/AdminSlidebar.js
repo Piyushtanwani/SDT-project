@@ -22,7 +22,7 @@ const Sidebar = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4" aria-label="Admin navigation">
         <ul className="space-y-2">
           {[
             {
@@ -60,13 +60,13 @@ const Sidebar = () => {
               <NavLink
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 p-3 rounded-lg text-lg font-medium transition-all duration-300 
+                  `group flex items-center gap-3 p-3 rounded-lg text-lg transition-all duration-300 
                   ${
                     isActive
-                      ? 'bg-blue-700 text-white shadow-lg dark:bg-gray-700 dark:text-gray-100'
-                      : 'text-blue-200 hover:bg-blue-800 hover:text-white dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white'
+                      ? 'bg-blue-700 text-white shadow-lg font-semibold dark:bg-gray-700 dark:text-gray-100'
+                      : 'text-blue-200 hover:bg-blue-800 hover:text-white font-medium dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-white'
                   } 
-                  hover:shadow-glow`
+                  hover:shadow-lg`
                 }
               >
                 <span className="text-blue-300 dark:text-gray-400 group-hover:text-white">

@@ -20,12 +20,13 @@ export const LeaderBoard = () => {
         setLoading(true);
         const response = await fetch(`${apiUrl}/api/certificates/leaderboard`);
         if (!response.ok) {
-          throw new Error("Failed to fetch leaderboard");
+          throw new Error("unavailable");
         }
         const data = await response.json();
         setLeaderboard(data);
       } catch (err) {
-        setError(err.message);
+        console.error("Failed to load leaderboard:", err);
+        setError("The leaderboard did not respond. Check your connection and try again.");
       } finally {
         setLoading(false);
       }
@@ -38,10 +39,10 @@ export const LeaderBoard = () => {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 90) return "text-green-500 dark:text-green-400";
-    if (score >= 80) return "text-blue-500 dark:text-blue-400";
-    if (score >= 70) return "text-yellow-500 dark:text-yellow-400";
-    return "text-red-500 dark:text-red-400";
+    if (score >= 90) return "text-green-700 dark:text-green-400";
+    if (score >= 80) return "text-blue-600 dark:text-blue-400";
+    if (score >= 70) return "text-yellow-700 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
   };
 
   const sortLeaderboard = useCallback(
@@ -117,7 +118,7 @@ export const LeaderBoard = () => {
 
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: -30 }}
@@ -128,7 +129,7 @@ export const LeaderBoard = () => {
           <h2 className="inline-block text-lg font-medium px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-4">
             Celebrate Excellence
           </h2>
-          <h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 mb-6">
+          <h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 mb-6">
             🏆 Leaderboard
           </h1>
           <p className="text-lg text-gray-700 dark:text-gray-300 max-w-xl mx-auto">
@@ -146,8 +147,10 @@ export const LeaderBoard = () => {
           {/* Tabs */}
           <div className="flex space-x-2 bg-white dark:bg-gray-900 rounded-full p-1 shadow-md ring-1 ring-gray-200/50 dark:ring-gray-800">
             <button
+              type="button"
               onClick={() => setActiveTab("all")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+              aria-pressed={activeTab === "all"}
+              className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 activeTab === "all"
                   ? "bg-indigo-600 text-white"
                   : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -156,8 +159,10 @@ export const LeaderBoard = () => {
               All
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("top10")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+              aria-pressed={activeTab === "top10"}
+              className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 activeTab === "top10"
                   ? "bg-indigo-600 text-white"
                   : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -166,8 +171,10 @@ export const LeaderBoard = () => {
               Top 10
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("exceptional")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+              aria-pressed={activeTab === "exceptional"}
+              className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 activeTab === "exceptional"
                   ? "bg-indigo-600 text-white"
                   : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -180,7 +187,8 @@ export const LeaderBoard = () => {
           {/* Search */}
           <div className="relative w-full sm:w-64">
             <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5"
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400 w-5 h-5"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
@@ -193,6 +201,7 @@ export const LeaderBoard = () => {
             </svg>
             <input
               type="text"
+              aria-label="Search students or courses"
               placeholder="Search students or courses..."
               value={filterValue}
               onChange={(e) => setFilterValue(e.target.value)}
@@ -209,7 +218,8 @@ export const LeaderBoard = () => {
           className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-3xl ring-1 ring-gray-200/50 dark:ring-gray-800"
         >
           {loading && (
-            <div className="space-y-4">
+            <div className="space-y-4" role="status">
+              <span className="sr-only">Loading leaderboard...</span>
               <div className="animate-pulse bg-gray-200 dark:bg-gray-700 h-24 w-full rounded-lg mb-6"></div>
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="animate-pulse bg-gray-200 dark:bg-gray-700 h-16 w-full rounded-lg"></div>
@@ -221,9 +231,11 @@ export const LeaderBoard = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
+              role="alert"
               className="text-center p-6 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800"
             >
               <svg
+                aria-hidden="true"
                 className="w-12 h-12 text-red-400 dark:text-red-300 mx-auto mb-4"
                 fill="none"
                 stroke="currentColor"
@@ -237,13 +249,14 @@ export const LeaderBoard = () => {
                   d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              <h3 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Error Loading Leaderboard</h3>
+              <h3 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">Couldn&apos;t load the leaderboard</h3>
               <p className="text-red-600 dark:text-red-400">{error}</p>
               <button
+                type="button"
                 onClick={() => window.location.reload()}
-                className="mt-4 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
+                className="mt-4 min-h-[44px] px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-md hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
               >
-                Try Again
+                Try again
               </button>
             </motion.div>
           )}
@@ -279,16 +292,16 @@ export const LeaderBoard = () => {
                     <div className="absolute top-0 left-0 w-full h-1 bg-yellow-400 dark:bg-yellow-600"></div>
                     <span className="absolute top-3 left-3 text-4xl">🥇</span>
                     <div className="flex flex-col items-center justify-end pb-8 h-full w-full">
-                      <div className="w-20 h-20 bg-yellow-500 dark:bg-yellow-600 rounded-full mb-4 flex items-center justify-center text-2xl font-bold text-white">
+                      <div className="w-20 h-20 bg-yellow-500 dark:bg-yellow-600 rounded-full mb-4 flex items-center justify-center text-2xl font-bold text-gray-900">
                         {leaderboard[0].userName?.charAt(0)}
                       </div>
                       <p className="font-bold text-yellow-800 dark:text-yellow-300 text-lg text-center px-2 truncate w-full">
                         {leaderboard[0].userName}
                       </p>
-                      <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-1 px-2 truncate w-full">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-400 mb-1 px-2 truncate w-full">
                         {leaderboard[0].courseName}
                       </p>
-                      <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                      <p className="text-3xl font-bold text-yellow-800 dark:text-yellow-400">
                         {leaderboard[0].score}%
                       </p>
                     </div>
@@ -305,7 +318,7 @@ export const LeaderBoard = () => {
                     <div className="absolute top-0 left-0 w-full h-1 bg-gray-400 dark:bg-gray-600"></div>
                     <span className="absolute top-3 left-3 text-3xl">🥈</span>
                     <div className="flex flex-col items-center justify-end pb-6 h-full w-full">
-                      <div className="w-16 h-16 bg-gray-400 dark:bg-gray-600 rounded-full mb-4 flex items-center justify-center text-xl font-bold text-white">
+                      <div className="w-16 h-16 bg-gray-400 dark:bg-gray-600 rounded-full mb-4 flex items-center justify-center text-xl font-bold text-gray-900 dark:text-gray-100">
                         {leaderboard[1].userName?.charAt(0)}
                       </div>
                       <p className="font-semibold text-gray-800 dark:text-gray-300 text-center px-2 truncate w-full">
@@ -331,13 +344,13 @@ export const LeaderBoard = () => {
                     <div className="absolute top-0 left-0 w-full h-1 bg-amber-600"></div>
                     <span className="absolute top-3 left-3 text-3xl">🥉</span>
                     <div className="flex flex-col items-center justify-end pb-4 h-full w-full">
-                      <div className="w-14 h-14 bg-amber-500 dark:bg-amber-600 rounded-full mb-4 flex items-center justify-center text-lg font-bold text-white">
+                      <div className="w-14 h-14 bg-amber-500 dark:bg-amber-600 rounded-full mb-4 flex items-center justify-center text-lg font-bold text-gray-900">
                         {leaderboard[2].userName?.charAt(0)}
                       </div>
                       <p className="font-semibold text-amber-800 dark:text-amber-300 text-center px-2 truncate w-full">
                         {leaderboard[2].userName}
                       </p>
-                      <p className="text-sm text-amber-700 dark:text-amber-400 mb-1 px-2 truncate w-full">
+                      <p className="text-sm text-amber-800 dark:text-amber-400 mb-1 px-2 truncate w-full">
                         {leaderboard[2].courseName}
                       </p>
                       <p className={`text-xl font-bold ${getScoreColor(leaderboard[2].score)}`}>
@@ -362,24 +375,63 @@ export const LeaderBoard = () => {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-                      <th className="p-4 text-left font-semibold">Rank</th>
+                      <th scope="col" className="p-4 text-left font-semibold">Rank</th>
                       <th
-                        className="p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
-                        onClick={() => sortLeaderboard("userName")}
+                        scope="col"
+                        aria-sort={
+                          sortConfig.key === "userName"
+                            ? sortConfig.direction === "ascending"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                        className="p-0"
                       >
-                        Student Name {getSortIndicator("userName")}
+                        <button
+                          type="button"
+                          onClick={() => sortLeaderboard("userName")}
+                          className="w-full min-h-[44px] p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
+                        >
+                          Student Name {getSortIndicator("userName")}
+                        </button>
                       </th>
                       <th
-                        className="p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
-                        onClick={() => sortLeaderboard("courseName")}
+                        scope="col"
+                        aria-sort={
+                          sortConfig.key === "courseName"
+                            ? sortConfig.direction === "ascending"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                        className="p-0"
                       >
-                        Course {getSortIndicator("courseName")}
+                        <button
+                          type="button"
+                          onClick={() => sortLeaderboard("courseName")}
+                          className="w-full min-h-[44px] p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
+                        >
+                          Course {getSortIndicator("courseName")}
+                        </button>
                       </th>
                       <th
-                        className="p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
-                        onClick={() => sortLeaderboard("score")}
+                        scope="col"
+                        aria-sort={
+                          sortConfig.key === "score"
+                            ? sortConfig.direction === "ascending"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                        className="p-0"
                       >
-                        Score {getSortIndicator("score")}
+                        <button
+                          type="button"
+                          onClick={() => sortLeaderboard("score")}
+                          className="w-full min-h-[44px] p-4 text-left font-semibold cursor-pointer hover:bg-indigo-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
+                        >
+                          Score {getSortIndicator("score")}
+                        </button>
                       </th>
                     </tr>
                   </thead>
@@ -394,7 +446,7 @@ export const LeaderBoard = () => {
                         >
                           <td className="p-4 font-bold">
                             <div className="flex items-center">
-                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400 font-bold text-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-400 font-bold text-sm group-hover:bg-indigo-600 group-hover:text-white dark:group-hover:bg-indigo-600 dark:group-hover:text-white transition-all">
                                 {getMedal(index + 1)}
                               </span>
                             </div>
@@ -439,6 +491,7 @@ export const LeaderBoard = () => {
                   className="text-center py-8"
                 >
                   <svg
+                    aria-hidden="true"
                     className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4"
                     fill="none"
                     stroke="currentColor"
@@ -452,14 +505,19 @@ export const LeaderBoard = () => {
                       d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">No Data Found</h3>
-                  <p className="text-gray-500 dark:text-gray-400">No leaderboard data matches your criteria.</p>
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">No results</h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {filterValue
+                      ? "No certificates match that search. Try a different name or course."
+                      : "No certificates have been scored yet. Results appear here once courses are completed."}
+                  </p>
                   {filterValue && (
                     <button
+                      type="button"
                       onClick={() => setFilterValue("")}
-                      className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-800 transition-colors"
+                      className="mt-4 min-h-[44px] px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-800 transition-colors"
                     >
-                      Clear Search
+                      Clear search
                     </button>
                   )}
                 </motion.div>
@@ -527,6 +585,7 @@ export const LeaderBoard = () => {
                   className="text-center py-8"
                 >
                   <svg
+                    aria-hidden="true"
                     className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4"
                     fill="none"
                     stroke="currentColor"
@@ -540,14 +599,19 @@ export const LeaderBoard = () => {
                       d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">No Data Found</h3>
-                  <p className="text-gray-500 dark:text-gray-400">No leaderboard data matches your criteria.</p>
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">No results</h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {filterValue
+                      ? "No certificates match that search. Try a different name or course."
+                      : "No certificates have been scored yet. Results appear here once courses are completed."}
+                  </p>
                   {filterValue && (
                     <button
+                      type="button"
                       onClick={() => setFilterValue("")}
-                      className="mt-4 px-3 py-1 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-800 transition-colors"
+                      className="mt-4 min-h-[44px] px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-800 transition-colors"
                     >
-                      Clear Filter
+                      Clear search
                     </button>
                   )}
                 </motion.div>
@@ -555,7 +619,7 @@ export const LeaderBoard = () => {
             )}
           </div>
         </motion.div>
-      </main>
+      </div>
 
       {/* CSS Animations */}
       <style>{`

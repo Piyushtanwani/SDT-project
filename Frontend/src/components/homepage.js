@@ -88,13 +88,14 @@ export const HomePage = () => {
             </span>
             
             <div className="flex items-center">
-              <div className="flex mr-2">
+              <div className="flex mr-2" aria-hidden="true">
                 {[...Array(5)].map((_, i) => (
                   <FaStar key={i} className="text-yellow-400 text-xs" />
                 ))}
               </div>
               <button 
                 onClick={() => navigate(`/course/${course.id}/modules`)}
+                aria-label={`Open ${course.name.trim()} modules`}
                 className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300"
               >
                 <FaArrowRight size={12} />
@@ -127,7 +128,7 @@ export const HomePage = () => {
           
           <button 
             onClick={onClick}
-            className="mt-auto flex items-center justify-center py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium hover:from-indigo-600 hover:to-purple-700 transition-all duration-300 group-hover:shadow-lg"
+            className="mt-auto flex items-center justify-center py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 group-hover:shadow-lg"
           >
             {buttonText}
             <FaArrowRight className="ml-2 text-xs" />
@@ -144,7 +145,7 @@ export const HomePage = () => {
         <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAzNGM0LjQxOCAwIDgtMy41ODIgOC04cy0zLjU4Mi04LTgtOC04IDMuNTgyLTggOCAzLjU4MiA4IDggOHoiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLW9wYWNpdHk9Ii4wNSIvPjxwYXRoIGQ9Ik0zMCAzMGMwLTMuMzE0LTIuNjg2LTYtNi02cy02IDIuNjg2LTYgNiAyLjY4NiA2IDYgNiA2LTIuNjg2IDYtNnoiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLW9wYWNpdHk9Ii4wNSIvPjwvZz48L3N2Zz4=')]"></div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         {/* Hero Section */}
         <section className="mb-24 relative">
           {/* Hero background effects */}
@@ -153,7 +154,7 @@ export const HomePage = () => {
           <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse-slow"></div>
           
           <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-5xl md:text-6xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 drop-shadow-sm">
+            <h1 className="text-5xl md:text-6xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 drop-shadow-sm">
               Learn. Code. Connect.
             </h1>
             <p className="text-lg mb-10 text-gray-700 dark:text-gray-300 leading-relaxed max-w-2xl mx-auto">
@@ -354,7 +355,7 @@ export const HomePage = () => {
               {/* Editor Content */}
               <div className="p-4 text-left font-mono">
                 <div className="flex">
-                  <div className="mr-4 text-gray-600 select-none text-xs">
+                  <div className="mr-4 text-gray-400 select-none text-xs">
                     {Array(7).fill().map((_, i) => (
                       <div key={i}>{i + 1}</div>
                     ))}
@@ -432,21 +433,21 @@ export const HomePage = () => {
               <div className="avatar-container absolute left-1/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-green-600 rounded-full opacity-70 blur-sm"></div>
-                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-green-500 to-green-600 shadow-xl flex items-center justify-center text-white text-lg font-bold">JS</div>
+                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-green-700 to-green-800 shadow-xl flex items-center justify-center text-white text-lg font-bold">JS</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-1/2 transform -translate-x-1/2 z-20">
                 <div className="relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full opacity-70 blur-sm"></div>
-                  <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-xl flex items-center justify-center text-white text-xl font-bold">PY</div>
+                  <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-xl flex items-center justify-center text-white text-xl font-bold">PY</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-3/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
                   <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full opacity-70 blur-sm"></div>
-                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-pink-500 to-pink-600 shadow-xl flex items-center justify-center text-white text-lg font-bold">GO</div>
+                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-pink-600 to-pink-700 shadow-xl flex items-center justify-center text-white text-lg font-bold">GO</div>
                 </div>
               </div>
             </div>
@@ -463,13 +464,13 @@ export const HomePage = () => {
                     <div className="flex items-center mt-1">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 mr-1.5">Python</span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">JavaScript</span>
-                      <span className="flex items-center ml-auto text-xs text-green-600 dark:text-green-400">
+                      <span className="flex items-center ml-auto text-xs text-green-700 dark:text-green-400">
                         <span className="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
                         Online
                       </span>
                     </div>
                   </div>
-                  <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200">
+                  <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200" aria-hidden="true" tabIndex={-1}>
                     <FaUserPlus size={14} />
                   </button>
                 </div>
@@ -489,7 +490,7 @@ export const HomePage = () => {
                     </span>
                   </div>
                 </div>
-                <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200">
+                <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200" aria-hidden="true" tabIndex={-1}>
                   <FaUserPlus size={14} />
                 </button>
               </div>
@@ -499,7 +500,7 @@ export const HomePage = () => {
         
         {/* Content Side */}
         <div className="md:w-1/2 p-8 md:p-10">
-          <div className="inline-block text-base font-medium px-3 py-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300 rounded-full mb-3">
+          <div className="inline-block text-base font-medium px-3 py-1 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full mb-3">
             Community
           </div>
           <h3 className="text-2xl md:text-3xl font-bold mb-5 text-gray-900 dark:text-white">
@@ -544,7 +545,7 @@ export const HomePage = () => {
           
           <div className="inline-flex group">
             <button
-              className="px-6 py-3 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition-all duration-200 flex items-center justify-center"
+              className="px-6 py-3 bg-green-700 text-white rounded-lg shadow-md hover:bg-green-800 transition-all duration-200 flex items-center justify-center"
               onClick={() => navigate("/community")}
             >
               <FaUsers className="mr-2" />
@@ -669,7 +670,7 @@ export const HomePage = () => {
     </div>
   </div>
 </section>
-</main>
+</div>
 {/* Add necessary CSS */}
 <style>{`
   /* Subtle animations */

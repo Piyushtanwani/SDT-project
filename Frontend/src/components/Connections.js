@@ -133,7 +133,7 @@ export const Connections = () => {
     } catch (error) {
       console.error("Error sending connection request:", error);
       setNotice("");
-      setError(error.response?.data?.message || "Failed to send connection request.");
+      setError(error.response?.data?.message || "We could not send the connection request. Please try again.");
     }
   };
 
@@ -158,7 +158,7 @@ export const Connections = () => {
       setError("");
     } catch (error) {
       console.error("Error updating connection:", error);
-      setError(error.response?.data?.message || "Failed to update connection.");
+      setError(error.response?.data?.message || "We could not update this connection. Please try again.");
     }
   };
 
@@ -186,6 +186,7 @@ export const Connections = () => {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            role="status"
             className="text-gray-600 dark:text-gray-400 text-lg font-semibold text-center"
           >
             Loading connections...
@@ -235,24 +236,24 @@ export const Connections = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     disabled={!selectedUserId}
-                    className={`w-full py-2 rounded-lg text-white text-sm font-medium transition-colors ${
+                    className={`w-full min-h-[44px] py-2 rounded-lg text-sm font-medium transition-colors ${
                       selectedUserId
-                        ? "bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700"
-                        : "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
+                        ? "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white"
+                        : "bg-gray-400 dark:bg-gray-600 text-white cursor-not-allowed"
                     }`}
                   >
-                    Send Request
+                    Send connection request
                   </motion.button>
                 </form>
                 <button
                   type="button"
                   onClick={() => navigate("/community")}
-                  className="mt-3 w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                  className="mt-3 w-full min-h-[36px] text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   Browse members in the Community
                 </button>
                 {notice && (
-                  <p className="mt-3 text-sm text-green-600 dark:text-green-400" role="status">
+                  <p className="mt-3 text-sm text-green-700 dark:text-green-400" role="status">
                     {notice}
                   </p>
                 )}
@@ -292,7 +293,8 @@ export const Connections = () => {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUpdateConnection(request.connectionId, "ACCEPTED")}
-                            className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs"
+                            aria-label={`Accept connection request from ${request.name || request.username}`}
+                            className="min-h-[36px] px-3 py-1 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs"
                           >
                             Accept
                           </motion.button>
@@ -300,16 +302,17 @@ export const Connections = () => {
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUpdateConnection(request.connectionId, "REJECTED")}
-                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs"
+                            aria-label={`Decline connection request from ${request.name || request.username}`}
+                            className="min-h-[36px] px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
                           >
-                            Reject
+                            Decline
                           </motion.button>
                         </div>
                       </motion.div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">No pending requests.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">No pending requests right now. New requests will appear here.</p>
                 )}
               </div>
 
@@ -325,8 +328,18 @@ export const Connections = () => {
                         key={connection.id}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selectedConnection?.id === connection.id}
+                        aria-label={`Show details for ${connection.name || `@${connection.username}`}`}
                         onClick={() => handleSelectConnection(connection)}
-                        className={`max-w-full flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleSelectConnection(connection);
+                          }
+                        }}
+                        className={`max-w-full flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 ${
                           selectedConnection?.id === connection.id
                             ? "bg-indigo-50 dark:bg-indigo-900"
                             : "hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -354,7 +367,8 @@ export const Connections = () => {
                             e.stopPropagation();
                             handleChatRedirect(connection.id);
                           }}
-                          className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-xs"
+                          aria-label={`Open chat with ${connection.name || `@${connection.username}`}`}
+                          className="min-h-[36px] px-3 py-1 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-xs"
                         >
                           Chat
                         </motion.button>
@@ -362,7 +376,9 @@ export const Connections = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">No connections yet.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    No connections yet. Send a request above or browse the Community to get started.
+                  </p>
                 )}
               </div>
             </div>
@@ -439,14 +455,15 @@ export const Connections = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleChatRedirect(selectedConnection.id)}
-                    className="w-full sm:w-auto px-6 py-2 bg-indigo-500 hover:bg-indigo-600 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-md"
+                    aria-label={`Open chat with ${selectedConnection.name || `@${selectedConnection.username}`}`}
+                    className="w-full sm:w-auto min-h-[44px] px-6 py-2 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-md"
                   >
-                    Start Chat
+                    Start chat
                   </motion.button>
                 </motion.div>
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8">
-                  Select a connection to view details.
+                  Select a connection to view their profile.
                 </p>
               )}
             </div>
@@ -457,12 +474,14 @@ export const Connections = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            role="alert"
             className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 text-red-600 dark:text-red-400 text-sm"
           >
             <span>{error}</span>
             <button
+              type="button"
               onClick={loadConnections}
-              className="px-3 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs"
+              className="min-h-[36px] px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
             >
               Try again
             </button>

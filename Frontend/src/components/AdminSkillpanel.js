@@ -15,6 +15,7 @@ export const AdminSkillPanel = () => {
   const [editSkillId, setEditSkillId] = useState(null);
   const [editSkillName, setEditSkillName] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [isFetchingSkills, setIsFetchingSkills] = useState(true);
   const [modalError, setModalError] = useState("");
   const [confirmError, setConfirmError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -25,14 +26,19 @@ export const AdminSkillPanel = () => {
       ? process.env.REACT_APP_LIVE_API
       : process.env.REACT_APP_LOCAL_API;
 
+  const selectedSkill = skills.find((skill) => skill.id === selectedSkillId);
+
   const fetchSkills = useCallback(async () => {
     try {
+      setIsFetchingSkills(true);
       setLoadError("");
       const response = await axios.get(`${apiUrl}/api/skills`);
       setSkills(response.data);
       setFilteredSkills(response.data);
     } catch (error) {
       setLoadError("Could not load skills. Please try again.");
+    } finally {
+      setIsFetchingSkills(false);
     }
   }, [apiUrl]);
 
@@ -130,13 +136,14 @@ export const AdminSkillPanel = () => {
 
         <div className="flex justify-between items-center mb-8">
           <div className="relative w-full max-w-xs">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-5 h-5" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search skills..."
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 dark:bg-gray-800 focus:outline-none focus:border-indigo-500"
+              placeholder="Search skills…"
+              aria-label="Search skills"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 dark:bg-gray-800 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
             />
           </div>
           <button
@@ -149,11 +156,19 @@ export const AdminSkillPanel = () => {
             className="flex items-center gap-2 py-2 px-4 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
           >
             <Plus size={18} />
-            Add Skill
+            Add skill
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {isFetchingSkills && filteredSkills.length === 0 && (
+            <p
+              role="status"
+              className="col-span-full text-center text-gray-600 dark:text-gray-400 py-10"
+            >
+              Loading skills…
+            </p>
+          )}
           {filteredSkills.map((skill) => (
             <div
               key={skill.id}
@@ -195,7 +210,7 @@ export const AdminSkillPanel = () => {
               </div>
             </div>
           ))}
-          {filteredSkills.length === 0 && (
+          {!isFetchingSkills && filteredSkills.length === 0 && (
             <div className="col-span-full text-center py-10">
               {loadError ? (
                 <>
@@ -209,8 +224,35 @@ export const AdminSkillPanel = () => {
                     Try again
                   </button>
                 </>
+              ) : searchQuery ? (
+                <>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+                    No skills match “{searchQuery}”.
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                  >
+                    Clear search
+                  </button>
+                </>
               ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-lg">No skills found.</p>
+                <>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+                    No skills yet. Add your first skill to get started.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditSkillId(null);
+                      setNewSkillName("");
+                      setModalError("");
+                      setIsModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                  >
+                    Add skill
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -219,16 +261,20 @@ export const AdminSkillPanel = () => {
         <AnimatePresence>
           {isModalOpen && (
             <div className="fixed inset-0 flex items-center justify-center bg-black/50 dark:bg-black/70 z-50 p-4">
-              <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+              <div
+                className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6"
+                role="dialog"
+                aria-label={editSkillId ? "Edit skill" : "Add new skill"}
+              >
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="absolute top-4 right-4 text-gray-500 dark:text-gray-300 hover:text-gray-700"
-                  aria-label="Close modal"
+                  className="absolute top-4 right-4 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100"
+                  aria-label="Close"
                 >
                   <X size={20} />
                 </button>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
-                  {editSkillId ? "Edit Skill" : "Add New Skill"}
+                  {editSkillId ? "Edit skill" : "Add new skill"}
                 </h2>
                 <input
                   type="text"
@@ -239,7 +285,8 @@ export const AdminSkillPanel = () => {
                       : setNewSkillName(e.target.value)
                   }
                   placeholder="Enter skill name"
-                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 dark:bg-gray-700 focus:outline-none focus:border-indigo-500"
+                  aria-label="Skill name"
+                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 dark:bg-gray-700 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
                 />
                 {modalError && (
                   <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
@@ -249,7 +296,7 @@ export const AdminSkillPanel = () => {
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
                   >
                     Cancel
                   </button>
@@ -258,7 +305,7 @@ export const AdminSkillPanel = () => {
                     disabled={isSaving}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isSaving ? "Saving..." : editSkillId ? "Update" : "Create"}
+                    {isSaving ? "Saving…" : editSkillId ? "Save changes" : "Add skill"}
                   </button>
                 </div>
               </div>
@@ -269,10 +316,17 @@ export const AdminSkillPanel = () => {
         <AnimatePresence>
           {isConfirmOpen && (
             <div className="fixed inset-0 flex items-center justify-center bg-black/50 dark:bg-black/70 z-50 p-4">
-              <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">
-                  Are you sure you want to delete this skill?
+              <div
+                className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6"
+                role="alertdialog"
+                aria-label="Confirm skill deletion"
+              >
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  {selectedSkill ? `Delete “${selectedSkill.name}”?` : "Delete this skill?"}
                 </h2>
+                <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
+                  The skill is removed from the list. This can’t be undone.
+                </p>
                 {confirmError && (
                   <p className="mb-4 text-sm text-red-600 dark:text-red-400" role="alert">
                     {confirmError}
@@ -281,7 +335,7 @@ export const AdminSkillPanel = () => {
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsConfirmOpen(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500"
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
                   >
                     Cancel
                   </button>
@@ -290,7 +344,7 @@ export const AdminSkillPanel = () => {
                     disabled={isDeleting}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {isDeleting ? "Deleting..." : "Delete"}
+                    {isDeleting ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </div>

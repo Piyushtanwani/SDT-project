@@ -50,7 +50,9 @@ export const CertificateQr = () => {
         </div>
 
         {loading ? (
-          <p className="text-center text-gray-500 dark:text-gray-400">Fetching details...</p>
+          <p className="text-center text-gray-600 dark:text-gray-300" role="status">
+            Fetching details...
+          </p>
         ) : certificate ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -95,7 +97,7 @@ export const CertificateQr = () => {
               </div>
             </div>
 
-            <div className="mt-6 border-t pt-4 flex flex-col sm:flex-row sm:justify-between text-xs md:text-sm text-gray-600 dark:text-gray-400">
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-4 flex flex-col sm:flex-row sm:justify-between text-xs md:text-sm text-gray-600 dark:text-gray-400">
               <span className="block sm:inline text-center sm:text-left">
                 <strong>Verify at:</strong>
                 <a
@@ -115,10 +117,19 @@ export const CertificateQr = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center p-5 bg-red-50 dark:bg-red-900/30 rounded-xl mt-4 flex items-center justify-center gap-3"
+            role="alert"
+            className="text-center p-5 bg-red-50 dark:bg-red-900/30 rounded-xl mt-4"
           >
-            <FiAlertCircle className="text-red-600 dark:text-red-400 w-6 h-6" />
-            <span className="text-red-700 dark:text-red-300 text-lg font-medium">{error || "No certificate found for this ID"}</span>
+            <div className="flex items-center justify-center gap-3">
+              <FiAlertCircle className="text-red-600 dark:text-red-400 w-6 h-6 flex-shrink-0" />
+              <span className="text-red-700 dark:text-red-300 text-lg font-medium">{error || "No certificate found for this ID"}</span>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Try again
+            </button>
           </motion.div>
         )}
       </motion.div>

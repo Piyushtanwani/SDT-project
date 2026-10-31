@@ -1,4 +1,4 @@
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Link, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import "./App.css";
 import { AddCourse } from "./components/AddCourse";
 import AddModule from "./components/AddModule";
@@ -39,14 +39,40 @@ import AdminSkillPanel from "./components/AdminSkillpanel";
 import ProtectedAdmin from "./components/ProtectedAdmin";
 import ErrorBoundary from "./components/ErrorBoundary";
 
+const NotFound = () => (
+  <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">
+    <p className="text-5xl font-bold text-indigo-600 dark:text-indigo-400">404</p>
+    <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+      We couldn't find that page
+    </h1>
+    <p className="text-sm text-gray-600 dark:text-gray-300">
+      The link may be out of date, or the page may have moved.
+    </p>
+    <Link
+      to="/courses"
+      className="rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+    >
+      Browse courses
+    </Link>
+  </div>
+);
+
 function App() {
   return (
     <ErrorBoundary>
       <Router>
         <div className="App">
           <ScrollToTop />
+          {/* Keyboard users land on the navigation on every page; this jumps past it. */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+          >
+            Skip to main content
+          </a>
           <Navbar />
-          <Routes>
+          <main id="main-content" tabIndex={-1}>
+            <Routes>
             <Route path="/register" element={<Register />} />
             <Route path="/verify-otp" element={<VerifyOtp />} />
             <Route path="/connections" element={<Connections />} />
@@ -101,7 +127,10 @@ function App() {
                 </ProtectedRoute>
               }
             />
-          </Routes>
+
+            <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
           <Footer />
         </div>
       </Router>

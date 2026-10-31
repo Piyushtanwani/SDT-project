@@ -1,13 +1,22 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { FiEye, FiEyeOff, FiUser, FiMail, FiLock, FiAlertCircle, FiCheck } from "react-icons/fi";
 import { API_BASE_URL } from "../config/api";
+import { useTheme } from "../context/ThemeContext";
+
+const autoCompleteByField = {
+  username: "username",
+  email: "email",
+  password: "new-password",
+  confirmPassword: "new-password",
+};
 
 export const Register = () => {
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -19,9 +28,12 @@ export const Register = () => {
   const [termsChecked, setTermsChecked] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fieldError, setFieldError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (fieldError && fieldError.field === e.target.name) setFieldError(null);
   };
 
   const handleTermsChange = (e) => {
@@ -30,19 +42,19 @@ export const Register = () => {
 
   const validateForm = () => {
     if (!formData.username.trim()) {
-      setMessage("Username cannot be empty.");
+      setFieldError({ field: "username", message: "Username cannot be empty." });
       return false;
     }
     if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
-      setMessage("Please enter a valid email address.");
+      setFieldError({ field: "email", message: "Please enter a valid email address." });
       return false;
     }
     if (formData.password.length < 6) {
-      setMessage("Password must be at least 6 characters.");
+      setFieldError({ field: "password", message: "Password must be at least 6 characters." });
       return false;
     }
     if (formData.password !== formData.confirmPassword) {
-      setMessage("Passwords do not match.");
+      setFieldError({ field: "confirmPassword", message: "Passwords do not match." });
       return false;
     }
     if (!termsChecked) {
@@ -54,15 +66,16 @@ export const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage("");
     if (!validateForm()) return;
+    setSubmitting(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/register`, formData);
-      console.log("Registration successful:", response.data);
+      await axios.post(`${API_BASE_URL}/api/auth/register`, formData);
       navigate("/verify-otp", { state: { email: formData.email } });
     } catch (error) {
-      console.error("Registration failed:", error.response?.data || error);
-      const data = error.response?.data;
-      setMessage((typeof data === "string" ? data : data?.message) || "Registration failed.");
+      console.error("Registration failed:", error.response?.status || error.message);
+      setMessage("Couldn't create your account. Please check your details and try again.");
+      setSubmitting(false);
     }
   };
 
@@ -111,7 +124,7 @@ export const Register = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {["username", "email", "password", "confirmPassword"].map((field) => (
                 <div key={field} className="relative">
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
+                  <label htmlFor={field} className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
                     {field === "username" && <FiUser className="mr-2 text-indigo-500 dark:text-indigo-400" />}
                     {field === "email" && <FiMail className="mr-2 text-indigo-500 dark:text-indigo-400" />}
                     {field.toLowerCase().includes("password") && <FiLock className="mr-2 text-indigo-500 dark:text-indigo-400" />}
@@ -128,12 +141,17 @@ export const Register = () => {
                             : showConfirmPassword
                             ? "text"
                             : "password"
+                          : field === "email"
+                          ? "email"
                           : "text"
                       }
+                      id={field}
                       name={field}
+                      autoComplete={autoCompleteByField[field]}
+                      aria-invalid={fieldError && fieldError.field === field ? true : undefined}
                       value={formData[field]}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                      className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
                       placeholder={`Enter your ${field.replace(/([A-Z])/g, " $1").toLowerCase().trim()}`}
                       required
                     />
@@ -145,7 +163,10 @@ export const Register = () => {
                             ? setShowPassword(!showPassword)
                             : setShowConfirmPassword(!showConfirmPassword)
                         }
-                        className="absolute right-4 top-4 text-indigo-500 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors"
+                        aria-label={
+                          (field === "password" ? showPassword : showConfirmPassword) ? "Hide password" : "Show password"
+                        }
+                        className="absolute right-4 top-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                       >
                         {field === "password" ? (
                           showPassword ? (
@@ -161,6 +182,11 @@ export const Register = () => {
                       </button>
                     )}
                   </div>
+                  {fieldError && fieldError.field === field && (
+                    <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+                      {fieldError.message}
+                    </p>
+                  )}
                 </div>
               ))}
 
@@ -174,25 +200,31 @@ export const Register = () => {
                 />
                 <label htmlFor="terms" className="ml-3 text-gray-600 dark:text-gray-400">
                   I agree to the{" "}
-                  <span className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline cursor-pointer">
-                    Terms & Conditions
-                  </span>
+                  <Link
+                    to="/terms"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-indigo-600 dark:text-indigo-400 font-medium underline underline-offset-2 hover:text-indigo-700 dark:hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  >
+                    Terms &amp; Conditions
+                  </Link>
                 </label>
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={submitting ? undefined : { scale: 1.02 }}
+                whileTap={submitting ? undefined : { scale: 0.98 }}
                 type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-400 hover:to-purple-400 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30"
+                disabled={submitting}
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Create Account
+                {submitting ? "Creating account…" : "Create Account"}
               </motion.button>
 
               {message && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
+                  role="alert"
                   className="flex items-center gap-2 p-3 bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-lg border border-pink-100 dark:border-pink-800"
                 >
                   <FiAlertCircle className="flex-shrink-0" />
@@ -203,15 +235,15 @@ export const Register = () => {
 
             <div className="my-8 flex items-center">
               <div className="flex-1 border-t border-indigo-100 dark:border-indigo-800" />
-              <span className="px-4 text-gray-500 dark:text-gray-400 text-sm">or continue with</span>
+              <span className="px-4 text-gray-600 dark:text-gray-400 text-sm">or continue with</span>
               <div className="flex-1 border-t border-indigo-100 dark:border-indigo-800" />
             </div>
 
             <div className="flex justify-center">
               <GoogleLogin
                 onSuccess={() => navigate("/login")}
-                onError={() => setMessage("Google Login Failed")}
-                theme="filled_white"
+                onError={() => setMessage("Google sign-in failed. Please try again.")}
+                theme={resolvedTheme === "dark" ? "filled_black" : "filled_white"}
                 shape="pill"
               />
             </div>
@@ -235,7 +267,7 @@ export const Register = () => {
         </motion.div>
 
         {/* Floating helper icon */}
-        <div className="absolute bottom-8 right-8 animate-bounce">
+        <div className="absolute bottom-8 right-8 animate-bounce" aria-hidden="true">
           <FiCheck className="text-indigo-400 dark:text-indigo-500 w-8 h-8 opacity-50 hover:opacity-75 cursor-help transition-opacity" />
         </div>
       </div>

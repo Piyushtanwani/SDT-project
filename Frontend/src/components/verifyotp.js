@@ -12,6 +12,7 @@ export const VerifyOtp = () => {
   const [message, setMessage] = useState("");
   const [resendMessage, setResendMessage] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const apiUrl = API_BASE_URL;
 
@@ -29,6 +30,7 @@ export const VerifyOtp = () => {
     e.preventDefault();
     setMessage(""); // Clear previous messages
   
+    setVerifying(true);
     try {
       const response = await fetch(`${apiUrl}/api/auth/verify-otp`, {
         method: "POST",
@@ -37,22 +39,22 @@ export const VerifyOtp = () => {
       });
   
       if (response.ok) {
-        const data = await response.json();
-        setMessage(data.message);
         navigate("/login");
-      } else {
-        const errorResponse = await response.text(); // Read as plain text
-        setMessage(errorResponse || "Verification failed. Please try again.");
+        return;
       }
+      setMessage("That code wasn't accepted. Check the 6 digits and try again.");
     } catch (error) {
-      setMessage("An error occurred. Please try again.");
+      console.error("OTP verification failed:", error);
+      setMessage("We couldn't reach the verification service. Please try again.");
+    } finally {
+      setVerifying(false);
     }
   };
   
   
   const handleResendOtp = async () => {
     if (!email) {
-      setResendMessage("Email is missing.");
+      setResendMessage("Your email is missing. Go back and register again.");
       return;
     }
     
@@ -65,13 +67,13 @@ export const VerifyOtp = () => {
       });
 
       if (response.ok) {
-        setResendMessage("OTP sent successfully.");
+        setResendMessage("A new 6-digit code has been sent.");
       } else {
-        const errorResponse = await response.text();
-        setResendMessage(errorResponse || "Failed to resend OTP.");
+        setResendMessage("We couldn't send a new code right now. Please try again in a minute.");
       }
     } catch (error) {
-      setResendMessage("An error occurred. Please try again.");
+      console.error("OTP resend failed:", error);
+      setResendMessage("We couldn't reach the verification service. Please try again later.");
     } finally {
       setIsResending(false);
     }
@@ -96,26 +98,35 @@ export const VerifyOtp = () => {
         className="relative w-full max-w-md bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/30 rounded-2xl shadow-2xl overflow-hidden border border-indigo-100 dark:border-gray-600 p-8"
       >
         <h1 className="text-3xl font-bold text-center text-indigo-600 dark:text-indigo-400 mb-6">Verify OTP</h1>
-        <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">Enter the OTP sent to {email}</p>
+        <p id="otpHelp" className="text-center text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Enter the 6-digit code we sent to {email}. Codes expire shortly — you can request a new one below.
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <label htmlFor="otpInput" className="block text-sm font-medium text-gray-600 dark:text-gray-300">
+            Verification code
+          </label>
           <input
+            id="otpInput"
             type="text"
             value={otp}
             onChange={handleOtpChange}
-            placeholder="Enter OTP"
+            placeholder="6-digit code"
             maxLength="6"
             inputMode="numeric"
             autoComplete="one-time-code"
-            className="w-full px-4 py-3 border rounded-xl text-center text-lg tracking-widest bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 outline-none"
+            aria-describedby="otpHelp"
+            required
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl text-center text-lg tracking-widest bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 outline-none"
           />
           <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={verifying ? undefined : { scale: 1.02 }}
+            whileTap={verifying ? undefined : { scale: 0.98 }}
             type="submit"
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 text-white py-3 rounded-xl shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30"
+            disabled={verifying || otp.length !== 6}
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Verify OTP
+            {verifying ? "Verifying…" : "Verify OTP"}
           </motion.button>
         </form>
 
@@ -123,6 +134,7 @@ export const VerifyOtp = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            role="alert"
             className="flex items-center gap-2 p-3 bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-lg border border-pink-100 dark:border-pink-700 mt-4"
           >
             <FiAlertCircle className="flex-shrink-0" />
@@ -130,14 +142,14 @@ export const VerifyOtp = () => {
           </motion.div>
         )}
 
-        <div className="mt-4 text-center text-gray-600 dark:text-gray-400">
+        <div className="mt-4 text-center text-gray-600 dark:text-gray-300">
           Didn't receive the code?{" "}
           <button
             onClick={handleResendOtp}
             disabled={isResending}
-            className="text-indigo-600 dark:text-indigo-400 underline"
+            className="text-indigo-600 dark:text-indigo-400 underline disabled:opacity-60"
           >
-            {isResending ? "Resending..." : "Resend OTP"}
+            {isResending ? "Resending…" : "Resend a new 6-digit code"}
           </button>
         </div>
 
@@ -145,6 +157,7 @@ export const VerifyOtp = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            role="status"
             className="text-center text-sm text-indigo-600 dark:text-indigo-400 mt-2"
           >
             {resendMessage}

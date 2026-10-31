@@ -303,9 +303,9 @@ export const TakeExam = () => {
               {/* Timer display */}
               <div className="flex items-center space-x-4">
                 {examStarted && (
-                  <div className="flex items-center bg-white dark:bg-gray-700 bg-opacity-20 rounded-lg px-4 py-1">
+                  <div className="flex items-center bg-black/25 dark:bg-black/30 rounded-lg px-4 py-1">
                     <span className="mr-2 text-white font-medium">Time Remaining:</span>
-                    <div className="px-3 py-1 bg-white dark:bg-gray-600 rounded-md">
+                    <div className="px-3 py-1 bg-white dark:bg-gray-800 rounded-md">
                       <span className="text-lg font-semibold text-red-600 dark:text-red-400" aria-live="polite" role="timer">
                         {formattedTime}
                       </span>
@@ -333,33 +333,50 @@ export const TakeExam = () => {
                 <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm mb-8 text-left">
                   <ul className="space-y-3">
                     <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-600 dark:text-green-400">✓</span>
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">You have <strong>40 minutes</strong> to complete the exam.</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-600 dark:text-green-400">✓</span>
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">Do not leave the examination screen or switch tabs/applications.</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-600 dark:text-green-400">✓</span>
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">All unanswered questions will be marked as option E (not answered).</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-600 dark:text-green-400">✓</span>
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">Use keyboard shortcuts: Arrow keys (navigation), Numbers 1-4 (options A-D).</span>
                     </li>
                     <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-600 dark:text-green-400">✓</span>
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">The exam will automatically submit when the timer reaches zero.</span>
                     </li>
                   </ul>
                 </div>
-                
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="max-w-2xl mb-6 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-4 rounded-lg text-center"
+                  >
+                    <p className="font-medium mb-1">The exam could not be loaded</p>
+                    <p className="text-sm mb-3">{error}</p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="px-5 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
+                    >
+                      Reload the exam
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={handleStartExam}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200"
+                  disabled={loading || !!error}
+                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
                 >
-                  Start Exam Now
+                  Start Exam
                 </button>
               </div>
             ) : (
@@ -385,15 +402,18 @@ export const TakeExam = () => {
                 ) : error ? (
                   /* Error state */
                   <div className="flex-grow flex flex-col items-center justify-center">
-                    <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-4 rounded-lg mb-4 max-w-md text-center">
-                      <p className="text-lg font-medium mb-2">Error Loading Exam</p>
+                    <div
+                      role="alert"
+                      className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-4 rounded-lg mb-4 max-w-md text-center"
+                    >
+                      <p className="text-lg font-medium mb-2">Your exam was not submitted</p>
                       <p>{error}</p>
                     </div>
                     <button 
-                      onClick={() => window.location.reload()}
-                      className="px-6 py-2 bg-blue-500 dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-800 text-white rounded-lg font-semibold"
+                      onClick={submitExam}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-800 text-white rounded-lg font-semibold"
                     >
-                      Try Again
+                      Try submitting again
                     </button>
                   </div>
                 ) : submitting ? (
@@ -417,7 +437,7 @@ export const TakeExam = () => {
                             onClick={() => goToQuestion(idx)}
                             className={`w-full h-10 flex items-center justify-center rounded-md font-medium transition-all
                               ${currentQuestionIndex === idx 
-                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white ring-2 ring-offset-2 ring-blue-300 dark:ring-blue-500' 
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white ring-2 ring-offset-2 ring-blue-300 dark:ring-blue-500 dark:ring-offset-gray-800' 
                                 : answers[q.id] 
                                   ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-300 dark:border-green-600' 
                                   : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
@@ -425,6 +445,11 @@ export const TakeExam = () => {
                             aria-current={currentQuestionIndex === idx ? 'true' : 'false'}
                           >
                             {idx + 1}
+                            {answers[q.id] && currentQuestionIndex !== idx && (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -439,11 +464,11 @@ export const TakeExam = () => {
                           </p>
                           <p className="text-sm flex justify-between text-gray-800 dark:text-gray-300">
                             <span>Answered:</span>
-                            <span className="font-medium text-green-600 dark:text-green-400">{Object.keys(answers).length}</span>
+                            <span className="font-medium text-green-700 dark:text-green-400">{Object.keys(answers).length}</span>
                           </p>
                           <p className="text-sm flex justify-between text-gray-800 dark:text-gray-300">
                             <span>Remaining:</span>
-                            <span className="font-medium text-red-500 dark:text-red-400">{questions.length - Object.keys(answers).length}</span>
+                            <span className="font-medium text-red-600 dark:text-red-400">{questions.length - Object.keys(answers).length}</span>
                           </p>
                         </div>
                       </div>
@@ -453,8 +478,8 @@ export const TakeExam = () => {
                         <button
                           className={`w-full py-3 text-white rounded-lg font-semibold transition-colors
                             ${Object.keys(answers).length === questions.length
-                              ? "bg-green-500 dark:bg-green-600 hover:bg-green-700 dark:hover:bg-green-800"
-                              : "bg-blue-500 dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-800"}`}
+                              ? "bg-green-700 hover:bg-green-800"
+                              : "bg-blue-600 hover:bg-blue-700"}`}
                           onClick={submitExam}
                         >
                           {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}
@@ -484,7 +509,7 @@ export const TakeExam = () => {
                           {["A", "B", "C", "D"].map((option) => (
                             <label
                               key={option}
-                              className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all
+                              className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-800
                                 ${answers[currentQuestion.id] === option
                                   ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300 shadow-sm"
                                   : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-300"}`}
@@ -537,8 +562,8 @@ export const TakeExam = () => {
                             <button
                               className={`px-8 py-3 text-white rounded-lg font-semibold transition-all shadow hover:shadow-md
                                 ${Object.keys(answers).length === questions.length
-                                  ? "bg-green-500 dark:bg-green-600 hover:bg-green-700 dark:hover:bg-green-800"
-                                  : "bg-blue-500 dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-800"}`}
+                                  ? "bg-green-700 hover:bg-green-800"
+                                  : "bg-blue-600 hover:bg-blue-700"}`}
                               onClick={submitExam}
                             >
                               {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}

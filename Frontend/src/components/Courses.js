@@ -68,13 +68,14 @@ export const Courses = () => {
             </span>
             
             <div className="flex items-center">
-              <div className="flex mr-2">
+              <div className="flex mr-2" aria-hidden="true">
                 {[...Array(5)].map((_, i) => (
                   <FaStar key={i} className="text-yellow-400 text-xs" />
                 ))}
               </div>
               <button 
                 onClick={() => navigate(`/course/${course.id}/modules`)}
+                aria-label={`Open ${course.name.trim()} modules`}
                 className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300"
               >
                 <FaArrowRight size={12} />
@@ -94,12 +95,12 @@ export const Courses = () => {
     <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950">
       {/* Removed the background patterns div */}
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         <header className="text-center mb-12 relative">
           {/* Removed the header background effects */}
           
           <h2 className="inline-block text-lg font-medium px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-4">Expand Your Knowledge</h2>
-          <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+          <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500">
             Available Courses
           </h1>
           <p className="text-lg mb-8 max-w-2xl mx-auto text-gray-700 dark:text-gray-300">
@@ -107,13 +108,14 @@ export const Courses = () => {
           </p>
           <div className="flex items-center justify-center mb-8">
             <div className="relative w-full max-w-md">
-              <BiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
+              <BiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 text-xl" />
               <input
                 type="text"
                 placeholder="Search Courses"
+                aria-label="Search Courses"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-3 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 w-full shadow-md hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="pl-10 pr-4 py-3 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 w-full shadow-md hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               />
             </div>
           </div>
@@ -143,7 +145,7 @@ export const Courses = () => {
             ))
           ) : (
             <div className="col-span-full flex flex-col items-center justify-center p-12 bg-white dark:bg-gray-900 rounded-2xl shadow-md">
-              <div className="text-6xl mb-4">😕</div>
+              <div className="text-6xl mb-4" aria-hidden="true">😕</div>
               <p className="text-center text-xl font-medium text-indigo-800 dark:text-indigo-300 mb-2">No courses found</p>
               <p className="text-center text-gray-600 dark:text-gray-400">Try adjusting your search term</p>
               <button
@@ -155,7 +157,7 @@ export const Courses = () => {
             </div>
           )}
         </section>
-      </main>
+      </div>
 
       {/* Keep the necessary CSS animations */}
       <style>{`

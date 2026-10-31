@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+const POLICY_TABS = ['License Agreement', 'Terms & Conditions', 'Privacy Policy', 'Cookie Policy'];
 
 const LegalTermsPage = () => {
-  const [activeTab, setActiveTab] = useState(0);
+  const [searchParams] = useSearchParams();
+  // Footer links deep-link a policy tab (?tab=2 → Privacy Policy).
+  const initialTab = Number(searchParams.get('tab'));
+  const [activeTab, setActiveTab] = useState(
+    Number.isInteger(initialTab) && initialTab >= 0 && initialTab < POLICY_TABS.length ? initialTab : 0
+  );
   const [animating, setAnimating] = useState(false);
 
   const handleTabChange = (index) => {
@@ -328,13 +336,18 @@ const LegalTermsPage = () => {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden content-card transition-all duration-300">
-          <div className="flex flex-wrap sm:flex-nowrap border-b border-gray-100 dark:border-gray-700">
-            {['License Agreement', 'Terms & Conditions', 'Privacy Policy', 'Cookie Policy'].map((tab, index) => (
+          <div className="flex flex-wrap sm:flex-nowrap border-b border-gray-100 dark:border-gray-700" role="tablist" aria-label="Policy sections">
+            {POLICY_TABS.map((tab, index) => (
               <button
                 key={index}
+                type="button"
+                role="tab"
+                id={`policy-tab-${index}`}
+                aria-selected={activeTab === index}
+                aria-controls={`policy-panel-${activeTab}`}
                 onClick={() => handleTabChange(index)}
-                className={`tab-item flex-1 py-5 px-4 text-center font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-all duration-300 ${
-                  activeTab === index ? 'active bg-blue-50 dark:bg-indigo-900/30 text-blue-600 dark:text-blue-400 font-semibold' : ''
+                className={`tab-item flex-1 py-5 px-4 text-center font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                  activeTab === index ? 'active bg-blue-50 dark:bg-indigo-900/30 text-blue-700 dark:text-blue-400 font-semibold' : ''
                 }`}
                 style={{
                   animation: activeTab === index ? 'pulse 2s infinite' : 'none',
@@ -356,7 +369,12 @@ const LegalTermsPage = () => {
             ))}
           </div>
 
-          <div className="relative overflow-hidden">
+          <div
+            className="relative overflow-hidden"
+            role="tabpanel"
+            id={`policy-panel-${activeTab}`}
+            aria-labelledby={`policy-tab-${activeTab}`}
+          >
             {renderTabContent()}
           </div>
         </div>

@@ -109,12 +109,7 @@ const AddModule = () => {
       setSelectedCourse("");
     } catch (submitFailure) {
       console.error("Error adding module:", submitFailure);
-      const data = submitFailure.response?.data;
-      setError(
-        (typeof data === "string" && data) ||
-          data?.message ||
-          "Could not add the module. Please try again."
-      );
+      setError("Could not add the module. Please check the details and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +128,7 @@ const AddModule = () => {
           className="max-w-3xl mx-auto w-full"
         >
           {/* Header */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
             Add Module
           </h2>
 
@@ -151,12 +146,13 @@ const AddModule = () => {
             <form onSubmit={handleAddModule} className="space-y-6">
               {/* Course Selection */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                <label htmlFor="module-course" className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                   Select Course
                 </label>
                 <div className="relative">
                   <motion.select
-                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 appearance-none shadow-glow hover:shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
+                    id="module-course"
+                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 appearance-none shadow-glow shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCourse}
                     onChange={(e) => setSelectedCourse(e.target.value)}
                     required
@@ -164,7 +160,10 @@ const AddModule = () => {
                     whileHover={coursesLoading ? undefined : { scale: 1.02 }}
                     whileFocus={{ scale: 1.02 }}
                   >
-                    <option value="">
+                    <option
+                      value=""
+                      className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+                    >
                       {coursesLoading
                         ? "Loading courses…"
                         : courses.length === 0
@@ -172,13 +171,17 @@ const AddModule = () => {
                           : "-- Select Course --"}
                     </option>
                     {courses.map((course) => (
-                      <option key={course.id} value={course.id}>
+                      <option
+                        key={course.id}
+                        value={course.id}
+                        className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+                      >
                         {course.name}
                       </option>
                     ))}
                   </motion.select>
                   <svg
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none"
                     width="20"
                     height="20"
                     viewBox="0 0 20 20"
@@ -222,12 +225,14 @@ const AddModule = () => {
 
               {/* Module Title */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                <label htmlFor="module-title" className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                   Module Title
                 </label>
                 <motion.input
+                  id="module-title"
                   type="text"
-                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 shadow-glow hover:shadow-glow-hover"
+                  placeholder="e.g. Getting started"
+                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
                   value={moduleTitle}
                   onChange={(e) => setModuleTitle(e.target.value)}
                   required
@@ -241,12 +246,13 @@ const AddModule = () => {
                 <div key={index} className="space-y-4">
                   {/* Content Text */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                    <label htmlFor={`module-content-${index}`} className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                       Content {index + 1}
                     </label>
                     <motion.input
+                      id={`module-content-${index}`}
                       type="text"
-                      className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-300 shadow-glow hover:shadow-glow-hover"
+                      className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
                       value={item.text}
                       onChange={(e) => handleContentChange(e, index)}
                       required
@@ -257,21 +263,24 @@ const AddModule = () => {
 
                   {/* Image Upload */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                      Content Image <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
+                    <label htmlFor={`module-image-${index}`} className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                      Content Image <span className="font-normal text-gray-600 dark:text-gray-300">(optional)</span>
                     </label>
-                    <div className="relative">
+                    <div className="relative focus-within:ring-2 focus-within:ring-blue-500 rounded-lg">
                       <motion.label
-                        className="flex items-center justify-center w-full px-4 py-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-700/50 rounded-lg text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-800/30 cursor-pointer transition-all duration-300 shadow-glow hover:shadow-glow-hover"
+                        htmlFor={`module-image-${index}`}
+                        className="flex items-center justify-center w-full px-4 py-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-700/50 rounded-lg text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-800/30 cursor-pointer transition-all duration-300 shadow-glow shadow-glow-hover"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
                         <Upload size={20} className="mr-2" />
-                        {item.imageUrl ? "Change Image" : "Upload Image"}
+                        {item.imageUrl ? "Change image" : "Upload image"}
                         <input
+                          id={`module-image-${index}`}
                           type="file"
                           accept="image/*"
-                          className="hidden"
+                          aria-label={`Image for content ${index + 1}`}
+                          className="sr-only"
                           onChange={(e) => handleImageChange(e, index)}
                         />
                       </motion.label>
@@ -291,7 +300,7 @@ const AddModule = () => {
               ))}
 
               {uploadError && (
-                <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                <p className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
                   <AlertCircle size={16} className="shrink-0" />
                   {uploadError}
                 </p>
@@ -301,23 +310,23 @@ const AddModule = () => {
               <motion.button
                 type="button"
                 onClick={() => setContent([...content, { text: "", imageUrl: "" }])}
-                className="flex items-center bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 text-white px-4 py-2.5 rounded-lg font-medium shadow-glow hover:shadow-glow-hover transition-all duration-300"
+                className="flex items-center bg-gradient-to-r from-green-700 to-green-800 text-white px-4 py-2.5 rounded-lg font-medium shadow-glow shadow-glow-hover transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <PlusCircle size={20} className="mr-2" />
-                Add More Content
+                Add content section
               </motion.button>
 
               {/* Submit Button */}
               <motion.button
                 type="submit"
                 disabled={submitDisabled}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white py-3 rounded-lg font-medium shadow-glow hover:shadow-glow-hover transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-700 text-white py-3 rounded-lg font-medium shadow-glow shadow-glow-hover transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 whileHover={submitDisabled ? undefined : { scale: 1.05 }}
                 whileTap={submitDisabled ? undefined : { scale: 0.95 }}
               >
-                {submitting ? "Adding Module..." : "Add Module"}
+                {submitting ? "Adding module…" : "Add module"}
               </motion.button>
             </form>
           </div>
@@ -330,7 +339,8 @@ const AddModule = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="fixed top-10 right-4 sm:right-10 bg-green-500/90 dark:bg-green-600/90 backdrop-blur-sm text-white p-4 rounded-lg shadow-lg flex items-center shadow-glow-green"
+              className="fixed top-10 right-4 sm:right-10 bg-green-700 dark:bg-green-800 backdrop-blur-sm text-white p-4 rounded-lg shadow-lg flex items-center shadow-glow-green"
+              role="status"
             >
               <CheckCircle size={20} className="mr-2" />
               Module added successfully!

@@ -12,6 +12,9 @@ export const UserAttempts = () => {
   const [courses, setCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState("all");
   const [certificates, setCertificates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const userId = sessionStorage.getItem("userId");
   const navigate = useNavigate();
 
@@ -21,13 +24,22 @@ export const UserAttempts = () => {
       : process.env.REACT_APP_LOCAL_API;
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError("");
     fetch(`${apiUrl}/api/attempts/user/${userId}`, {
       headers: { ...getAuthHeaders() },
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        return res.json();
+      })
       .then((data) => setAttempts(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Error fetching attempts:", err));
-  }, [userId, apiUrl]);
+      .catch((err) => {
+        console.error("Error fetching attempts:", err);
+        setLoadError("Couldn't load your exam history. Please check your connection and try again.");
+      })
+      .finally(() => setLoading(false));
+  }, [userId, apiUrl, reloadKey]);
 
   useEffect(() => {
     fetch(`${apiUrl}/course/getCourses`)
@@ -40,10 +52,16 @@ export const UserAttempts = () => {
     fetch(`${apiUrl}/api/certificates/user/${userId}`, {
       headers: { ...getAuthHeaders() },
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed with status ${res.status}`);
+        return res.json();
+      })
       .then((data) => setCertificates(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Error fetching certificates:", err));
-  }, [userId, apiUrl]);
+      .catch((err) => {
+        console.error("Error fetching certificates:", err);
+        setLoadError("Couldn't load your certificate status. Please refresh the page and try again.");
+      });
+  }, [userId, apiUrl, reloadKey]);
 
   const hasCertificate = (courseId) => {
     return Array.isArray(certificates) && certificates.some((cert) => cert.courseId === courseId);
@@ -96,13 +114,13 @@ export const UserAttempts = () => {
       if (paymentResponse.status === 503) {
         // Payments are unavailable; passing learners can still issue their certificate.
         await issueCertificate(attempt);
-        alert("Payments are not configured on this server. Your certificate was issued without a fee.");
+        alert("Payment isn't available right now, so your certificate was issued for free.");
         navigate("/certificates");
         return;
       }
 
       if (!paymentResponse.ok || !result.transactionId) {
-        alert(result.message || "Payment initiation failed. Please try again.");
+        alert("We couldn't start the payment. Please try again.");
         return;
       }
 
@@ -138,11 +156,11 @@ export const UserAttempts = () => {
 
             await issueCertificate(attempt);
 
-            alert("Payment Verified! Certificate Issued Successfully.");
+            alert("Payment verified! Your certificate has been issued.");
             navigate("/certificates");
           } catch (err) {
             console.error("Verification failed:", err);
-            alert("Payment verification error: " + err.message);
+            alert("We couldn't verify your payment. Your certificate was not issued. Please try again.");
           }
         },
         prefill: {
@@ -183,8 +201,9 @@ export const UserAttempts = () => {
         </h1>
 
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <label className="text-lg font-medium text-gray-700 dark:text-gray-300">Filter by Course:</label>
+          <label htmlFor="courseFilter" className="text-lg font-medium text-gray-700 dark:text-gray-300">Filter by Course:</label>
           <select
+            id="courseFilter"
             value={selectedCourse}
             onChange={(e) => setSelectedCourse(e.target.value)}
             className="w-full md:w-72 px-4 py-3 border-2 border-purple-100 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-700 focus:border-purple-500 dark:focus:border-purple-400 transition-all cursor-pointer"
@@ -198,13 +217,31 @@ export const UserAttempts = () => {
           </select>
         </div>
 
-        {filteredAttempts.length === 0 ? (
+        {loading ? (
+          <p className="text-center text-lg text-gray-600 dark:text-gray-300" role="status">
+            Loading your exam history...
+          </p>
+        ) : loadError ? (
+          <div className="text-center p-8 rounded-xl bg-rose-50 dark:bg-rose-900/20" role="alert">
+            <p className="text-rose-700 dark:text-rose-300 text-lg">{loadError}</p>
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredAttempts.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center p-8 rounded-xl bg-purple-50/50 dark:bg-purple-900/20"
           >
-            <p className="text-gray-500 dark:text-gray-400 text-lg">No attempts found for this course</p>
+            <p className="text-gray-600 dark:text-gray-300 text-lg">
+              {selectedCourse === "all"
+                ? "No attempts yet — take your first test to see your results here."
+                : "No attempts found for this course. Try another filter or take the course test."}
+            </p>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -227,10 +264,10 @@ export const UserAttempts = () => {
                     <TrophyIcon className="w-5 h-5 text-amber-500 dark:text-amber-400" />
                     <span
                       className={`text-sm font-medium ${
-                        attempt.score >= PASSING_SCORE ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"
+                        attempt.score >= PASSING_SCORE ? "text-green-700 dark:text-green-400" : "text-orange-700 dark:text-orange-400"
                       }`}
                     >
-                      {attempt.score}% Score
+                      {attempt.score}% Score · {attempt.score >= PASSING_SCORE ? "Passed" : "Not passed"}
                     </span>
                   </div>
 

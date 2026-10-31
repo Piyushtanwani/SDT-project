@@ -69,7 +69,8 @@ const UserProfileCard = ({
       );
       onStatusChange?.({ status: "PENDING_SENT" });
     } catch (err) {
-      setError(err.response?.data?.message || "Could not send the connection request. Please try again.");
+      console.error("Connect request failed:", err);
+      setError("Could not send the connection request. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -92,7 +93,8 @@ const UserProfileCard = ({
       );
       onStatusChange?.({ status: "CONNECTED" });
     } catch (err) {
-      setError(err.response?.data?.message || "Could not accept the request. Please try again.");
+      console.error("Accept request failed:", err);
+      setError("Could not accept the request. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -155,6 +157,9 @@ const UserProfileCard = ({
             />
             {user.online && (
               <motion.span
+                role="img"
+                aria-label="Online"
+                title="Online"
                 className="absolute bottom-1 right-1 h-3 w-3 bg-green-500 rounded-full ring-2 ring-white dark:ring-gray-800"
                 animate={{
                   boxShadow: ["0 0 0 0 rgba(34, 197, 94, 0.4)", "0 0 0 10px rgba(34, 197, 94, 0)"],
@@ -263,8 +268,8 @@ const UserProfileCard = ({
               <div className="flex items-center gap-1">
                 {user.availability ? (
                   <>
-                    <FiCheckCircle className="text-green-500 dark:text-green-400" />
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">{user.availability}</p>
+                    <FiCheckCircle className="text-green-600 dark:text-green-400" />
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">{user.availability}</p>
                   </>
                 ) : (
                   <>

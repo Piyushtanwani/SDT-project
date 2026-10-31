@@ -54,7 +54,10 @@ export const ShowCertificates = () => {
   const [courses, setCourses] = useState([]);
   const [selectedCertificate, setSelectedCertificate] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [loadingDownload, setLoadingDownload] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
   const certificateRef = useRef(null);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState("all");
@@ -69,7 +72,9 @@ export const ShowCertificates = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      let certFailed = false;
       try {
+        setFetchError("");
         const certRes = await fetch(`${apiUrl}/api/certificates/user/${userId}`, {
           headers: { ...getAuthHeaders() },
         });
@@ -77,6 +82,7 @@ export const ShowCertificates = () => {
           const certData = await certRes.json();
           setCertificates(Array.isArray(certData) ? certData : []);
         } else {
+          certFailed = true;
           setCertificates([]);
         }
 
@@ -95,13 +101,18 @@ export const ShowCertificates = () => {
         }
       } catch (error) {
         console.error("Error fetching data:", error);
+        certFailed = true;
+        setCertificates([]);
       } finally {
+        if (certFailed) {
+          setFetchError("Couldn't load your certificates. Please check your connection and try again.");
+        }
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [userId, apiUrl]);
+  }, [userId, apiUrl, reloadKey]);
 
   const getCourseName = (courseId) => {
     const course = courses.find((c) => c.id === courseId);
@@ -183,6 +194,7 @@ export const ShowCertificates = () => {
     if (!certificateRef.current) return;
     
     setLoadingDownload(true);
+    setDownloadError("");
 
     setTimeout(async () => {
       try {
@@ -190,6 +202,8 @@ export const ShowCertificates = () => {
           backgroundColor: "#ffffff",
           scale: window.innerWidth < 768 ? 2 : 3,
           useCORS: true,
+          // Paper is always light: without this, dark-mode text renders white-on-white.
+          onclone: (doc) => doc.documentElement.classList.remove("dark"),
         });
 
         const imgData = canvas.toDataURL("image/png");
@@ -208,6 +222,7 @@ export const ShowCertificates = () => {
         pdf.save(`${getCourseName(selectedCertificate.courseId)}_certificate.pdf`);
       } catch (error) {
         console.error("Error generating PDF:", error);
+        setDownloadError("Couldn't generate the PDF. Please try again.");
       } finally {
         setLoadingDownload(false);
       }
@@ -254,9 +269,10 @@ export const ShowCertificates = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                aria-pressed={activeCategory === "all"}
                 className={`px-4 py-2 rounded-full transition-all ${
                   activeCategory === "all"
-                    ? "bg-indigo-600 dark:bg-indigo-700 text-white shadow-md"
+                    ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold shadow-md"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
                 onClick={() => setActiveCategory("all")}
@@ -269,9 +285,10 @@ export const ShowCertificates = () => {
                   key={category}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  aria-pressed={activeCategory === category.toLowerCase()}
                   className={`px-4 py-2 rounded-full transition-all ${
                     activeCategory === category.toLowerCase()
-                      ? "bg-indigo-600 dark:bg-indigo-700 text-white shadow-md"
+                      ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold shadow-md"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                   onClick={() => setActiveCategory(category.toLowerCase())}
@@ -292,6 +309,16 @@ export const ShowCertificates = () => {
             ></motion.div>
             <p className="text-indigo-700 dark:text-indigo-300 font-medium">Loading your achievements...</p>
           </div>
+        ) : fetchError ? (
+          <div className="text-center py-12 bg-rose-50 dark:bg-rose-900/20 rounded-xl" role="alert">
+            <p className="text-rose-700 dark:text-rose-300 text-lg">{fetchError}</p>
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         ) : certificates.length > 0 ? (
           <>
             <AnimatePresence>
@@ -305,7 +332,16 @@ export const ShowCertificates = () => {
                   {filteredCertificates.map((certificate) => (
                     <motion.div
                       key={certificate.id}
-                      className={`bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/30 rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-all ${
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedCertificate?.id === certificate.id}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleCertificateClick(certificate);
+                        }
+                      }}
+                      className={`bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/30 rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 ${
                         selectedCertificate?.id === certificate.id ? "ring-2 ring-indigo-500 dark:ring-indigo-400" : ""
                       }`}
                       onClick={() => handleCertificateClick(certificate)}
@@ -343,7 +379,7 @@ export const ShowCertificates = () => {
                 </motion.div>
               ) : (
                 <div className="text-center py-8 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                  <p className="text-gray-600 dark:text-gray-400">No certificates found in this category.</p>
+                  <p className="text-gray-600 dark:text-gray-300">No certificates found in this category.</p>
                 </div>
               )}
             </AnimatePresence>
@@ -358,7 +394,7 @@ export const ShowCertificates = () => {
               <FiAward className="text-gray-400 dark:text-gray-500 text-4xl" />
             </div>
             <h3 className="text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">No Certificates Yet</h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+            <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
               Pass a final exam with 80% or higher, then issue your certificate from My Exam History.
             </p>
             <button
@@ -471,7 +507,7 @@ export const ShowCertificates = () => {
                         level="H"
                         includeMargin={true}
                       />
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 text-center font-medium">Scan to Verify</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-2 text-center font-medium">Scan to Verify</p>
                     </div>
                   </div>
                   
@@ -499,8 +535,13 @@ export const ShowCertificates = () => {
                   ) : (
                     <FiDownload className="text-xl" />
                   )}
-                  {loadingDownload ? "Generating PDF..." : "Download Certificate"}
+                  {loadingDownload ? "Generating PDF…" : "Download Certificate"}
                 </button>
+                {downloadError && (
+                  <p className="mt-3 text-red-600 dark:text-red-400" role="alert">
+                    {downloadError}
+                  </p>
+                )}
               </motion.div>
             </motion.div>
           )}

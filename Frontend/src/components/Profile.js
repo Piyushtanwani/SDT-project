@@ -68,13 +68,24 @@ export const Profile = () => {
   if (!userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950">
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-gray-600 dark:text-gray-400 text-lg font-semibold"
-        >
-          Loading profile...
-        </motion.p>
+        {error ? (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            role="alert"
+            className="text-red-600 dark:text-red-400 text-lg font-semibold px-4 text-center"
+          >
+            {error} Please refresh the page to try again.
+          </motion.p>
+        ) : (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-gray-600 dark:text-gray-400 text-lg font-semibold"
+          >
+            Loading profile...
+          </motion.p>
+        )}
       </div>
     );
   }
@@ -206,7 +217,7 @@ export const Profile = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate("/updateprofile")}
-              className="w-full py-3 bg-indigo-500 dark:bg-indigo-600 text-white rounded-lg hover:bg-indigo-600 dark:hover:bg-indigo-700 shadow-md transition-colors"
+              className="w-full py-3 bg-indigo-600 dark:bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-700 shadow-md transition-colors"
             >
               Edit Profile
             </motion.button>
@@ -217,6 +228,7 @@ export const Profile = () => {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
+              role="alert"
               className="mt-4 flex items-center justify-center text-red-600 dark:text-red-400"
             >
               <span>{error}</span>

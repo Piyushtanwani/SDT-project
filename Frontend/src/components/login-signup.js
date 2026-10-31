@@ -1,24 +1,31 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { motion } from "framer-motion";
-import { FiAlertCircle, FiLock, FiMail } from "react-icons/fi";
+import { FiAlertCircle, FiEye, FiEyeOff, FiLock, FiMail } from "react-icons/fi";
 
 export const LoginSignup = () => {
   const { login, googleLogin } = useAuth();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setError("");
     const result = await login(email, password);
     if (result.success) {
       navigate("/");
     } else {
       setError(result.error);
+      setSubmitting(false);
     }
   };
 
@@ -74,48 +81,64 @@ export const LoginSignup = () => {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
+              <label htmlFor="loginEmail" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
                 <FiMail className="mr-2 text-indigo-500 dark:text-indigo-400" />
                 Email
               </label>
               <input
+                id="loginEmail"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                autoComplete="email"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
                 placeholder="your@email.com"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
+              <label htmlFor="loginPassword" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-3 flex items-center">
                 <FiLock className="mr-2 text-indigo-500 dark:text-indigo-400" />
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
-                placeholder="••••••••"
-                required
-              />
+              <div className="relative">
+                <input
+                  id="loginPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full px-4 py-3 pr-12 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                  placeholder="Enter your password"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                >
+                  {showPassword ? <FiEyeOff /> : <FiEye />}
+                </button>
+              </div>
             </div>
 
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={submitting ? undefined : { scale: 1.02 }}
+              whileTap={submitting ? undefined : { scale: 0.98 }}
               type="submit"
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-400 hover:to-purple-400 dark:hover:from-indigo-700 dark:hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30"
+              disabled={submitting}
+              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Continue
+              {submitting ? "Signing in…" : "Continue"}
             </motion.button>
 
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
+                role="alert"
                 className="flex items-center gap-2 p-3 bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-lg border border-pink-100 dark:border-pink-800"
               >
                 <FiAlertCircle className="flex-shrink-0" />
@@ -126,15 +149,15 @@ export const LoginSignup = () => {
 
           <div className="my-8 flex items-center">
             <div className="flex-1 border-t border-indigo-100 dark:border-indigo-800" />
-            <span className="px-4 text-gray-500 dark:text-gray-400 text-sm">or continue with</span>
+            <span className="px-4 text-gray-600 dark:text-gray-400 text-sm">or continue with</span>
             <div className="flex-1 border-t border-indigo-100 dark:border-indigo-800" />
           </div>
 
           <div className="flex justify-center">
             <GoogleLogin
               onSuccess={handleGoogleLoginSuccess}
-              onError={() => setError("Google Login Failed")}
-              theme="filled_white"
+              onError={() => setError("Google sign-in failed. Please try again.")}
+              theme={resolvedTheme === "dark" ? "filled_black" : "filled_white"}
               shape="pill"
             />
           </div>
@@ -158,7 +181,7 @@ export const LoginSignup = () => {
       </motion.div>
 
       {/* Floating helper icon */}
-      <div className="absolute bottom-8 right-8 animate-bounce">
+      <div className="absolute bottom-8 right-8 animate-bounce" aria-hidden="true">
         <FiAlertCircle className="text-indigo-400 dark:text-indigo-500 w-8 h-8 opacity-50 hover:opacity-75 cursor-help transition-opacity" />
       </div>
     </div>

@@ -42,6 +42,8 @@ export const AdminCoursePanel = () => {
     fetchCourses();
   }, [fetchCourses]);
 
+  const selectedCourse = courses.find((course) => course.id === selectedCourseId);
+
   const handleDeleteCourse = async () => {
     if (!selectedCourseId) return;
     try {
@@ -50,13 +52,8 @@ export const AdminCoursePanel = () => {
       await axios.delete(`${apiUrl}/course/deletecourse/${selectedCourseId}`);
       setCourses((prev) => prev.filter((course) => course.id !== selectedCourseId));
       setIsConfirmOpen(false);
-    } catch (error) {
-      const data = error.response?.data;
-      setDeleteError(
-        typeof data === "string" && data.trim()
-          ? data
-          : "Could not delete the course. Please try again."
-      );
+    } catch {
+      setDeleteError("Could not delete the course. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -67,7 +64,7 @@ export const AdminCoursePanel = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col p-4 sm:p-6">
         {/* Header */}
-        <h1 className="text-3xl sm:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 mb-6 sm:mb-8">
+        <h1 className="text-3xl sm:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-400 mb-6 sm:mb-8">
           Admin Course Panel
         </h1>
 
@@ -77,11 +74,30 @@ export const AdminCoursePanel = () => {
             onClick={() => setIsModalOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
+            className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
           >
-            + Add Course
+            + Add course
           </motion.button>
         </div>
+
+        {loadError && courses.length > 0 && (
+          <div
+            role="alert"
+            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+          >
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoading(true);
+                fetchCourses();
+              }}
+              className="font-semibold underline underline-offset-2 hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
 
         {/* Course Grid */}
         <motion.div
@@ -91,8 +107,8 @@ export const AdminCoursePanel = () => {
           transition={{ duration: 0.8 }}
         >
           {isLoading && courses.length === 0 && (
-            <p className="col-span-full text-center text-gray-600 dark:text-gray-400 py-10">
-              Loading courses...
+            <p role="status" className="col-span-full text-center text-gray-600 dark:text-gray-400 py-10">
+              Loading courses…
             </p>
           )}
           {!isLoading && loadError && courses.length === 0 && (
@@ -129,7 +145,7 @@ export const AdminCoursePanel = () => {
               <img
                 src={course.thumbnailUrl || "/default-thumbnail.svg"}
                 alt={course.name}
-                className="w-full h-48 object-cover bg-gray-200"
+                className="w-full h-48 object-cover bg-gray-200 dark:bg-gray-700"
                 onError={(e) => (e.target.src = "/default-thumbnail.svg")}
               />
               <div className="p-4">
@@ -140,10 +156,10 @@ export const AdminCoursePanel = () => {
                   {course.description}
                 </p>
                 <div className="mt-4 flex justify-between items-center">
-                  <span className="text-sm font-medium text-blue-500 dark:text-blue-400">
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
                     ⏳ {formatDuration(course.duration)}
                   </span>
-                  <span className="text-sm font-medium text-yellow-500 dark:text-yellow-400">
+                  <span className="text-sm font-medium text-yellow-800 dark:text-yellow-400">
                     ⭐ {course.rating || "N/A"}
                   </span>
                 </div>
@@ -155,7 +171,9 @@ export const AdminCoursePanel = () => {
                   setDeleteError("");
                   setIsConfirmOpen(true);
                 }}
-                className="absolute top-2 right-2 bg-red-500/90 text-white p-2 rounded-full hover:bg-red-600 transition-all duration-300 shadow-sm"
+                className="absolute top-2 right-2 bg-red-600/95 text-white p-2 rounded-full hover:bg-red-700 transition-all duration-300 shadow-sm"
+                aria-label={`Delete ${course.name || "course"}`}
+                title={`Delete ${course.name || "course"}`}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
               >
@@ -184,12 +202,21 @@ export const AdminCoursePanel = () => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 p-4"
+              className="fixed inset-0 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 p-4"
             >
-              <div className="relative max-w-sm w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                  Are you sure you want to delete this course?
+              <div
+                className="relative max-w-sm w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6"
+                role="alertdialog"
+                aria-label="Confirm course deletion"
+              >
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  {selectedCourse
+                    ? `Delete “${selectedCourse.name}”?`
+                    : "Delete this course?"}
                 </h2>
+                <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
+                  The course is removed from the catalog. This can’t be undone.
+                </p>
                 {deleteError && (
                   <p className="mb-4 text-sm text-red-600 dark:text-red-400" role="alert">
                     {deleteError}
@@ -207,11 +234,11 @@ export const AdminCoursePanel = () => {
                   <motion.button
                     onClick={handleDeleteCourse}
                     disabled={isDeleting}
-                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
                     whileHover={isDeleting ? undefined : { scale: 1.05 }}
                     whileTap={isDeleting ? undefined : { scale: 0.95 }}
                   >
-                    {isDeleting ? "Deleting..." : "Delete"}
+                    {isDeleting ? "Deleting…" : "Delete"}
                   </motion.button>
                 </div>
               </div>

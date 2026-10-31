@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ArrowLeft, ChevronLeft, ChevronRight, Image, X, BookOpen, Award, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -138,14 +138,14 @@ const CourseModuleDetail = () => {
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
           <button
             onClick={() => navigate(`/course/${courseId}/modules`)}
-            className="flex items-center hover:text-white hover:bg-white/20 dark:hover:bg-white/10 px-3 py-1 rounded-lg transition-colors"
+            className="flex items-center hover:text-white hover:bg-white/10 px-3 py-1 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             <span className="text-sm sm:text-base font-medium">Back to Course</span>
           </button>
 
           {!error && totalModules > 0 && (
-            <div className="flex items-center bg-white/20 dark:bg-white/10 px-3 py-1 rounded-lg">
+            <div className="flex items-center bg-black/25 dark:bg-white/10 px-3 py-1 rounded-lg">
               <Clock className="w-4 h-4 mr-1 text-white" />
               <span className="text-sm font-medium">Module {moduleNumber} of {totalModules}</span>
             </div>
@@ -381,7 +381,7 @@ const CourseModuleDetail = () => {
                 ) : (
                   <button
                     onClick={handleTakeExam}
-                    className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-blue-500 dark:from-emerald-600 dark:to-blue-600 hover:from-emerald-600 hover:to-blue-600 dark:hover:from-emerald-700 dark:hover:to-blue-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all flex items-center"
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-blue-600 dark:from-emerald-700 dark:to-blue-700 hover:from-emerald-800 hover:to-blue-700 dark:hover:from-emerald-800 dark:hover:to-blue-800 text-white rounded-lg shadow-md hover:shadow-lg transition-all flex items-center"
                   >
                     <Award className="w-5 h-5 mr-2" />
                     Take Final Exam
@@ -390,8 +390,16 @@ const CourseModuleDetail = () => {
               </div>
 
               {/* Footer */}
-              <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                <p>Need help with this module? Contact our support team</p>
+              <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+                <p>
+                  Need help with this module?{" "}
+                  <Link
+                    to="/contact"
+                    className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                  >
+                    Contact our support team
+                  </Link>
+                </p>
               </div>
             </motion.div>
           ) : null}
@@ -420,6 +428,7 @@ const CourseModuleDetail = () => {
                 <h3 className="text-gray-800 dark:text-white font-medium">Practical Example {activeImageIndex + 1}</h3>
                 <button
                   onClick={hideImage}
+                  aria-label="Close image"
                   className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
                 >
                   <X className="w-5 h-5" />
