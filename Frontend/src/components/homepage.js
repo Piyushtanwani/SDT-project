@@ -18,17 +18,71 @@ import {
   FaFilter, 
   FaLaptopCode, 
   FaLightbulb, 
-  FaClock, 
-  FaBrain 
+  FaClock 
 } from "react-icons/fa";
 import { BsCodeSquare } from "react-icons/bs";
+import { Binary, Database, GitBranch, Sparkles, Sun } from "lucide-react";
 import { API_BASE_URL } from "../config/api";
+
+const heroSamples = [
+  {
+    subject: "Version Control",
+    difficulty: "Medium",
+    icon: GitBranch,
+    text: "After a rebase, why does the same commit show up under a brand new hash?",
+  },
+  {
+    subject: "Databases",
+    difficulty: "Hard",
+    icon: Database,
+    text: "When does SELECT * cost you an index-only scan and force a full table read?",
+  },
+  {
+    subject: "Algorithms",
+    difficulty: "Easy",
+    icon: Binary,
+    text: "What input actually drives quicksort down to O(n²) — and why that one?",
+  },
+];
 
 export const HomePage = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [liftedCard, setLiftedCard] = useState(null);
   const navigate = useNavigate();
   const hasFetched = useRef(false);
+  const heroRef = useRef(null);
+
+  // Pointer parallax for the hero decorations. Written straight to CSS custom
+  // properties inside a rAF so moving the mouse never re-renders the page, and
+  // skipped entirely for touch and reduced-motion users.
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return undefined;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return undefined;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    let frame = 0;
+    const write = (x, y) => {
+      el.style.setProperty("--hx", `${(x * 26).toFixed(1)}px`);
+      el.style.setProperty("--hy", `${(y * 18).toFixed(1)}px`);
+    };
+    const onMove = (event) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const rect = el.getBoundingClientRect();
+        write((event.clientX - rect.left) / rect.width - 0.5, (event.clientY - rect.top) / rect.height - 0.5);
+      });
+    };
+    const onLeave = () => write(0, 0);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
 
   const apiUrl = API_BASE_URL;
 
@@ -65,11 +119,7 @@ export const HomePage = () => {
     const normalizedName = course.name.trim().toLowerCase();
     
     return (
-      <div className="group relative">
-        {/* Animated Glow Effect */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur opacity-30 group-hover:opacity-80 transition duration-1000 group-hover:duration-300 animate-pulse-slow"></div>
-        
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl p-6 ring-1 ring-gray-200/50 dark:ring-gray-800 shadow-lg flex flex-col h-full transition-all duration-300 group-hover:translate-y-1">
+      <div className="group relative bg-white dark:bg-gray-900 rounded-xl p-6 ring-1 ring-gray-200/50 dark:ring-gray-800 flex flex-col h-full">
           <div className="flex items-center mb-5">
             <div className="flex-shrink-0 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/30">
               <span className="text-indigo-600 dark:text-indigo-400">
@@ -102,7 +152,6 @@ export const HomePage = () => {
               </button>
             </div>
           </div>
-        </div>
       </div>
     );
   };
@@ -110,13 +159,9 @@ export const HomePage = () => {
   // Premium Feature Card
   const FeatureCard = ({ icon, title, description, buttonText, onClick }) => {
     return (
-      <div className="group relative">
-        {/* Subtle Animated Glow Effect */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-20 group-hover:opacity-70 transition duration-1000 group-hover:duration-300"></div>
-        
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl p-6 ring-1 ring-gray-200/50 dark:ring-gray-800 shadow-lg flex flex-col h-full transition-all duration-300 group-hover:translate-y-1">
+      <div className="group relative bg-white dark:bg-gray-900 rounded-xl p-6 ring-1 ring-gray-200/50 dark:ring-gray-800 flex flex-col h-full">
           <div className="flex justify-center mb-3">
-            <div className="w-12 h-12 mb-2 flex items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/30 dark:to-blue-900/30">
+            <div className="w-12 h-12 mb-2 flex items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/30">
               <span className="text-indigo-600 dark:text-indigo-400">
                 {icon}
               </span>
@@ -128,52 +173,151 @@ export const HomePage = () => {
           
           <button 
             onClick={onClick}
-            className="mt-auto flex items-center justify-center py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 group-hover:shadow-lg"
+            className="mt-auto flex items-center justify-center py-2.5 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors duration-200"
           >
             {buttonText}
             <FaArrowRight className="ml-2 text-xs" />
           </button>
-        </div>
       </div>
     );
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950">
-      {/* Subtle background patterns */}
-      <div className="absolute inset-0 z-0 opacity-5">
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAzNGM0LjQxOCAwIDgtMy41ODIgOC04cy0zLjU4Mi04LTgtOC04IDMuNTgyLTggOCAzLjU4MiA4IDggOHoiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLW9wYWNpdHk9Ii4wNSIvPjxwYXRoIGQ9Ik0zMCAzMGMwLTMuMzE0LTIuNjg2LTYtNi02cy02IDIuNjg2LTYgNiAyLjY4NiA2IDYgNiA2LTIuNjg2IDYtNnoiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLW9wYWNpdHk9Ii4wNSIvPjwvZz48L3N2Zz4=')]"></div>
-      </div>
+    <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Hero Section */}
+      <section ref={heroRef} className="relative isolate -mt-16 overflow-hidden pt-28 pb-20 md:pb-24">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 dark:hidden"
+          style={{ background: "linear-gradient(115deg, #E9E4FA 0%, #F3EFFA 45%, #FBF2E7 100%)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 hidden dark:block"
+          style={{ background: "linear-gradient(115deg, #191634 0%, #131226 48%, #0B0B18 100%)" }}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(93,86,160,0.16) 1px, transparent 1px), linear-gradient(0deg, rgba(93,86,160,0.16) 1px, transparent 1px)",
+            backgroundSize: "72px 12px, 12px 72px",
+            maskImage: "radial-gradient(ellipse 72% 62% at 50% 38%, #000 25%, transparent 78%)",
+            WebkitMaskImage: "radial-gradient(ellipse 72% 62% at 50% 38%, #000 25%, transparent 78%)",
+          }}
+        />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
-        {/* Hero Section */}
-        <section className="mb-24 relative">
-          {/* Hero background effects */}
-          <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-full max-w-3xl h-20 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-10 blur-3xl rounded-full"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse"></div>
-          <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse-slow"></div>
-          
-          <div className="text-center max-w-3xl mx-auto">
-            <h1 className="text-5xl md:text-6xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 drop-shadow-sm">
-              Learn. Code. Connect.
-            </h1>
-            <p className="text-lg mb-10 text-gray-700 dark:text-gray-300 leading-relaxed max-w-2xl mx-auto">
-              Master programming with expert-led courses, hands-on projects, and live collaboration. 
-              Elevate your skills with our interactive platform and AI assistance.
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <button onClick={() => navigate("/courses")} className="px-8 py-3.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg shadow-indigo-200/50 flex items-center justify-center font-medium">
-                <FaGraduationCap className="mr-2 text-indigo-200" />
-                <span>Explore Courses</span>
-              </button>
-              <button onClick={() => navigate("/ai")} className="px-8 py-3.5 rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 transition-all duration-200 transform hover:scale-105 hover:shadow-lg shadow-purple-200/50 flex items-center justify-center font-medium">
-                <FaRobot className="mr-2 text-purple-200" />
-                <span>AI Assistant</span>
-              </button>
-            </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[7%] top-[30%] hidden h-12 w-12 items-center justify-center rounded-full bg-indigo-300 text-indigo-900 shadow-[0_14px_30px_-10px_rgba(23,20,41,0.5)] ring-1 ring-black/5 md:flex dark:bg-indigo-400/80 dark:text-indigo-950"
+          style={{ transform: "translate3d(calc(var(--hx, 0px) * 1.5), calc(var(--hy, 0px) * 1.5), 0)" }}
+        >
+          <Sparkles size={20} />
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-[9%] top-[46%] hidden h-11 w-11 items-center justify-center rounded-full bg-amber-300 text-amber-900 shadow-[0_14px_30px_-10px_rgba(23,20,41,0.5)] ring-1 ring-black/5 md:flex dark:bg-amber-300/85 dark:text-amber-950"
+          style={{ transform: "translate3d(calc(var(--hx, 0px) * -1.2), calc(var(--hy, 0px) * -1.2), 0)" }}
+        >
+          <Sun size={18} />
+        </div>
+
+        <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
+          <h1 className="font-serif text-[2.6rem] leading-[1.08] tracking-[-0.02em] text-[#171429] sm:text-6xl md:text-[4.25rem] dark:text-white">
+            <span className="block">Find out what you</span>
+            <span className="block">actually know.</span>
+          </h1>
+          <p className="mx-auto mt-7 max-w-xl text-base leading-relaxed text-[#5B5870] sm:text-lg dark:text-gray-300">
+            Objective-type assessments, a code compiler that runs in your browser, and a community of people
+            who already hit the same wall.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/courses")}
+              className="rounded-full bg-[#171429] px-7 py-3.5 text-base font-semibold text-white transition-colors duration-200 hover:bg-[#2A2545] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
+            >
+              Explore courses
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/ai")}
+              className="rounded-full bg-white/70 px-7 py-3.5 text-base font-semibold text-[#171429] ring-1 ring-black/10 backdrop-blur-sm transition-colors duration-200 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent dark:bg-white/10 dark:text-white dark:ring-white/20 dark:hover:bg-white/20"
+            >
+              Ask the AI tutor
+            </button>
           </div>
-        </section>
+        </div>
 
+        <div
+          className="relative mx-auto mt-16 flex max-w-4xl justify-center px-4"
+          style={{ transform: "translate3d(calc(var(--hx, 0px) * 0.35), calc(var(--hy, 0px) * 0.35), 0)" }}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 120 100"
+            className="pointer-events-none absolute -top-14 left-2 hidden w-36 text-indigo-300 sm:block lg:left-10 dark:text-indigo-500/50"
+          >
+            <path
+              d="M60 4C90 4 116 26 116 58c0 26-25 38-56 38S4 84 4 58C4 26 30 4 60 4Z"
+              fill="currentColor"
+            />
+            <circle cx="44" cy="54" r="6" className="fill-[#171429] dark:fill-white" />
+            <circle cx="76" cy="54" r="6" className="fill-[#171429] dark:fill-white" />
+            <circle cx="46" cy="52" r="2" className="fill-white" />
+            <circle cx="78" cy="52" r="2" className="fill-white" />
+          </svg>
+
+          {heroSamples.map((sample, index) => {
+            const center = index === 1;
+            const lifted = liftedCard === index;
+            const receding = liftedCard !== null && !lifted;
+            const rotation = center ? 0 : index === 0 ? -7 : 7;
+            const Icon = sample.icon;
+            return (
+              <button
+                key={sample.subject}
+                type="button"
+                onClick={() => navigate("/courses")}
+                onMouseEnter={() => setLiftedCard(index)}
+                onMouseLeave={() => setLiftedCard(null)}
+                onFocus={() => setLiftedCard(index)}
+                onBlur={() => setLiftedCard(null)}
+                aria-label={`${sample.subject} sample question: ${sample.text} Browse courses`}
+                style={{
+                  transform: `rotate(${lifted ? 0 : rotation}deg) translateY(${lifted ? -12 : center ? 0 : 18}px) scale(${
+                    receding ? 0.98 : lifted ? 1.03 : 1
+                  })`,
+                  opacity: receding ? 0.72 : 1,
+                  zIndex: lifted ? 40 : center ? 30 : 20,
+                }}
+                className={`w-[16rem] shrink-0 rounded-2xl px-5 py-6 text-center shadow-[0_22px_45px_-22px_rgba(23,20,41,0.45)] transition-[transform,opacity] duration-300 ease-out will-change-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:-mx-3 ${
+                  center
+                    ? "bg-indigo-100 ring-1 ring-indigo-200/80 dark:bg-indigo-500/15 dark:ring-indigo-400/25"
+                    : "hidden bg-[#FBF7EF] ring-1 ring-black/5 sm:block dark:bg-gray-900 dark:ring-white/10"
+                }`}
+              >
+                <span className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-white/85 ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15">
+                  <Icon size={16} className="text-indigo-600 dark:text-indigo-300" />
+                </span>
+                <span className="mt-4 block font-serif text-[15px] leading-snug text-[#171429] dark:text-white">
+                  {sample.text}
+                </span>
+                <span className="mt-4 block text-xs text-[#565371] dark:text-gray-400">
+                  {sample.subject}
+                  <span className="mx-1.5" aria-hidden="true">
+                    ·
+                  </span>
+                  {sample.difficulty}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Features Section */}
         <section className="mb-24">
           <div className="mb-12 text-center">
@@ -271,7 +415,6 @@ export const HomePage = () => {
 <section className="mb-24 relative z-10">
   <div className="relative">
     {/* Subtle background glow */}
-    <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 rounded-3xl blur-xl opacity-20"></div>
     
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col md:flex-row">
@@ -337,7 +480,6 @@ export const HomePage = () => {
         {/* Visual Side */}
         <div className="md:w-1/2 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 dark:from-blue-900/20 dark:to-indigo-900/20 p-8 md:p-10 flex items-center justify-center">
           <div className="relative code-editor-preview w-full max-w-md">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg opacity-50 blur"></div>
             <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-2xl">
               {/* Editor Top Bar */}
               <div className="h-10 bg-gray-800 flex items-center px-4">
@@ -392,7 +534,6 @@ export const HomePage = () => {
 <section className="mb-24 relative z-10">
   <div className="relative">
     {/* Subtle background glow */}
-    <div className="absolute -inset-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-3xl blur-xl opacity-20"></div>
     
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col-reverse md:flex-row">
@@ -432,21 +573,18 @@ export const HomePage = () => {
               {/* Developer Avatars */}
               <div className="avatar-container absolute left-1/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-green-500 to-green-600 rounded-full opacity-70 blur-sm"></div>
                   <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-green-700 to-green-800 shadow-xl flex items-center justify-center text-white text-lg font-bold">JS</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-1/2 transform -translate-x-1/2 z-20">
                 <div className="relative">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full opacity-70 blur-sm"></div>
                   <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-xl flex items-center justify-center text-white text-xl font-bold">PY</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-3/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full opacity-70 blur-sm"></div>
                   <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-pink-600 to-pink-700 shadow-xl flex items-center justify-center text-white text-lg font-bold">GO</div>
                 </div>
               </div>
@@ -456,7 +594,6 @@ export const HomePage = () => {
             <div className="space-y-4">
               {/* Active Card with Glow Effect */}
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg opacity-70 blur-sm group-hover:opacity-100 transition duration-200"></div>
                 <div className="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-4 flex items-center shadow-md">
                   <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 font-medium text-lg">A</div>
                   <div className="ml-4 flex-1">
@@ -565,13 +702,12 @@ export const HomePage = () => {
 <section className="mb-24 relative z-10">
   <div className="relative">
     {/* Subtle background glow */}
-    <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-3xl blur-xl opacity-20"></div>
     
     <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col md:flex-row">
         {/* Content Side */}
         <div className="md:w-1/2 p-8 md:p-10">
-          <div className="inline-block text-base font-medium px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 rounded-full mb-3">
+          <div className="inline-block text-base font-medium px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-3">
             AI Powered
           </div>
           <h3 className="text-2xl md:text-3xl font-bold mb-5 text-gray-900 dark:text-white">
@@ -584,7 +720,7 @@ export const HomePage = () => {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaLightbulb size={16} />
               </div>
               <div className="ml-4">
@@ -594,7 +730,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaCode size={16} />
               </div>
               <div className="ml-4">
@@ -604,7 +740,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaClock size={16} />
               </div>
               <div className="ml-4">
@@ -616,7 +752,7 @@ export const HomePage = () => {
           
           <div className="inline-flex group">
             <button
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg shadow-md hover:bg-purple-700 transition-all duration-200 flex items-center justify-center"
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center"
               onClick={() => navigate("/ai")}
             >
               <FaRobot className="mr-2" />
@@ -629,40 +765,10 @@ export const HomePage = () => {
         </div>
         
         {/* Visual Side */}
-        <div className="md:w-1/2 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 dark:from-indigo-900/20 dark:to-purple-900/20 p-8 md:p-10 flex items-center justify-center">
-          <div className="relative ai-assistant-visual">
-            {/* Orbital rings */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-56 w-56 rounded-full border border-indigo-200 dark:border-indigo-800 opacity-30 animate-spin-slow"></div>
-              <div className="absolute h-72 w-72 rounded-full border border-purple-200 dark:border-purple-800 opacity-20 animate-spin-slow-reverse"></div>
-              <div className="absolute h-40 w-40 rounded-full border border-blue-200 dark:border-blue-800 opacity-40 animate-spin-medium"></div>
-            </div>
-            
-            {/* Main AI Circle */}
-            <div className="relative h-32 w-32 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg group">
-              {/* Glowing effect */}
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full opacity-70 blur-md group-hover:opacity-100 transition duration-200"></div>
-              
-              {/* Robot icon with pulse effect */}
-              <div className="relative z-10 rounded-full h-28 w-28 bg-white dark:bg-gray-800 flex items-center justify-center">
-                <FaRobot className="text-4xl text-indigo-600 dark:text-indigo-400" />
-                
-                {/* Pulsing circle */}
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-500 animate-ping opacity-20"></div>
-              </div>
-            </div>
-            
-            {/* Orbiting elements */}
-            <div className="absolute top-5 right-5 h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 shadow-md flex items-center justify-center text-white animate-float">
-              <FaCode size={20} />
-            </div>
-            
-            <div className="absolute bottom-10 right-10 h-8 w-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-500 shadow-md flex items-center justify-center text-white animate-float-delayed">
-              <FaBrain size={16} />
-            </div>
-            
-            <div className="absolute bottom-5 left-5 h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-500 shadow-md flex items-center justify-center text-white animate-float-reverse">
-              <FaLightbulb size={18} />
+        <div className="md:w-1/2 bg-gray-100 dark:bg-gray-900 p-8 md:p-10 flex items-center justify-center">
+          <div className="flex h-32 w-32 items-center justify-center rounded-full bg-indigo-600">
+            <div className="flex h-28 w-28 items-center justify-center rounded-full bg-white dark:bg-gray-800">
+              <FaRobot className="text-4xl text-indigo-600 dark:text-indigo-400" />
             </div>
           </div>
         </div>
@@ -671,68 +777,6 @@ export const HomePage = () => {
   </div>
 </section>
 </div>
-{/* Add necessary CSS */}
-<style>{`
-  /* Subtle animations */
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-  
-  @keyframes float-delayed {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
-  
-  @keyframes float-reverse {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(8px); }
-  }
-  
-  .animate-float {
-    animation: float 5s ease-in-out infinite;
-  }
-  
-  .animate-float-delayed {
-    animation: float-delayed 7s ease-in-out infinite;
-  }
-  
-  .animate-float-reverse {
-    animation: float-reverse 6s ease-in-out infinite;
-  }
-  
-  .animate-spin-slow {
-    animation: spin 30s linear infinite;
-  }
-  
-  .animate-spin-slow-reverse {
-    animation: spin 25s linear infinite reverse;
-  }
-  
-  .animate-spin-medium {
-    animation: spin 15s linear infinite;
-  }
-  
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  
-  /* Pulsing animations */
-  @keyframes ping {
-    0% { transform: scale(1); opacity: 1; }
-    75%, 100% { transform: scale(1.5); opacity: 0; }
-  }
-  
-  .animate-ping {
-    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-  }
-  
-  /* Group hover transitions */
-  .group:hover .group-hover\\:w-6 {
-    width: 1.5rem;
-  }
-`}</style>
     </div>
   );
 };

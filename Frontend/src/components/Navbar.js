@@ -137,7 +137,7 @@ export const Navbar = () => {
     .toUpperCase();
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-gray-200/70 bg-white/80 backdrop-blur-md dark:border-gray-800/70 dark:bg-gray-950/80">
+    <nav className="relative z-50">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Brand */}
         <button
@@ -146,7 +146,7 @@ export const Navbar = () => {
           aria-label="Learn Without Limits — home"
           className={`flex flex-shrink-0 items-center gap-2.5 rounded-lg ${focusRing}`}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 text-base font-extrabold text-white shadow-sm">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-base font-extrabold text-white shadow-sm">
             L
           </span>
           <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
@@ -231,18 +231,11 @@ export const Navbar = () => {
                         onClick={() => go(path)}
                         className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
                           admin
-                            ? "font-medium text-purple-600 dark:text-purple-400"
+                            ? "font-medium text-indigo-600 dark:text-indigo-400"
                             : "text-gray-700 dark:text-gray-200"
                         }`}
                       >
-                        <Icon
-                          size={18}
-                          className={
-                            admin
-                              ? "text-purple-500 dark:text-purple-400"
-                              : "text-indigo-500 dark:text-indigo-400"
-                          }
-                        />
+                        <Icon size={18} className="text-indigo-500 dark:text-indigo-400" />
                         {title}
                       </button>
                     ))}
@@ -264,7 +257,7 @@ export const Navbar = () => {
             <button
               type="button"
               onClick={() => go("/login")}
-              className={`hidden rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-[1.03] lg:inline-flex ${focusRing}`}
+              className={`hidden rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 lg:inline-flex ${focusRing}`}
             >
               Login / Signup
             </button>
@@ -326,11 +319,11 @@ export const Navbar = () => {
                   onClick={() => go(path)}
                   className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-base transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
                     admin
-                      ? "font-medium text-purple-600 dark:text-purple-400"
+                      ? "font-medium text-indigo-600 dark:text-indigo-400"
                       : "text-gray-700 dark:text-gray-200"
                   }`}
                 >
-                  <Icon size={18} className={admin ? "text-purple-500" : "text-indigo-500 dark:text-indigo-400"} />
+                  <Icon size={18} className="text-indigo-500 dark:text-indigo-400" />
                   {title}
                 </button>
               ))}
@@ -345,7 +338,7 @@ export const Navbar = () => {
           ) : (
             <button
               onClick={() => go("/login")}
-              className="w-full rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-center text-base font-semibold text-white shadow-sm"
+              className="w-full rounded-lg bg-indigo-600 px-6 py-3 text-center text-base font-semibold text-white transition-colors hover:bg-indigo-700"
             >
               Login / Signup
             </button>

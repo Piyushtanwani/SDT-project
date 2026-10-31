@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Menu, X, Send, Square, Volume2, Save, Trash, Palette, Mic, ChevronDown, Code } from "lucide-react";
+import { Copy, Menu, X, Send, Square, Volume2, Save, Trash, Mic, ChevronDown, Code } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { API_BASE_URL } from "../config/api";
@@ -59,22 +59,11 @@ const themes = {
     sidebar: "bg-white/95 border-gray-200/50 text-gray-900",
     sidebarHover: "hover:bg-gray-300/50",
   },
-  neon: {
-    bg: "bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900",
-    card: "bg-gray-900/90 shadow-purple-500/30 backdrop-blur-xl",
-    header: "bg-gray-950/80 border-purple-800/30",
-    chat: "bg-gray-900/90",
-    input: "bg-gray-800/90 border-purple-700/50 text-purple-100 placeholder-purple-300",
-    codeBg: "bg-gray-800/90",
-    button: "bg-purple-700/70 text-purple-200",
-    sidebar: "bg-gray-900/95 border-purple-800/50 text-purple-200",
-    sidebarHover: "hover:bg-purple-700/50",
-  },
 };
 
 const LearnWithoutLimitsAI = () => {
   const { resolvedTheme } = useTheme();
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(resolvedTheme);
   const [showSidebar, setShowSidebar] = useState(false);
   const [message, setMessage] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
@@ -175,12 +164,7 @@ const LearnWithoutLimitsAI = () => {
     }
   }, [message]);
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === "dark" ? "light" : prev === "light" ? "neon" : "dark");
-  };
-
-  // The app-wide toggle wins over this page's own theme cycle; "neon" stays until
-  // the user changes the global theme again.
+  // Single source of truth: this page follows the app-wide theme.
   useEffect(() => {
     setTheme(resolvedTheme);
   }, [resolvedTheme]);
@@ -224,7 +208,7 @@ const LearnWithoutLimitsAI = () => {
 
   const showToast = (message) => {
     const toast = document.createElement("div");
-    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg animate-bounce`;
+    toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded-lg bg-indigo-600 text-white shadow-lg`;
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => {
@@ -604,18 +588,6 @@ const LearnWithoutLimitsAI = () => {
                   </div>
                 ))}
               </div>
-              <div>
-                <h3 className="text-base font-semibold mb-2">Settings</h3>
-                <div className="flex flex-col space-y-2">
-                  <button
-                    onClick={toggleTheme}
-                    aria-label={`Page theme: ${theme}. Choose another theme.`}
-                    className={`flex items-center p-2 rounded-md ${themes[theme].button} ${themes[theme].sidebarHover}`}
-                  >
-                    <Palette className="w-4 h-4 mr-2" /> Theme
-                  </button>
-                </div>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -759,7 +731,7 @@ const LearnWithoutLimitsAI = () => {
                                     </div>
                                     <SyntaxHighlighter
                                       language={language.toLowerCase()}
-                                      style={theme === "dark" || theme === "neon" ? oneDark : oneLight}
+                                      style={theme === "dark" ? oneDark : oneLight}
                                       customStyle={{ 
                                         fontSize: "0.875rem",
                                         margin: 0,
