@@ -173,7 +173,8 @@ public class MessageController {
     @Transactional
     public void handleChatMessage(@Payload MessageDTO messageDTO, java.security.Principal principal) {
         if (messageDTO.getSenderId() == null || messageDTO.getReceiverId() == null ||
-                messageDTO.getContent() == null || messageDTO.getContent().isBlank()) {
+                messageDTO.getContent() == null || messageDTO.getContent().isBlank() ||
+                messageDTO.getContent().length() > MAX_CONTENT_LENGTH) {
             return;
         }
 
@@ -186,6 +187,10 @@ public class MessageController {
 
         if (principal == null || !sender.getEmail().equalsIgnoreCase(principal.getName())) {
             return; // Require an authenticated sender matching the claimed identity
+        }
+
+        if (!requestThrottle.tryAcquire("chat:" + sender.getId(), MAX_MESSAGES_PER_WINDOW, MESSAGE_WINDOW)) {
+            return; // Flood guard shared with the HTTP endpoint
         }
 
         boolean connected = connectionRepository.findBySenderOrReceiverAndStatus(sender.getId(), "ACCEPTED")

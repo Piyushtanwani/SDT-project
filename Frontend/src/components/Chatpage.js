@@ -33,6 +33,8 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState("");
+  const [sendError, setSendError] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const stompClient = useRef(null);
   const messagesEndRef = useRef(null);
   const lastMessageIdRef = useRef(null);
@@ -196,7 +198,7 @@ const ChatPage = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !isConnected || !currentUser) return;
+    if (!newMessage.trim() || !isConnected || !currentUser || isSending) return;
 
     const messagePayload = {
       senderId: parseInt(userId),
@@ -206,15 +208,24 @@ const ChatPage = () => {
       timestamp: new Date().toISOString()
     };
 
+    setIsSending(true);
+    setSendError("");
     try {
       const response = await axios.post(`${apiUrl}/api/messages/send`, messagePayload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("Message sent via HTTP:", response.data);
+      const sent = toMessage(response.data);
+      setMessages((prev) => (prev.some((msg) => msg.id === sent.id) ? prev : [...prev, sent]));
       setNewMessage("");
     } catch (err) {
       console.error("Error sending message:", err);
-      setError("Failed to send message. Please try again.");
+      setSendError(
+        err.response?.status === 429
+          ? "You are sending messages too quickly. Please wait a few seconds."
+          : "Failed to send your message. It is still in the box, please try again."
+      );
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -331,6 +342,11 @@ const ChatPage = () => {
 
         {/* Message Input */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          {sendError && (
+            <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
+              {sendError}
+            </p>
+          )}
           <div className="flex items-end gap-3">
             <textarea
               value={newMessage}
@@ -345,14 +361,14 @@ const ChatPage = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleSendMessage}
-              disabled={!newMessage.trim() || !isConnected}
+              disabled={!newMessage.trim() || !isConnected || isSending}
               className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                !newMessage.trim() || !isConnected
+                !newMessage.trim() || !isConnected || isSending
                   ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                   : "bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white"
               }`}
             >
-              Send
+              {isSending ? "Sending..." : "Send"}
             </motion.button>
           </div>
         </div>

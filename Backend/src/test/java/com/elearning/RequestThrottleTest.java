@@ -63,4 +63,30 @@ class RequestThrottleTest {
 
         assertFalse(throttle.isBlocked("key", 1, window));
     }
+
+    @Test
+    @DisplayName("tryAcquire allows up to the limit and counts each call")
+    void tryAcquireAllowsUpToLimit() {
+        RequestThrottle throttle = new RequestThrottle();
+        Duration window = Duration.ofMinutes(1);
+
+        assertTrue(throttle.tryAcquire("chat:7", 3, window));
+        assertTrue(throttle.tryAcquire("chat:7", 3, window));
+        assertTrue(throttle.tryAcquire("chat:7", 3, window));
+        assertFalse(throttle.tryAcquire("chat:7", 3, window));
+    }
+
+    @Test
+    @DisplayName("tryAcquire windows restart per key and after expiry")
+    void tryAcquireWindowsAreIsolated() throws InterruptedException {
+        RequestThrottle throttle = new RequestThrottle();
+        Duration shortWindow = Duration.ofMillis(20);
+
+        assertTrue(throttle.tryAcquire("chat:7", 1, shortWindow));
+        assertFalse(throttle.tryAcquire("chat:7", 1, shortWindow));
+        assertTrue(throttle.tryAcquire("chat:8", 1, shortWindow));
+
+        Thread.sleep(40);
+        assertTrue(throttle.tryAcquire("chat:7", 1, shortWindow));
+    }
 }
