@@ -184,18 +184,22 @@ export function keySignalFor(event) {
   return null;
 }
 
+const LOCAL_ISO = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?)?$/;
+
 /** "2026-11-01T18:34:06.699" as an epoch, read as local time — the server writes local timestamps. */
 export function parseLocalIso(value) {
   if (!value || typeof value !== "string") {
     return null;
   }
-  const parts = value.split(/[T.:-]/).map((bit) => parseInt(bit, 10));
-  if (parts.length < 3 || parts.some((bit) => Number.isNaN(bit))) {
+  const match = LOCAL_ISO.exec(value);
+  if (!match) {
     return null;
   }
-  const [year, month, day, hour = 0, minute = 0, second = 0] = parts;
-  const millis = parts.length > 6 ? parts[6] : 0;
-  return new Date(year, month - 1, day, hour, minute, second, millis).getTime();
+  const [, year, month, day, hour = "0", minute = "0", second = "0", fraction = ""] = match;
+  // Java pads the fraction to nanoseconds; only its first three digits are milliseconds.
+  const millis = Number((fraction + "000").slice(0, 3));
+  return new Date(Number(year), Number(month) - 1, Number(day),
+    Number(hour), Number(minute), Number(second), millis).getTime();
 }
 
 /** How far the server's clock sits from this machine's, so the countdown is theirs, not ours. */

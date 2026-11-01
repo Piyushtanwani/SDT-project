@@ -226,6 +226,18 @@ describe("the countdown the page shows", () => {
     expect(parseLocalIso("not a time")).toBeNull();
   });
 
+  it("reads a nanosecond stamp as milliseconds, not as days", () => {
+    // The live API writes java.time.LocalDateTime at nanosecond precision. Reading all nine
+    // digits as milliseconds put the deadline up to eleven days away, which on a 40-minute
+    // exam made the countdown land on 0 — and 0 means "hand the paper in" to the page.
+    expect(new Date(parseLocalIso("2026-11-01T16:00:00.411801211")).getMilliseconds()).toBe(411);
+
+    const serverNow = "2026-11-01T15:20:00.412983111";
+    const deadline = "2026-11-01T16:00:00.411801211";
+    const at = parseLocalIso(serverNow);
+    expect(remainingSeconds(deadline, clockOffsetMs(serverNow, at), at)).toBe(2400);
+  });
+
   it("measures the clock from the server's time, not the machine's", () => {
     const localAtRequest = 1_000_000;
     const serverSaid = parseLocalIso("2026-11-01T18:34:06.699");

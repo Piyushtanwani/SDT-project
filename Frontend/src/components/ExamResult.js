@@ -192,8 +192,9 @@ export const ExamResult = () => {
             What was recorded
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-            Every line was timed by our server when it arrived, not by the browser. This is the same
-            list your instructor reads.
+            Every line was timed by our server when it arrived, not by the browser — so these times
+            are the server’s own clock, which need not match your watch. This is the same list your
+            instructor reads.
           </p>
 
           {events.length === 0 ? (
