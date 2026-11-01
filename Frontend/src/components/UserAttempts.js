@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { TrophyIcon, CalendarDaysIcon, CheckBadgeIcon } from "@heroicons/react/24/solid";
-import { getAuthHeaders } from "../config/api";
+import { getAuthHeaders, API_BASE_URL} from "../config/api";
 
 const PASSING_SCORE = 80;
 const CERTIFICATE_FEE_INR = 50;
@@ -18,10 +18,7 @@ export const UserAttempts = () => {
   const userId = sessionStorage.getItem("userId");
   const navigate = useNavigate();
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
     setLoading(true);

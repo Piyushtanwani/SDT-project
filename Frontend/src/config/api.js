@@ -2,12 +2,20 @@ import axios from "axios";
 
 /**
  * Centralized API Configuration
- * Automatically chooses live or local API base URL based on environment.
+ *
+ * A packaged build must never point at a development machine. `react-scripts build`
+ * sets NODE_ENV=production while REACT_APP_ENV was still "development" here, so a
+ * bundle wired to http://localhost:8080 reached the live site and every page loaded
+ * empty. Packaged builds now take the live base unless REACT_APP_API_BASE overrides
+ * it; the dev server keeps using the local base.
  */
+const LIVE_API = process.env.REACT_APP_LIVE_API || "https://elearning.bitecodes.com";
+const LOCAL_API = process.env.REACT_APP_LOCAL_API || "http://localhost:8080";
+const isPackaged = process.env.NODE_ENV === "production";
+
 export const API_BASE_URL =
-  process.env.REACT_APP_ENV === "production"
-    ? process.env.REACT_APP_LIVE_API || "https://elearningbackend.bitecodes.com"
-    : process.env.REACT_APP_LOCAL_API || "http://localhost:8080";
+  process.env.REACT_APP_API_BASE ||
+  (isPackaged || process.env.REACT_APP_ENV === "production" ? LIVE_API : LOCAL_API);
 
 export const getAuthHeaders = () => {
   const token = sessionStorage.getItem("authToken");

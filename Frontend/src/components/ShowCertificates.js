@@ -16,7 +16,7 @@ import { DiJava } from "react-icons/di";
 import { BsCodeSquare, BsShield } from "react-icons/bs";
 import { FaGraduationCap, FaMedal } from "react-icons/fa";
 import confetti from "canvas-confetti";
-import { getAuthHeaders } from "../config/api";
+import { getAuthHeaders, API_BASE_URL} from "../config/api";
 
 // Extended course icons with fallback categories
 const courseIcons = {
@@ -65,10 +65,7 @@ export const ShowCertificates = () => {
 
   const { userFirstName, userId } = useAuth();
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
     const fetchData = async () => {

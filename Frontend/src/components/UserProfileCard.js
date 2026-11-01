@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { FiUserPlus, FiMessageSquare, FiInfo, FiClock, FiCalendar, FiCheckCircle, FiXCircle } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import formatRole from "../utils/formatRole";
+import { API_BASE_URL } from "../config/api";
 
 const UserProfileCard = ({
   user,
@@ -17,10 +18,7 @@ const UserProfileCard = ({
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   const token = sessionStorage.getItem("authToken");
 

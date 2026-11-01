@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { motion } from "framer-motion";
 import formatRole from "../utils/formatRole";
+import { API_BASE_URL } from "../config/api";
 
 export const Profile = () => {
   const navigate = useNavigate();
@@ -12,10 +13,7 @@ export const Profile = () => {
   const [skills, setSkills] = useState([]); // State to store skill details
   const [error, setError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
     const fetchUserData = async () => {

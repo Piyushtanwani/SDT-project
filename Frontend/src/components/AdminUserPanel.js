@@ -4,6 +4,7 @@ import Sidebar from "./AdminSlidebar";
 import { motion } from "framer-motion";
 import { Search, Edit, Trash2, Save, X, User } from "lucide-react";
 import formatRole from "../utils/formatRole";
+import { API_BASE_URL } from "../config/api";
 
 const AdminUserPanel = () => {
   const [users, setUsers] = useState([]);
@@ -16,10 +17,7 @@ const AdminUserPanel = () => {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   // Fetch all users
   const fetchUsers = useCallback(async () => {

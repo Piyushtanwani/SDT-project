@@ -25,4 +25,19 @@ describe('Frontend API Configuration & JWT Security', () => {
     expect(typeof API_BASE_URL).toBe('string');
     expect(API_BASE_URL.length).toBeGreaterThan(0);
   });
+
+  // A bundle wired to a dev machine blanks every page once deployed — that is how the
+  // live site lost its data, so the packaged path is pinned here rather than trusted.
+  test('PKG-01: a packaged build never points at a development machine', () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    let packagedBase;
+    jest.isolateModules(() => {
+      packagedBase = require('./config/api').API_BASE_URL;
+    });
+    process.env.NODE_ENV = originalNodeEnv;
+
+    expect(packagedBase).toMatch(/^https:\/\//);
+    expect(packagedBase).not.toMatch(/localhost|127\.0\.0\.1|:8080|:3000/);
+  });
 });

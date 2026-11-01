@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getAuthHeaders } from "../config/api";
+import { getAuthHeaders, API_BASE_URL } from "../config/api";
 
 export const TakeExam = () => {
   const { courseId } = useParams();
@@ -31,12 +31,7 @@ export const TakeExam = () => {
   // A rejected draw token cannot be fixed by submitting again; it needs a fresh question set.
   const [needsNewDraw, setNeedsNewDraw] = useState(false);
 
-  const apiUrl = useMemo(() => 
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API || "https://elearningbackend.bitecodes.com"
-      : process.env.REACT_APP_LOCAL_API || "http://localhost:8080",
-    []
-  );
+  const apiUrl = API_BASE_URL;
 
   // Restore scrolling when component unmounts or exam finishes (BUG-06)
   useEffect(() => {
