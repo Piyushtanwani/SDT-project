@@ -1,5 +1,5 @@
 import { MotionConfig } from "framer-motion";
-import { Link, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Link, Route, BrowserRouter as Router, Routes, useLocation } from "react-router-dom";
 import "./App.css";
 import AddCoursePage from "./components/AddCourse";
 import AddModule from "./components/AddModule";
@@ -58,84 +58,95 @@ const NotFound = () => (
   </div>
 );
 
+function AppShell() {
+  const { pathname } = useLocation();
+  // The chat screen scrolls internally and fills the viewport; a footer underneath
+  // would let the whole page drift out of the conversation.
+  const showFooter = pathname !== "/ai";
+
+  return (
+    <div className="App">
+      <ScrollToTop />
+      {/* Keyboard users land on the navigation on every page; this jumps past it. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to main content
+      </a>
+      <Navbar />
+      <main id="main-content" className="app-canvas" tabIndex={-1}>
+        <Routes>
+          <Route path="/register" element={<Register />} />
+          <Route path="/verify-otp" element={<VerifyOtp />} />
+          <Route path="/connections" element={<Connections />} />
+          <Route path="/community" element={<CommunityPage />} />
+          <Route path="/chat/:id" element={<ChatPage />} />
+          <Route path="/login" element={<LoginSignup />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/courses" element={<Courses />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/credential/:credentialId" element={<CertificateQr />} />
+          <Route path="/socialmedia" element={<SocialMedia />} />
+          <Route path="/terms" element={<LegalTermsPage />} />
+          <Route path="/compiler" element={<OnlineCompiler />} />
+          <Route
+            path="/course/:courseId/module/:moduleNumber"
+            element={<CourseModuleDetail />}
+          />
+          <Route path="/course/:courseId/modules" element={<CourseModule />} />
+          <Route path="/leaderboard" element={<LeaderBoard />} />
+          <Route path="/credential-verify" element={<VerifyCredential />} />
+          <Route path="/ai" element={<AI />} />
+          <Route path="/course/:courseId/exam" element={<ProtectedRoute><TakeExam /></ProtectedRoute>} />
+          <Route path="/certificates" element={<ProtectedRoute><ShowCertificates /></ProtectedRoute>} />
+          <Route path="/result/:attemptId" element={<ProtectedRoute><ExamResult /></ProtectedRoute>} />
+          <Route path="/attempts" element={<ProtectedRoute><UserAttempts /></ProtectedRoute>} />
+
+          {/* Admin */}
+          <Route element={<ProtectedAdmin />}>
+            <Route path="/admincourses" element={<AdminCoursePanel />} />
+            <Route path="/admin/*" element={<AdminPanel />} />
+            <Route path="/admin/skills" element={<AdminSkillPanel />} />
+            <Route path="/admin/add-course" element={<AddCoursePage />} />
+            <Route path="/course/add-module" element={<AddModule />} />
+            <Route path="/course/modules" element={<ModuleList />} />
+            <Route path="/admin/users" element={<AdminUserPanel />} />
+          </Route>
+
+          <Route
+            path="/updateprofile"
+            element={
+              <ProtectedRoute>
+                <UpdateProfile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+      {showFooter && <Footer />}
+    </div>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
       {/* framer-motion runs transform animations even when the OS asks not to; this makes the whole tree honour it. */}
       <MotionConfig reducedMotion="user">
         <Router>
-        <div className="App">
-          <ScrollToTop />
-          {/* Keyboard users land on the navigation on every page; this jumps past it. */}
-          <a
-            href="#main-content"
-            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
-          >
-            Skip to main content
-          </a>
-          <Navbar />
-          <main id="main-content" className="app-canvas" tabIndex={-1}>
-            <Routes>
-            <Route path="/register" element={<Register />} />
-            <Route path="/verify-otp" element={<VerifyOtp />} />
-            <Route path="/connections" element={<Connections />} />
-            <Route path="/community" element={<CommunityPage />} />
-            <Route path="/chat/:id" element={<ChatPage />} />
-            <Route path="/login" element={<LoginSignup />} />
-            <Route path="/" element={<HomePage />} />
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/credential/:credentialId" element={<CertificateQr />} />
-            <Route path="/socialmedia" element={<SocialMedia />} />
-            <Route path="/terms" element={<LegalTermsPage />} />
-            <Route path="/compiler" element={<OnlineCompiler />} />
-            <Route
-              path="/course/:courseId/module/:moduleNumber"
-              element={<CourseModuleDetail />}
-            />
-            <Route path="/course/:courseId/modules" element={<CourseModule />} />
-            <Route path="/leaderboard" element={<LeaderBoard />} />
-            <Route path="/credential-verify" element={<VerifyCredential />} />
-            <Route path="/ai" element={<AI />} />
-            <Route path="/course/:courseId/exam" element={<ProtectedRoute><TakeExam /></ProtectedRoute>} />
-            <Route path="/certificates" element={<ProtectedRoute><ShowCertificates /></ProtectedRoute>} />
-            <Route path="/result/:attemptId" element={<ProtectedRoute><ExamResult /></ProtectedRoute>} />
-            <Route path="/attempts" element={<ProtectedRoute><UserAttempts /></ProtectedRoute>} />
-
-            {/* Admin */}
-            <Route element={<ProtectedAdmin />}>
-              <Route path="/admincourses" element={<AdminCoursePanel />} />
-              <Route path="/admin/*" element={<AdminPanel />} />
-              <Route path="/admin/skills" element={<AdminSkillPanel />} />
-              <Route path="/admin/add-course" element={<AddCoursePage />} />
-              <Route path="/course/add-module" element={<AddModule />} />
-              <Route path="/course/modules" element={<ModuleList />} />
-              <Route path="/admin/users" element={<AdminUserPanel />} />
-            </Route>
-
-            <Route
-              path="/updateprofile"
-              element={
-                <ProtectedRoute>
-                  <UpdateProfile />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
+          <AppShell />
         </Router>
       </MotionConfig>
     </ErrorBoundary>

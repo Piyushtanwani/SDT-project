@@ -25,8 +25,11 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -39,6 +42,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -56,6 +60,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/auth")
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final RegistrationService registrationService;
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -69,6 +75,16 @@ public class AuthController {
 
     @Value("${app.google.client-id:}")
     private String googleClientId;
+
+    @PostConstruct
+    void reportGoogleSignInConfig() {
+        if (googleClientId == null || googleClientId.isBlank()) {
+            log.warn("Google sign-in is OFF: app.google.client-id is empty, so /api/auth/google-auth returns 503. "
+                    + "Email-and-password login is unaffected.");
+        } else {
+            log.info("Google sign-in will accept ID tokens issued for client id {}", googleClientId);
+        }
+    }
 
     @Autowired
     public AuthController(
@@ -220,27 +236,35 @@ public class AuthController {
                         .body(Map.of("success", false, "message", "Google sign-in is not configured on this server."));
             }
 
-            if (idTokenString != null && !idTokenString.isBlank()) {
-                try {
-                    GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                            new NetHttpTransport(),
-                            GsonFactory.getDefaultInstance())
-                            .setAudience(Collections.singletonList(googleClientId))
-                            .build();
+            if (idTokenString == null || idTokenString.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("success", false, "message", "Google OAuth failed: no credential was sent."));
+            }
+            try {
+                GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                        new NetHttpTransport(),
+                        GsonFactory.getDefaultInstance())
+                        .setAudience(Collections.singletonList(googleClientId))
+                        .build();
 
-                    GoogleIdToken idToken = verifier.verify(idTokenString);
-                    if (idToken != null) {
-                        Payload payload = idToken.getPayload();
-                        Boolean emailVerified = Boolean.valueOf(payload.getEmailVerified());
-                        if (emailVerified != null && emailVerified) {
-                            email = payload.getEmail();
-                            name = (String) payload.get("name");
-                            picture = (String) payload.get("picture");
-                        }
-                    }
-                } catch (Exception e) {
-                    // Verifier error (e.g. offline testing or network issue)
+                GoogleIdToken idToken = verifier.verify(idTokenString);
+                if (idToken == null) {
+                    // Never read anything out of an unverified token; only report why it was refused.
+                    log.warn("Google refused an ID token: not signed by Google, expired, or issued for a "
+                            + "different client id than the configured {}.", googleClientId);
+                } else if (Boolean.TRUE.equals(idToken.getPayload().getEmailVerified())) {
+                    Payload payload = idToken.getPayload();
+                    email = payload.getEmail();
+                    name = (String) payload.get("name");
+                    picture = (String) payload.get("picture");
+                } else {
+                    log.warn("Google returned an ID token whose email address is not marked verified.");
                 }
+            } catch (IOException e) {
+                // The one case the user cannot be blamed for: we could not fetch Google's keys.
+                log.warn("Could not reach Google to verify an ID token: {}", e);
+            } catch (Exception e) {
+                log.warn("Google ID token could not be verified: {}", e);
             }
 
             if (email == null) {

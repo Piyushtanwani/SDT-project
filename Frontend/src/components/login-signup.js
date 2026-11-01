@@ -1,15 +1,21 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { motion } from "framer-motion";
 import { FiAlertCircle, FiEye, FiEyeOff, FiLock, FiMail } from "react-icons/fi";
+
+// Router state is client-set, so treat it as untrusted: only ever send the user to
+// an in-app path, never to "//host" or "https://host" which would leave the site.
+const safeRedirect = (from) => (typeof from === "string" && /^\/(?!\/)/.test(from) ? from : "/");
 
 export const LoginSignup = () => {
   const { login, googleLogin } = useAuth();
   const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = safeRedirect(location.state?.from);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +28,7 @@ export const LoginSignup = () => {
     setError("");
     const result = await login(email, password);
     if (result.success) {
-      navigate("/");
+      navigate(redirectTo, { replace: true });
     } else {
       setError(result.error);
       setSubmitting(false);
@@ -30,11 +36,11 @@ export const LoginSignup = () => {
   };
 
   const handleGoogleLoginSuccess = async (credentialResponse) => {
-    const success = await googleLogin(credentialResponse);
-    if (success) {
-      navigate("/");
+    const result = await googleLogin(credentialResponse);
+    if (result.ok) {
+      navigate(redirectTo, { replace: true });
     } else {
-      setError("Google authentication failed.");
+      setError(result.message || "Google authentication failed.");
     }
   };
 

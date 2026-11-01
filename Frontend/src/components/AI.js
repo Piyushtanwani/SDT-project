@@ -10,6 +10,12 @@ const AI_SERVICE_URL =
   process.env.REACT_APP_AI_SERVICE_URL || "https://ai.bitecodes.com/api/generate";
 const AI_TIMEOUT_MS = 20000;
 
+const SUGGESTED_PROMPTS = [
+  "Explain big-O notation with a real example",
+  "Write a SQL query that joins orders with customers",
+  "Quiz me on operating system deadlocks",
+];
+
 // Simplified language detection - uses first line as language identifier
 const detectLanguage = (firstLine) => {
   if (!firstLine) return 'text';
@@ -139,12 +145,8 @@ const LearnWithoutLimitsAI = () => {
 
   // Auto-scroll chat to bottom when messages change
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: "smooth"
-      });
-    }
+    const node = chatContainerRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
   }, [chatMessages, loading]);
 
   // Clean up on unmount
@@ -244,9 +246,12 @@ const LearnWithoutLimitsAI = () => {
     return `Offline study assistant (AI service unavailable)\n\n${data.reply}`;
   };
 
-  const generate = async () => {
-    if (!message.trim()) return;
-    const userMessage = message;
+  // overrideText lets the suggested prompts send without waiting for the textarea
+  // state to flush; a click event must never be treated as the message.
+  const generate = async (overrideText) => {
+    const text = (typeof overrideText === "string" ? overrideText : message).trim();
+    if (!text) return;
+    const userMessage = text;
     setMessage("");
     setLoading(true);
     appendMessage(userMessage, "user-message");
@@ -532,17 +537,30 @@ const LearnWithoutLimitsAI = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className="min-h-screen flex items-center justify-center p-4 transition-colors duration-500"
+      className="chat-viewport transition-colors duration-500 sm:p-4"
     >
-      <div className="w-full max-w-screen-xl flex justify-center">
+      <div className="mx-auto flex h-full w-full max-w-screen-xl justify-center">
         <AnimatePresence>
           {showSidebar && (
             <motion.div
+              key="chat-drawer-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSidebar(false)}
+              aria-hidden="true"
+              className="fixed inset-0 z-40 bg-black/40 sm:hidden"
+            />
+          )}
+          {showSidebar && (
+            <motion.aside
+              key="chat-drawer"
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
-              className={`w-64 sm:w-80 h-[85vh] sm:h-[90vh] rounded-2xl mr-4 ${themes[theme].sidebar} overflow-y-auto p-4`}
+              aria-label="Saved conversations"
+              className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto p-4 sm:static sm:z-auto sm:h-full sm:w-64 sm:max-w-none sm:rounded-2xl sm:mr-4 ${themes[theme].sidebar}`}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg sm:text-xl font-semibold">History</h2>
@@ -557,6 +575,11 @@ const LearnWithoutLimitsAI = () => {
                 </motion.button>
               </div>
               <div className="mb-6">
+                {conversationHistory.length === 0 && (
+                  <p className="text-sm opacity-70">
+                    Nothing saved yet. Use Save Chat in the composer to keep a conversation here.
+                  </p>
+                )}
                 {conversationHistory.map((item) => (
                   <div key={item.id} className="flex justify-between items-center mb-2">
                     <button
@@ -578,40 +601,61 @@ const LearnWithoutLimitsAI = () => {
                   </div>
                 ))}
               </div>
-            </motion.div>
+              {(channels?.telegram?.url || channels?.whatsapp?.url) && (
+                <div className="mt-8 border-t border-current/10 pt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider opacity-60">
+                    Or ask a human
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {channels?.telegram?.url && (
+                      <a
+                        href={channels.telegram.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`min-h-[44px] rounded-lg px-3 py-2 text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                      >
+                        Telegram
+                      </a>
+                    )}
+                    {channels?.whatsapp?.url && (
+                      <a
+                        href={channels.whatsapp.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`min-h-[44px] rounded-lg px-3 py-2 text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.aside>
           )}
         </AnimatePresence>
 
         <motion.div
           layout
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`w-full max-w-[90vw] sm:max-w-4xl rounded-3xl shadow-2xl overflow-hidden ${themes[theme].card} h-[85vh] sm:h-[90vh]`}
+          className={`flex h-full w-full flex-col overflow-hidden shadow-2xl sm:max-w-4xl sm:rounded-3xl ${themes[theme].card}`}
         >
-          <header className={`flex items-center justify-between p-4 sm:p-5 ${themes[theme].header} border-b`}>
-            <div className="flex items-center space-x-3">
+          <header className={`flex shrink-0 items-center justify-between gap-2 border-b p-3 sm:p-5 ${themes[theme].header}`}>
+            <div className="flex min-w-0 flex-1 items-center space-x-3">
               <motion.button
-                whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowSidebar(!showSidebar)}
                 aria-expanded={showSidebar}
                 aria-label={showSidebar ? "Hide history" : "Show history"}
-                className={`p-2 sm:p-3 rounded-full ${themes[theme].button}`}
+                className={`flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full ${themes[theme].button}`}
               >
                 <Menu className="w-5 h-5" />
               </motion.button>
-              <motion.div
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.8 }}
-                className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg"
-              >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-base font-bold text-white sm:h-10 sm:w-10 sm:text-lg">
                 🤖
-              </motion.div>
-              <motion.h1
-                whileHover={{ scale: 1.05 }}
-                className="text-2xl font-bold text-gray-900 dark:text-white"
-              >
+              </div>
+              <h1 className="truncate text-base font-bold text-gray-900 sm:text-2xl dark:text-white">
                 Learn Without Limits AI
-              </motion.h1>
+              </h1>
             </div>
             <div className="hidden sm:flex items-center gap-2">
               {channels?.telegram?.url && (
@@ -637,8 +681,32 @@ const LearnWithoutLimitsAI = () => {
             </div>
           </header>
 
-          <div className="flex flex-col h-[calc(85vh-72px)] sm:h-[calc(90vh-80px)]">
-            <div ref={chatContainerRef} className={`flex-grow overflow-y-auto p-6 ${themes[theme].chat} overscroll-contain relative`}>
+            <div ref={chatContainerRef} className={`relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 ${themes[theme].chat}`}>
+              {chatMessages.length === 0 && !loading && (
+                <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
+                  <div className="max-w-md">
+                    <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl dark:text-white">
+                      Ask anything about what you are learning
+                    </h2>
+                    <p className="mt-2 text-sm text-gray-600 sm:text-base dark:text-gray-400">
+                      Explanations, code and practice questions. If the AI service is down, the
+                      built-in study assistant answers instead.
+                    </p>
+                  </div>
+                  <div className="flex w-full max-w-md flex-col gap-2">
+                    {SUGGESTED_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => generate(prompt)}
+                        className={`min-h-[44px] touch-manipulation rounded-2xl px-4 py-3 text-left text-sm transition-colors ${themes[theme].bubble} ${themes[theme].sidebarHover}`}
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <AnimatePresence>
                 {chatMessages.map((msg) => (
                   <motion.div
@@ -760,118 +828,107 @@ const LearnWithoutLimitsAI = () => {
               )}
             </div>
 
-            <div className={`p-4 sm:p-6 relative border-t ${themes[theme].header} transition-all duration-300`}>
-  <div className="relative">
-    <textarea
-      ref={textareaRef}
-      value={message}
-      onChange={(e) => setMessage(e.target.value)}
-      onKeyDown={handleKeyDown}
-      placeholder="Ask me anything..."
-      className={`w-full p-4 pr-36 sm:pr-44 rounded-2xl resize-none ${themes[theme].input} shadow-inner transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
-      style={{ minHeight: "60px", maxHeight: "150px" }}
-    ></textarea>
+            <div className={`shrink-0 border-t p-3 sm:p-5 ${themes[theme].header} transition-colors duration-300`}>
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  placeholder="Ask me anything..."
+                  aria-label="Message the AI assistant"
+                  className={`min-h-[44px] flex-1 resize-none rounded-2xl px-4 py-3 text-base shadow-inner transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${themes[theme].input}`}
+                  style={{ maxHeight: "150px" }}
+                ></textarea>
 
-    {/* Action Buttons */}
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-wrap sm:flex-nowrap space-x-2 space-y-2 sm:space-y-0">
+                {/* Mic or Recording */}
+                {isRecording ? (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={stopVoiceInput}
+                    aria-label="Stop voice input"
+                    className="h-11 w-11 shrink-0 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center"
+                  >
+                    <div className="flex space-x-1 items-center h-5">
+                      {[0, 100, 200].map((delay, i) => (
+                        <div
+                          key={i}
+                          className="recording-wave bg-white w-1 h-3 sm:h-5 rounded-full animate-pulse"
+                          style={{ animationDelay: `${delay}ms` }}
+                        />
+                      ))}
+                    </div>
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={startVoiceInput}
+                    aria-label="Start voice input"
+                    className={`h-11 w-11 shrink-0 rounded-full ${themes[theme].button} shadow-md flex items-center justify-center`}
+                  >
+                    <Mic className="w-5 h-5" />
+                  </motion.button>
+                )}
 
-      {/* Mic or Recording */}
-      {isRecording ? (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={stopVoiceInput}
-          aria-label="Stop voice input"
-          className="h-11 w-11 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center"
-        >
-          <div className="flex space-x-1 items-center h-5">
-            {[0, 100, 200].map((delay, i) => (
-              <div
-                key={i}
-                className="recording-wave bg-white w-1 h-3 sm:h-5 rounded-full animate-pulse"
-                style={{ animationDelay: `${delay}ms` }}
-              />
-            ))}
-          </div>
-        </motion.button>
-      ) : (
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={startVoiceInput}
-          aria-label="Start voice input"
-          className={`h-11 w-11 rounded-full ${themes[theme].button} shadow-md flex items-center justify-center`}
-        >
-          <Mic className="w-5 h-5" />
-        </motion.button>
-      )}
+                <div className="relative shrink-0">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowActions(!showActions)}
+                    aria-expanded={showActions}
+                    aria-haspopup="true"
+                    aria-label="More chat actions"
+                    className={`h-11 w-11 flex items-center justify-center rounded-full ${themes[theme].button} shadow-md`}
+                  >
+                    <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${showActions ? "rotate-180" : ""}`} />
+                  </motion.button>
 
-      {/* Dropdown Button */}
-      <div className="relative">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowActions(!showActions)}
-          aria-expanded={showActions}
-          aria-haspopup="true"
-          aria-label="More chat actions"
-          className={`h-11 w-11 flex items-center justify-center rounded-full ${themes[theme].button} shadow-md`}
-        >
-          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${showActions ? "rotate-180" : ""}`} />
-        </motion.button>
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {showActions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl ${themes[theme].sidebar} shadow-lg z-10 w-44`}
+                      >
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={saveConversation}
+                          className={`p-2 flex items-center justify-start ${themes[theme].button} rounded-md w-full mb-2`}
+                        >
+                          <Save className="w-4 h-4 mr-2" />
+                          <span className="text-sm">Save Chat</span>
+                        </motion.button>
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            localStorage.removeItem(localStorageKey);
+                            setChatMessages([]);
+                            setShowCodeSections({});
+                            showToast("🧹 Cleared chat!");
+                          }}
+                          className="p-2 flex items-center justify-start bg-red-600 text-white rounded-md w-full"
+                        >
+                          <Trash className="w-4 h-4 mr-2" />
+                          <span className="text-sm">Clear Chat</span>
+                        </motion.button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
-        {/* Dropdown Menu */}
-        <AnimatePresence>
-          {showActions && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl ${themes[theme].sidebar} shadow-lg z-10 w-44`}
-            >
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={saveConversation}
-                className={`p-2 flex items-center justify-start ${themes[theme].button} rounded-md w-full mb-2`}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                <span className="text-sm">Save Chat</span>
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  localStorage.removeItem(localStorageKey);
-                  setChatMessages([]);
-                  setShowCodeSections({});
-                  showToast("🧹 Cleared chat!");
-                }}
-                className="p-2 flex items-center justify-start bg-red-600 text-white rounded-md w-full"
-              >
-                <Trash className="w-4 h-4 mr-2" />
-                <span className="text-sm">Clear Chat</span>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Send / Stop Generation */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => (loading ? stopGeneration() : generate())}
-        aria-label={loading ? "Stop generating" : "Send message"}
-        className="h-11 w-11 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
-      >
-        {loading ? <Square className="w-5 h-5" /> : <Send className="w-5 h-5" />}
-      </motion.button>
-    </div>
-  </div>
-</div>
-
-          </div>
+                {/* Send / Stop Generation */}
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => (loading ? stopGeneration() : generate())}
+                  aria-label={loading ? "Stop generating" : "Send message"}
+                  className="h-11 w-11 shrink-0 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
+                >
+                  {loading ? <Square className="w-5 h-5" /> : <Send className="w-5 h-5" />}
+                </motion.button>
+              </div>
+            </div>
         </motion.div>
       </div>
     </motion.div>

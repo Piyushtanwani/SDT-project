@@ -7,7 +7,7 @@ import { AuthProvider } from "./context/AuthContext"; // ✅ Import AuthProvider
 import { ThemeProvider } from "./context/ThemeContext";
 import { GoogleOAuthProvider } from "@react-oauth/google"; // ✅ Import GoogleOAuthProvider
 
-const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || "373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com";
+const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || "758102529675-tjpsc3j5qd5rqun6hk8jbgf270ncu43q.apps.googleusercontent.com";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

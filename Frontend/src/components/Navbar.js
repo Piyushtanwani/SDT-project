@@ -43,9 +43,19 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef(null);
   const dropdownTriggerRef = useRef(null);
   const mobileMenuRef = useRef(null);
+
+  // The bar is transparent over the hero; it only earns a surface once the page
+  // moves under it, otherwise the brand and links sit on top of page content.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const isAdmin =
     (role && role.toUpperCase() === "ADMIN") || userEmail === "bitecodes.global@gmail.com";
@@ -137,7 +147,13 @@ export const Navbar = () => {
     .toUpperCase();
 
   return (
-    <nav className="relative z-50">
+    <nav
+      className={`sticky top-0 z-50 transition-colors duration-300 ${
+        scrolled || isMobileMenuOpen
+          ? "bg-white/85 shadow-[inset_0_-1px_0_rgba(29,26,51,0.09)] backdrop-blur-xl dark:bg-gray-950/80 dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.12)]"
+          : "bg-transparent"
+      }`}
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         {/* Brand */}
         <button

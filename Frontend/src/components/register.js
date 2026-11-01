@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
+import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { FiEye, FiEyeOff, FiUser, FiMail, FiLock, FiAlertCircle, FiCheck } from "react-icons/fi";
 import { API_BASE_URL } from "../config/api";
+import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
 const autoCompleteByField = {
@@ -16,6 +17,7 @@ const autoCompleteByField = {
 
 export const Register = () => {
   const navigate = useNavigate();
+  const { googleLogin } = useAuth();
   const { resolvedTheme } = useTheme();
   const [formData, setFormData] = useState({
     username: "",
@@ -79,8 +81,18 @@ export const Register = () => {
     }
   };
 
+  // Google hands back an ID token; the backend verifies it and creates the account in one step.
+  const handleGoogleSignUp = async (credentialResponse) => {
+    setMessage("");
+    const result = await googleLogin(credentialResponse);
+    if (result.ok) {
+      navigate("/");
+    } else {
+      setMessage(result.message || "We couldn't finish signing you up with Google.");
+    }
+  };
+
   return (
-    <GoogleOAuthProvider clientId="373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com">
     <div className="min-h-screen flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -219,8 +231,8 @@ export const Register = () => {
 
             <div className="flex justify-center">
               <GoogleLogin
-                onSuccess={() => navigate("/login")}
-                onError={() => setMessage("Google sign-in failed. Please try again.")}
+                onSuccess={handleGoogleSignUp}
+                onError={() => setMessage("Google closed the sign-in window before finishing.")}
                 theme={resolvedTheme === "dark" ? "filled_black" : "filled_white"}
                 shape="pill"
               />
@@ -246,6 +258,5 @@ export const Register = () => {
           <FiCheck className="text-indigo-400 dark:text-indigo-500 w-8 h-8 opacity-50 hover:opacity-75 cursor-help transition-opacity" />
         </div>
       </div>
-    </GoogleOAuthProvider>
   );
 };

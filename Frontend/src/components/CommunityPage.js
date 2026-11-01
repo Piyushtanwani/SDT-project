@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiFilter, FiChevronDown } from "react-icons/fi";
 import UserProfileCard from "./UserProfileCard";
@@ -146,18 +147,7 @@ const CommunityPage = () => {
   const dropdownSkills = filteredSkills.filter((skill) => !displayedSkills.includes(skill));
 
   if (!userId || !token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="text-gray-700 dark:text-gray-300 text-base sm:text-lg font-medium"
-        >
-          Please log in to access the community.
-        </motion.p>
-      </div>
-    );
+    return <Navigate to="/login" replace state={{ from: "/community" }} />;
   }
 
   return (

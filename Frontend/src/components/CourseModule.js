@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../config/api";
+import LoginGate from "./LoginGate";
 
 export const CourseModule = () => {
   const { courseId } = useParams();
@@ -246,6 +247,7 @@ export const CourseModule = () => {
               </button>
             </motion.div>
           ) : modules.length > 0 ? (
+            <LoginGate clipHeight="24rem" title="Sign in to see every module">
             <AnimatePresence>
               <motion.div
                 variants={containerVariants}
@@ -331,6 +333,7 @@ export const CourseModule = () => {
                 ))}
               </motion.div>
             </AnimatePresence>
+            </LoginGate>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}

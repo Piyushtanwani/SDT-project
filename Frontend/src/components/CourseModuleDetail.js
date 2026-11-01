@@ -4,10 +4,13 @@ import axios from "axios";
 import { ArrowLeft, ChevronLeft, ChevronRight, Image, X, BookOpen, Award, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../config/api";
+import LoginGate from "./LoginGate";
+import { useAuth } from "../context/AuthContext";
 
 const CourseModuleDetail = () => {
   const { courseId, moduleNumber } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [module, setModule] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -88,18 +91,28 @@ const CourseModuleDetail = () => {
     : 0;
   const estimatedMinutes = (index) => 5 + ((index * 7) % 10);
 
-  const handleNavigation = (direction) => {
+  // Module reading sits behind the sign-in gate, so paging forward asks for the
+  // login first instead of loading a page that is almost entirely locked.
+  const openPath = (path) => {
+    if (!isAuthenticated) {
+      navigate("/login", { state: { from: path } });
+      return;
+    }
     setLoading(true);
+    navigate(path);
+  };
+
+  const handleNavigation = (direction) => {
     const newModuleNumber =
       direction === "next"
-        ? parseInt(moduleNumber) + 1
-        : parseInt(moduleNumber) - 1;
+        ? parseInt(moduleNumber, 10) + 1
+        : parseInt(moduleNumber, 10) - 1;
 
-    navigate(`/course/${courseId}/module/${newModuleNumber}`);
+    openPath(`/course/${courseId}/module/${newModuleNumber}`);
   };
 
   const handleTakeExam = () => {
-    navigate(`/course/${courseId}/exam`);
+    openPath(`/course/${courseId}/exam`);
   };
 
   const showImage = (index) => {
@@ -134,7 +147,7 @@ const CourseModuleDetail = () => {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-indigo-600 dark:bg-indigo-700 text-white py-4 sticky top-0 z-10 shadow-lg">
+      <header className="bg-indigo-600 dark:bg-indigo-700 text-white py-4 sticky top-16 z-30 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
           <button
             type="button"
@@ -234,6 +247,11 @@ const CourseModuleDetail = () => {
               </div>
 
               {/* Content */}
+              <LoginGate
+                clipHeight="22rem"
+                title="Sign in to read this module"
+                message="Log in to unlock the full lesson, keep your progress and take the exam."
+              >
               <div className="mt-12 space-y-6">
                 {hasImages && imageItems.map((url, index) => (
                   <div
@@ -348,6 +366,7 @@ const CourseModuleDetail = () => {
                   </div>
                 )}
               </div>
+              </LoginGate>
 
               {/* Navigation */}
               <div className="flex flex-col sm:flex-row justify-between items-center pt-6 pb-12 mt-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-6 border border-indigo-100 dark:border-indigo-800">

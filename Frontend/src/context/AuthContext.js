@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Google OAuth Login
+  // Google OAuth Login. Resolves to { ok, message } so the caller can say what actually went wrong.
   const googleLogin = async (credentialResponse) => {
     try {
       const googleToken = credentialResponse.credential;
@@ -103,15 +103,12 @@ export const AuthProvider = ({ children }) => {
         setUserToken(data.token);
         setUserProfileUrl(data.profileurl);
         setRole(data.role);
-        console.log("Google Login Successful:", data);
-        return true;
-      } else {
-        console.error("Google Login Failed:", data.message);
-        return false;
+        return { ok: true };
       }
+      return { ok: false, message: data.message || "Google did not return a valid sign-in." };
     } catch (error) {
       console.error("Google Login Error:", error);
-      return false;
+      return { ok: false, message: "Could not reach the server to finish Google sign-in." };
     }
   };
 
