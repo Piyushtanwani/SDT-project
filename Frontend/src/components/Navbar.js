@@ -57,8 +57,10 @@ export const Navbar = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const isAdmin =
-    (role && role.toUpperCase() === "ADMIN") || userEmail === "bitecodes.global@gmail.com";
+  // Only the role the backend put in the token decides this. A named account is not a
+  // permission: the seeded administrators already carry ROLE ADMIN, and matching on an
+  // email address here would hand a menu entry to whoever signed up with that name.
+  const isAdmin = (role || "").toUpperCase() === "ADMIN";
 
   const go = (path) => {
     navigate(path);

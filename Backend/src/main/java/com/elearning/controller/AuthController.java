@@ -14,6 +14,7 @@ import com.elearning.response_request.LoginResponse;
 import com.elearning.response_request.OtpVerificationRequest;
 import com.elearning.response_request.PublicUserDTO;
 import com.elearning.response_request.UserUpdateDTO;
+import com.elearning.response_request.Whoami;
 import com.elearning.security.JwtService;
 import com.elearning.services.CustomUserDetailsService;
 import com.elearning.services.EmailService;
@@ -389,6 +390,27 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new ApiResponse(false, "Invalid or expired OTP."));
         }
+    }
+
+        /**
+     * Who the verified token says the caller is.
+     *
+     * A screen that decides "admin" from whatever the browser stored at sign-in can be opened by
+     * editing one value; the guard reads this instead, so the answer comes from the account the
+     * token was signed for.
+     */
+    @GetMapping("/whoami")
+    public ResponseEntity<?> whoami() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null || "anonymousUser".equals(auth.getName())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse(false, "Authentication required."));
+        }
+        return userRepository.findByEmailIgnoreCase(auth.getName())
+                .map(user -> ResponseEntity.ok(
+                        (Object) new Whoami(user.getId(), user.getUsername(), user.getRole())))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "This account no longer exists.")));
     }
 
     @GetMapping("/user/{id}")

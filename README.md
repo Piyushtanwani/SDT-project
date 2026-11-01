@@ -8,9 +8,7 @@ Built for the IT643 Software Design and Testing project.
 
 | Surface | URL |
 | --- | --- |
-| Web app | https://www.elearning.bitecodes.com |
-| API | https://elearningbackend.bitecodes.com |
-| API docs (Swagger UI) | https://elearningbackend.bitecodes.com/swagger-ui.html |
+| Web app | https://elearning.bitecodes.com |
 
 **Deployment status (checked 2026-10-28):** both hostnames return `NXDOMAIN`, so the app is not publicly reachable. Redeploy and verify these URLs before pushing the `project-final` tag.
 

@@ -169,7 +169,10 @@ class CertificateControllerTest {
     }
 
     private static ExamAttempt attempt(Long userId, Long courseId, double score) {
-        return new ExamAttempt(null, userId, courseId, score, score >= 80, LocalDateTime.now());
+        ExamAttempt attempt = new ExamAttempt(null, userId, courseId, score, score >= 80, LocalDateTime.now());
+        attempt.setStatus(ExamAttempt.STATUS_SUBMITTED);
+        attempt.setIntegrity(ExamAttempt.INTEGRITY_CLEAN);
+        return attempt;
     }
 
     private static User user(Long id, String email, String role) {

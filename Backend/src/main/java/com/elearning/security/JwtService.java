@@ -14,17 +14,18 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
 
     /**
-     * The questions a candidate was actually served for one attempt. Grading a submission
-     * against this list is what keeps the score denominator honest when the exam draws a
-     * subset of a much larger question bank.
+     * The questions a candidate was actually served for one attempt, plus the attempt the set was
+     * minted for. Grading against this list keeps the score denominator honest when the exam draws
+     * a subset of a much larger bank, and the attempt binding stops a set being reused.
      */
-    public record ExamDrawClaims(Long userId, Long courseId, List<Long> questionIds) {
+    public record ExamDrawClaims(Long userId, Long courseId, Long attemptId, String tokenId, List<Long> questionIds) {
     }
 
     private static final String DRAW_TOKEN_TYPE = "exam-draw";
@@ -125,17 +126,25 @@ public class JwtService {
 
     /**
      * Signs the exact set of question ids served for one exam attempt. The client carries the
-     * token but cannot forge it, so the server still decides both the draw and its size.
+     * token but cannot forge it, so the server still decides both the draw and its size. The
+     * attempt id and the random jti bind the token to one sitting: replaying an older token hits a
+     * row whose token id no longer matches.
      */
-    public String generateExamDrawToken(Long userId, Long courseId, List<Long> questionIds, long ttlMillis) {
+    public String generateExamDrawToken(Long userId, Long courseId, Long attemptId,
+                                        List<Long> questionIds, long ttlMillis) {
         String joined = String.join(",", questionIds.stream().map(String::valueOf).toList());
+        String tokenId = UUID.randomUUID().toString();
         Date now = new Date();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("typ", DRAW_TOKEN_TYPE);
+        payload.put("uid", userId);
+        payload.put("cid", courseId);
+        payload.put("aid", attemptId);
+        payload.put("qids", joined);
         return Jwts.builder()
+                .setClaims(payload)
                 .setSubject(DRAW_TOKEN_TYPE)
-                .claim("typ", DRAW_TOKEN_TYPE)
-                .claim("uid", userId)
-                .claim("cid", courseId)
-                .claim("qids", joined)
+                .setId(tokenId)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + ttlMillis))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -156,8 +165,9 @@ public class JwtService {
         }
         Number uid = claims.get("uid", Number.class);
         Number cid = claims.get("cid", Number.class);
+        Number aid = claims.get("aid", Number.class);
         String qids = claims.get("qids", String.class);
-        if (uid == null || cid == null || qids == null || qids.isBlank()) {
+        if (uid == null || cid == null || aid == null || qids == null || qids.isBlank()) {
             throw new IllegalArgumentException("Exam draw token is incomplete.");
         }
         List<Long> ids = new ArrayList<>();
@@ -171,6 +181,7 @@ public class JwtService {
         if (ids.isEmpty()) {
             throw new IllegalArgumentException("Exam draw token contains no questions.");
         }
-        return new ExamDrawClaims(uid.longValue(), cid.longValue(), List.copyOf(ids));
+        return new ExamDrawClaims(uid.longValue(), cid.longValue(), aid.longValue(),
+                claims.getId(), List.copyOf(ids));
     }
 }

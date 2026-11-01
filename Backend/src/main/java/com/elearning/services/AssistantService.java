@@ -48,13 +48,16 @@ public class AssistantService {
     private final CourseRepository courseRepository;
     private final ModuleRepository moduleRepository;
     private final CertificateRepository certificateRepository;
+    private final ExamPolicy examPolicy;
 
     public AssistantService(CourseRepository courseRepository,
                             ModuleRepository moduleRepository,
-                            CertificateRepository certificateRepository) {
+                            CertificateRepository certificateRepository,
+                            ExamPolicy examPolicy) {
         this.courseRepository = courseRepository;
         this.moduleRepository = moduleRepository;
         this.certificateRepository = certificateRepository;
+        this.examPolicy = examPolicy;
     }
 
     public String answer(String rawMessage) {
@@ -174,16 +177,26 @@ public class AssistantService {
 
     private String examRules() {
         return "Exam rules\n"
-                + "• Each exam draws " + ExamDrawService.QUESTIONS_PER_EXAM + " questions from the course bank, so a retake gives you a different set.\n"
-                + "• The timer is 40 minutes; the attempt auto-submits when time runs out.\n"
-                + "• Unanswered questions are recorded as option E and count as incorrect.\n"
-                + "• Questions are multiple choice (A–D); each has exactly one correct answer.\n"
-                + "• A score of 80% or higher is required to pass.\n"
-                + "• You can review your score on the result page immediately after submitting.";
+                + "• Each exam draws " + ExamPolicy.QUESTIONS_PER_EXAM
+                + " questions from the course bank, and every sitting gets its own set with its own "
+                + "answer-letter order, so a shared answer key does not transfer.\n"
+                + "• The timer is " + examPolicy.durationMinutes()
+                + " minutes and runs on our server from the moment you press Start. When it runs out "
+                + "the attempt is graded from your last saved answers, whether or not you submitted.\n"
+                + "• Your answers save automatically as you work, so a closed tab or a bad connection "
+                + "cannot erase the attempt.\n"
+                + "• The exam is proctored: leaving full screen, switching tabs or windows, right-clicking, "
+                + "copying, pasting, printing and the screenshot key are all recorded, and each attempt gets "
+                + "an integrity verdict you can see on the result page as well as your instructor.\n"
+                + "• Your camera is optional. If you allow it, short frames are captured for the reviewer; "
+                + "if you decline, nothing is captured and that is recorded as a choice, not a fault.\n"
+                + "• Questions are multiple choice (A–D); each has exactly one correct answer. Unanswered "
+                + "questions count as incorrect.\n"
+                + "• A score of " + (int) CertificateService.PASSING_SCORE + "% or higher is required to pass.";
     }
 
     private String passingScore() {
-        return "Passing score: 80%.\n"
+        return "Passing score: " + (int) CertificateService.PASSING_SCORE + "%.\n"
                 + "Your attempt is graded on the server against the full question set, and the result is "
                 + "rounded to the nearest whole percent. A score of 80 or above marks the attempt as passed "
                 + "and makes you eligible for a certificate for that course.";

@@ -5,6 +5,7 @@ import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
 import com.elearning.repositories.ModuleRepository;
 import com.elearning.services.AssistantService;
+import com.elearning.services.ExamPolicy;
 import com.elearning.services.MessagingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,8 @@ class WebhookControllerTest {
     @BeforeEach
     void setUp() {
         AssistantService assistantService =
-                new AssistantService(courseRepository, moduleRepository, certificateRepository);
+                new AssistantService(courseRepository, moduleRepository, certificateRepository,
+                        new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200));
         MessagingService messagingService = new MessagingService(
                 new ObjectMapper(), "telegram-token", "sdt_helper", "whatsapp-token", "123456", "");
         WebhookController controller = new WebhookController(

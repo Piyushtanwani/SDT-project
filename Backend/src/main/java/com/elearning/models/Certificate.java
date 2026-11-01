@@ -24,6 +24,18 @@ public class Certificate {
     @Column(nullable = false, unique = true)
     private String credentialId; // Unique credential ID for verification
 
+    /** The attempt this credential was earned on, so a result can be re-examined later. */
+    @Column(name = "attempt_id")
+    private Long attemptId;
+
+    public Long getAttemptId() {
+        return attemptId;
+    }
+
+    public void setAttemptId(Long attemptId) {
+        this.attemptId = attemptId;
+    }
+
 	public Long getId() {
 		return id;
 	}

@@ -7,11 +7,11 @@ import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
 import com.elearning.repositories.ModuleRepository;
 import com.elearning.services.AssistantService;
+import com.elearning.services.ExamPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -34,7 +34,6 @@ class AssistantServiceTest {
     @Mock
     private CertificateRepository certificateRepository;
 
-    @InjectMocks
     private AssistantService assistantService;
 
     private Course javaCourse;
@@ -42,6 +41,10 @@ class AssistantServiceTest {
     @BeforeEach
     void setUp() {
         javaCourse = new Course(1L, "Java", "Objects and the JVM", "6 weeks", null, 4.8);
+        // The shipped policy, not a mock: the assistant quotes the exam rules, so a drift between
+        // the two is exactly the kind of lie this test should catch.
+        assistantService = new AssistantService(courseRepository, moduleRepository, certificateRepository,
+                new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200));
     }
 
     @Test

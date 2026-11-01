@@ -9,6 +9,7 @@ import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.response_request.UserCertificateDTO;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,12 +55,19 @@ public class CertificateService {
             }
         }
 
-        // The Score is read from the Learner's own recorded attempts. A caller cannot
-        // supply it, so a Certificate always traces back to an Exam Attempt.
-        double bestScore = examAttemptRepository.findByUserIdAndCourseId(userId, courseId).stream()
-                .mapToDouble(ExamAttempt::getScore)
-                .max()
-                .orElse(0.0);
+        // The score is read from the learner's own recorded attempts, and only from attempts the
+        // proctor left clean: an attempt a reviewer flagged cannot be the one that earns a
+        // credential, however high its number. A caller cannot supply the score, so a certificate
+        // always traces back to an exam attempt.
+        ExamAttempt best = examAttemptRepository.findByUserIdAndCourseId(userId, courseId).stream()
+                .filter(CertificateService::isCertifiable)
+                .max(Comparator.comparingDouble(ExamAttempt::getScore))
+                .orElse(null);
+        if (best == null) {
+            throw new IllegalArgumentException(
+                    "No clean passing attempt is on record. Passing score of " + (int) PASSING_SCORE + "% is required.");
+        }
+        double bestScore = best.getScore();
         if (bestScore < PASSING_SCORE) {
             throw new IllegalArgumentException("Passing score of 80% is required for certificate issuance.");
         }
@@ -76,8 +84,27 @@ public class CertificateService {
         certificate.setUserId(userId);
         certificate.setCourseId(courseId);
         certificate.setScore(bestScore);
+        certificate.setAttemptId(best.getId());
         certificate.setCredentialId(credentialId);
         certificate.setIssuedAt(LocalDateTime.now());
         return certificateRepository.save(certificate);
+    }
+
+    /**
+     * Whether an attempt may carry a credential.
+     *
+     * A flagged or voided sitting is excluded even when its score is the highest on record, so
+     * raising a certificate by farming attempts under a cloud does not work. REVIEW is allowed to
+     * carry one: that verdict only asks a human to look, and a learner should not lose a
+     * certificate because nobody has looked yet. A sitting that has not closed is not a result.
+     */
+    private static boolean isCertifiable(ExamAttempt attempt) {
+        // Rows written before attempts became server-owned sessions have no status at all, and the
+        // only way one could be created then was by submitting — so an unset status is a submitted
+        // attempt. Treating it otherwise would revoke credentials from learners who already passed.
+        String status = attempt.getStatus();
+        boolean counted = status == null || ExamAttempt.STATUS_SUBMITTED.equals(status)
+                || ExamAttempt.STATUS_EXPIRED.equals(status);
+        return counted && !ExamAttempt.INTEGRITY_FLAGGED.equalsIgnoreCase(attempt.getIntegrity());
     }
 }

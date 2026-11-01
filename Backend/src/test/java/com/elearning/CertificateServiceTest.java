@@ -37,6 +37,10 @@ class CertificateServiceTest {
         a.setCourseId(courseId);
         a.setScore(score);
         a.setPassed(score >= CertificateService.PASSING_SCORE);
+        // Certificates are only earned from finished sittings, so a fixture that wants credit has
+        // to say so; IN_PROGRESS is what a fresh attempt row starts life as.
+        a.setStatus(ExamAttempt.STATUS_SUBMITTED);
+        a.setIntegrity(ExamAttempt.INTEGRITY_CLEAN);
         return a;
     }
 
@@ -114,5 +118,82 @@ class CertificateServiceTest {
         assertEquals("BC12345678", cert.getCredentialId());
         verify(certificateRepository, never()).save(any());
         verify(examAttemptRepository, never()).findByUserIdAndCourseId(any(), any());
+    }
+
+    private ExamAttempt sitting(long userId, long courseId, double score, String status, String integrity) {
+        ExamAttempt a = attempt(userId, courseId, score);
+        a.setId((long) (score * 100));
+        a.setStatus(status);
+        a.setIntegrity(integrity);
+        return a;
+    }
+
+    @Test
+    @DisplayName("A flagged attempt never earns a credential, however high the score")
+    void flaggedAttemptsDoNotCertify() {
+        when(certificateRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        when(examAttemptRepository.findByUserIdAndCourseId(10L, 20L)).thenReturn(List.of(
+                sitting(10L, 20L, 100.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_FLAGGED)));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> certificateService.issueCertificate(10L, 20L));
+        assertTrue(ex.getMessage().contains("clean"));
+        verify(certificateRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("A clean pass is credited even when a better score sits on a flagged attempt")
+    void cleanAttemptWinsOverFlaggedHigherScore() {
+        when(certificateRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        when(examAttemptRepository.findByUserIdAndCourseId(10L, 20L)).thenReturn(List.of(
+                sitting(10L, 20L, 100.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_FLAGGED),
+                sitting(10L, 20L, 84.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_CLEAN)));
+        when(certificateRepository.getByCredentialId(any())).thenReturn(null);
+        when(certificateRepository.save(any(Certificate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Certificate cert = certificateService.issueCertificate(10L, 20L);
+
+        assertEquals(84.0, cert.getScore());
+        assertEquals(8400L, cert.getAttemptId(), "the credential traces to the attempt it was graded from");
+    }
+
+    @Test
+    @DisplayName("Unfinished sittings are not creditable: in progress and voided")
+    void openAndVoidedSittingsDoNotCertify() {
+        when(certificateRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        when(examAttemptRepository.findByUserIdAndCourseId(10L, 20L)).thenReturn(List.of(
+                sitting(10L, 20L, 100.0, ExamAttempt.STATUS_IN_PROGRESS, ExamAttempt.INTEGRITY_CLEAN),
+                sitting(10L, 20L, 96.0, ExamAttempt.STATUS_VOIDED, ExamAttempt.INTEGRITY_CLEAN)));
+
+        assertThrows(IllegalArgumentException.class, () -> certificateService.issueCertificate(10L, 20L));
+        verify(certificateRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Time-running-out submissions and un-reviewed REVIEW records still certify")
+    void expiredAndReviewAttemptsCertify() {
+        when(certificateRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        when(examAttemptRepository.findByUserIdAndCourseId(10L, 20L)).thenReturn(List.of(
+                sitting(10L, 20L, 88.0, ExamAttempt.STATUS_EXPIRED, ExamAttempt.INTEGRITY_CLEAN),
+                sitting(10L, 20L, 92.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_REVIEW)));
+        when(certificateRepository.getByCredentialId(any())).thenReturn(null);
+        when(certificateRepository.save(any(Certificate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // REVIEW is a queue for a human, not a verdict; revoking a pass before anyone has looked
+        // would punish the learner for the reviewer's backlog.
+        assertEquals(92.0, certificateService.issueCertificate(10L, 20L).getScore());
+    }
+
+    @Test
+    @DisplayName("A retake after a flagged attempt can still certify from the clean sitting")
+    void flaggedSittingDoesNotPoisonLaterOnes() {
+        when(certificateRepository.findByUserId(10L)).thenReturn(Collections.emptyList());
+        when(examAttemptRepository.findByUserIdAndCourseId(10L, 20L)).thenReturn(List.of(
+                sitting(10L, 20L, 95.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_FLAGGED),
+                sitting(10L, 20L, 81.0, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_CLEAN)));
+        when(certificateRepository.getByCredentialId(any())).thenReturn(null);
+        when(certificateRepository.save(any(Certificate.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals(81.0, certificateService.issueCertificate(10L, 20L).getScore());
     }
 }
