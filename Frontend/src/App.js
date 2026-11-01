@@ -37,6 +37,7 @@ import AdminUserPanel from "./components/AdminUserPanel";
 import Connections from "./components/Connections";
 import ScrollToTop from "./components/ScrollToTop";
 import AdminSkillPanel from "./components/AdminSkillpanel";
+import AdminExamIntegrity from "./components/AdminExamIntegrity";
 import ProtectedAdmin from "./components/ProtectedAdmin";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -112,6 +113,7 @@ function AppShell() {
             <Route path="/course/add-module" element={<AddModule />} />
             <Route path="/course/modules" element={<ModuleList />} />
             <Route path="/admin/users" element={<AdminUserPanel />} />
+            <Route path="/admin/integrity" element={<AdminExamIntegrity />} />
           </Route>
 
           <Route

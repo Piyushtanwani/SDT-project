@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import com.elearning.models.ExamAttempt;
 import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
+import com.elearning.response_request.ExamAttemptSummary;
 import com.elearning.services.ExamAttemptService;
 
 @RestController
@@ -25,6 +26,13 @@ public class ExamAttemptController {
         this.userRepository = userRepository;
     }
 
+    /**
+     * A learner's own attempt history, as summaries.
+     *
+     * The stored answer sheet and served question ids are deliberately not serialised: they are the
+     * keys a later attempt would be graded against, and on a shared device that list belongs to no
+     * one but the reviewer.
+     */
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getAttemptsByUser(
             @PathVariable Long userId,
@@ -37,7 +45,9 @@ public class ExamAttemptController {
         if (!isAdmin && !userId.equals(caller.getId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cannot read another user's attempts");
         }
-        List<ExamAttempt> attempts = examAttemptService.getAttemptsByUser(userId);
+        List<ExamAttemptSummary> attempts = examAttemptService.getAttemptsByUser(userId).stream()
+                .map(ExamAttemptSummary::of)
+                .toList();
         return ResponseEntity.ok(attempts);
     }
 

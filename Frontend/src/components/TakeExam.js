@@ -1,658 +1,660 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getAuthHeaders, API_BASE_URL } from "../config/api";
+import { clockOffsetMs, createProctorLog, remainingSeconds } from "../utils/proctoringEvents";
+import { createProctorWatcher } from "../utils/proctorDom";
+import { ExamProctorPanel, ProctorBanner } from "./ExamProctorPanel";
+
+/** How often the page checks in with the server while the clock runs. */
+const AUTOSAVE_MS = 15000;
+const SNAPSHOT_MS = 60000;
+const PANEL_REFRESH_MS = 700;
 
 export const TakeExam = () => {
   const { courseId } = useParams();
-  const userId = sessionStorage.getItem("userId");
   const navigate = useNavigate();
-  
-  // Refs for handling focus trapping
-  const modalRef = useRef(null);
-  const firstFocusableElementRef = useRef(null);
-  const lastFocusableElementRef = useRef(null);
-  const submittedRef = useRef(false);
-  
-  // State for popup modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [examStarted, setExamStarted] = useState(false);
-  const [attemptedToLeave, setAttemptedToLeave] = useState(false);
-  
-  // Exam states
-  const [questions, setQuestions] = useState([]);
-  const [drawToken, setDrawToken] = useState(null);
+  const apiUrl = API_BASE_URL;
+
+  const [rules, setRules] = useState(null);
+  const [sitting, setSitting] = useState(null);
   const [answers, setAnswers] = useState({});
-  const [timeLeft, setTimeLeft] = useState(40 * 60);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [index, setIndex] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [phase, setPhase] = useState("rules");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [noQuestions, setNoQuestions] = useState(false);
-  // A rejected draw token cannot be fixed by submitting again; it needs a fresh question set.
-  const [needsNewDraw, setNeedsNewDraw] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [savedAt, setSavedAt] = useState(null);
+  const [staleConnection, setStaleConnection] = useState(false);
+  const [proctor, setProctor] = useState({ entries: [], points: 0, level: "clear" });
+  const [ending, setEnding] = useState(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState(null);
 
-  const apiUrl = API_BASE_URL;
+  const log = useRef(createProctorLog()).current;
+  const watcher = useRef(null);
+  const root = useRef(null);
+  const video = useRef(null);
+  const stream = useRef(null);
+  const sheet = useRef(answers);
+  const attempt = useRef(null);
+  const endingRef = useRef(null);
+  const handedIn = useRef(false);
+  const lastAutoTry = useRef(0);
+  const warned = useRef(false);
+  const saveTimer = useRef(null);
 
-  // Restore scrolling when component unmounts or exam finishes (BUG-06)
-  useEffect(() => {
-    if (examStarted) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
+  sheet.current = answers;
+  attempt.current = sitting;
+  const attemptId = sitting ? sitting.attemptId : null;
+
+  /**
+   * One POST against the attempt, with the failure made visible rather than fatal: the row on the
+   * server keeps the clock and the last saved sheet, so a dropped request costs a second, not the exam.
+   */
+  async function send(path, body, keepalive = false) {
+    const response = await fetch(`${apiUrl}/api/exams/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(body),
+      keepalive,
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null);
+      const failure = new Error(detail?.message || `Server responded with ${response.status}`);
+      failure.status = response.status;
+      throw failure;
     }
-    return () => {
-      document.body.style.overflow = "auto";
-    };
-  }, [examStarted]);
+    return response.json();
+  }
 
-  // Fetch questions when component mounts
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${apiUrl}/api/exams/course/${courseId}/random`, {
-          headers: { ...getAuthHeaders() },
-        });
+  function reportProctor() {
+    setProctor({ entries: log.entries(), points: log.points(), level: log.level() });
+  }
 
-        if (!response.ok) {
-          throw new Error(`Server responded with status ${response.status}`);
-        }
-
-        // The server signs the set it serves and re-checks that token on submit, so a refresh
-        // keeps the same questions and every new attempt gets a different draw from the bank.
-        const data = await response.json();
-        const served = Array.isArray(data?.questions) ? data.questions : [];
-        setQuestions(served);
-        setDrawToken(data?.drawToken ?? null);
-        if (served.length === 0) {
-          setNoQuestions(true);
-        }
-      } catch (err) {
-        console.error("Error fetching exam questions:", err);
-        setError("Failed to load exam questions. Please try again.");
-      } finally {
-        setLoading(false);
-        setIsModalOpen(true);
-      }
-    };
-
-    if (courseId && apiUrl) {
-      fetchQuestions();
-    }
-  }, [courseId, apiUrl]);
-
-  // Submit exam function
-  const submitExam = useCallback(async () => {
-    if (submitting || submittedRef.current) return;
-    submittedRef.current = true;
-    
+  async function saveSheet() {
+    if (!attempt.current) return;
     try {
-      setSubmitting(true);
-      
-      // Create completed answers with 'E' for unanswered questions
-      const completedAnswers = questions.reduce((acc, question) => {
-        acc[question.id] = answers[question.id] || 'E';
-        return acc;
-      }, {});
-
-      const response = await fetch(`${apiUrl}/api/exams/submit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ userId, courseId, answers: completedAnswers, drawToken }),
-      });
-
-      if (!response.ok) {
-        let reason = `Server responded with status ${response.status}`;
-        try {
-          const body = await response.json();
-          if (body && body.message) reason = body.message;
-        } catch {
-          // No JSON body to explain the failure; keep the status text.
-        }
-        throw new Error(reason);
-      }
-
-      const data = await response.json();
-      document.body.style.overflow = "auto";
-      setIsModalOpen(false);
-      navigate(`/result/${data.id}`);
-    } catch (err) {
-      console.error("Error submitting exam:", err);
-      setError(err.message || "Failed to submit exam. Please try again.");
-      if (/could not be graded|expired|invalid/i.test(err.message || "")) {
-        setNeedsNewDraw(true);
-      }
-      setSubmitting(false);
-      submittedRef.current = false;
+      await send(`${attempt.current.attemptId}/autosave`, { answers: sheet.current });
+      setSavedAt(new Date());
+      setStaleConnection(false);
+    } catch {
+      setStaleConnection(true);
     }
-  }, [apiUrl, userId, courseId, answers, drawToken, navigate, submitting, questions]);
+  }
 
-  // Timer interval effect (BUG-01)
   useEffect(() => {
-    if (!examStarted || timeLeft <= 0) return;
-    
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [examStarted, timeLeft]);
-
-  // Auto-submit trigger when timer reaches 0
-  useEffect(() => {
-    if (examStarted && timeLeft === 0 && !submittedRef.current && !submitting) {
-      submitExam();
-    }
-  }, [examStarted, timeLeft, submitting, submitExam]);
-
-  // Format time
-  const formattedTime = useMemo(() => {
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = String(timeLeft % 60).padStart(2, "0");
-    return `${minutes}:${seconds}`;
-  }, [timeLeft]);
-
-  // Progress calculation
-  const progress = useMemo(() => {
-    if (!questions.length) return 0;
-    return Object.keys(answers).length / questions.length * 100;
-  }, [answers, questions]);
-
-  // Check if current question is answered
-  const isCurrentQuestionAnswered = useMemo(() => {
-    if (!questions.length) return false;
-    return !!answers[questions[currentQuestionIndex]?.id];
-  }, [answers, questions, currentQuestionIndex]);
-
-  // Handle answer selection
-  const handleAnswerChange = useCallback((questionId, option) => {
-    setAnswers(prev => ({ ...prev, [questionId]: option }));
-  }, []);
-
-  // Navigation functions
-  const nextQuestion = useCallback(() => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    }
-  }, [currentQuestionIndex, questions.length]);
-
-  const prevQuestion = useCallback(() => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  }, [currentQuestionIndex]);
-
-  const goToQuestion = useCallback((index) => {
-    if (index >= 0 && index < questions.length) {
-      setCurrentQuestionIndex(index);
-    }
-  }, [questions.length]);
-
-  // Handle start exam
-  const handleStartExam = () => {
-    setExamStarted(true);
-    document.body.style.overflow = "hidden"; // Prevent scrolling
-  };
-
-  // Watch for keyboard navigation
-  useEffect(() => {
-    if (!examStarted) return;
-    
-    const handleKeyDown = (e) => {
-      if (loading || submitting) return;
-      
-      if (e.key === "ArrowLeft") {
-        prevQuestion();
-      } else if (e.key === "ArrowRight") {
-        nextQuestion();
-      } else if (e.key >= "1" && e.key <= "4" && questions[currentQuestionIndex]) {
-        const optionMap = { "1": "A", "2": "B", "3": "C", "4": "D" };
-        handleAnswerChange(questions[currentQuestionIndex].id, optionMap[e.key]);
-      } else if (e.key === "Tab") {
-        // Trap focus within the modal
-        if (modalRef.current) {
-          const focusableElements = modalRef.current.querySelectorAll(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          
-          if (focusableElements.length) {
-            firstFocusableElementRef.current = focusableElements[0];
-            lastFocusableElementRef.current = focusableElements[focusableElements.length - 1];
-            
-            if (e.shiftKey && document.activeElement === firstFocusableElementRef.current) {
-              e.preventDefault();
-              lastFocusableElementRef.current.focus();
-            } else if (!e.shiftKey && document.activeElement === lastFocusableElementRef.current) {
-              e.preventDefault();
-              firstFocusableElementRef.current.focus();
-            }
-          }
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [loading, submitting, prevQuestion, nextQuestion, handleAnswerChange, questions, currentQuestionIndex, examStarted]);
-
-  // Handle browser leave/refresh warnings
-  useEffect(() => {
-    if (!examStarted) return;
-
-    const handleBeforeUnload = (e) => {
-      if (Object.keys(answers).length > 0 && !submitting) {
-        e.preventDefault();
-        e.returnValue = "You have unsaved exam progress. Are you sure you want to leave? All your progress will be lost.";
-        return e.returnValue;
-      }
-    };
-    
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        setAttemptedToLeave(true);
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    
+    if (!attemptId) return undefined;
+    watcher.current = createProctorWatcher({
+      log,
+      onFlush: (batch, keepalive) => {
+        send(`${attemptId}/events`, { events: batch }, keepalive).catch(() => {
+          setStaleConnection(true);
+        });
+      },
+    });
+    watcher.current.start();
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      document.body.style.overflow = "auto"; // Restore scrolling
+      if (watcher.current) {
+        watcher.current.stop();
+        watcher.current = null;
+      }
     };
-  }, [answers, submitting, examStarted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId]);
 
-  // Get current question
-  const currentQuestion = useMemo(() => 
-    questions[currentQuestionIndex] || null,
-    [questions, currentQuestionIndex]
+  useEffect(() => {
+    if (!attemptId) return undefined;
+    const tick = setInterval(() => {
+      const current = attempt.current;
+      if (!current) return;
+      const left = remainingSeconds(current.deadline, current.offset, Date.now());
+      setTimeLeft(left);
+      if (left === 0) {
+        handIn(true);
+        return;
+      }
+      // The proctor can close a sitting, but the server still refuses a paper handed in before
+      // the minimum working time — so wait for the first legal second rather than firing a
+      // submit it would read as a drive-by attempt and flag against the candidate.
+      const worked = left === null ? -1 : (current.durationSeconds || 0) - left;
+      if (endingRef.current && worked >= (current.minDurationSeconds || 0)) {
+        handIn(true);
+      }
+    }, 1000);
+    const save = setInterval(saveSheet, AUTOSAVE_MS);
+    const panel = setInterval(reportProctor, PANEL_REFRESH_MS);
+    return () => {
+      clearInterval(tick);
+      clearInterval(save);
+      clearInterval(panel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId]);
+
+  useEffect(() => {
+    if (phase !== "exam" || warned.current) return;
+    const first = proctor.entries.find((entry) => entry.points > 0);
+    if (first) {
+      warned.current = true;
+      setNotice(first);
+    }
+  }, [phase, proctor.entries]);
+
+  useEffect(() => {
+    if (proctor.level !== "stop" || phase !== "exam" || endingRef.current) return;
+    const reason = "Too much left the screen. This sitting is over.";
+    endingRef.current = reason;
+    setEnding(reason);
+    const current = attempt.current;
+    const left = remainingSeconds(current.deadline, current.offset);
+    const worked = left === null ? -1 : (current.durationSeconds || 0) - left;
+    if (worked >= (current.minDurationSeconds || 0)) {
+      handIn(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proctor.level, phase]);
+
+  useEffect(() => {
+    if (phase !== "exam") return undefined;
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [phase]);
+
+  useEffect(
+    () => () => {
+      document.body.style.overflow = "auto";
+      if (stream.current) {
+        stream.current.getTracks().forEach((track) => track.stop());
+      }
+    },
+    []
   );
 
-  // Close modal handler (with confirmation)
-  const handleCloseAttempt = () => {
-    if (Object.keys(answers).length > 0 && !submitting) {
-      if (window.confirm("Are you sure you want to exit? All your progress will be lost.")) {
-        setIsModalOpen(false);
-        setExamStarted(false);
-        navigate(-1);
-      }
-    } else {
-      setIsModalOpen(false);
-      setExamStarted(false);
-      navigate(-1);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${apiUrl}/api/exams/course/${courseId}/rules`, { headers: { ...getAuthHeaders() } })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled) setRules(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, courseId]);
 
-  return (
-    <div className="relative w-full min-h-screen flex flex-col items-center justify-center p-4">
-      {/* Fullscreen Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 dark:bg-opacity-85 z-50 flex items-center justify-center">
-          {/* Attempted to leave warning */}
-          {attemptedToLeave && (
-            <div className="absolute top-0 left-0 right-0 bg-red-600 dark:bg-red-700 text-white py-2 px-4 text-center font-semibold">
-              Warning: Leaving this tab or window may result in losing your exam progress!
+  async function startExam() {
+    setLoading(true);
+    setError(null);
+    try {
+      if (root.current && root.current.requestFullscreen) {
+        try {
+          await root.current.requestFullscreen();
+        } catch {
+          log.observe("FULLSCREEN_DENIED", "The browser refused full screen for this page.");
+        }
+      }
+      const response = await fetch(`${apiUrl}/api/exams/course/${courseId}/start`, {
+        method: "POST",
+        headers: { ...getAuthHeaders() },
+      });
+      const detail = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(detail?.message || `Server responded with ${response.status}`);
+      }
+      setSitting({
+        attemptId: detail.attemptId,
+        drawToken: detail.drawToken,
+        questions: detail.questions || [],
+        deadline: detail.deadline,
+        offset: clockOffsetMs(detail.serverNow),
+        durationSeconds: detail.durationSeconds,
+        minDurationSeconds: detail.minDurationSeconds || 0,
+        attemptNumber: detail.attemptNumber,
+      });
+      setTimeLeft(remainingSeconds(detail.deadline, clockOffsetMs(detail.serverNow)));
+      setPhase("exam");
+      document.body.style.overflow = "hidden";
+      reportProctor();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handIn(auto) {
+    if (handedIn.current || submitting) return;
+    // The clock and the proctor both retry an automatic hand-in, so a rejected paper is retried
+    // on a ten-second cadence rather than once per tick for the rest of the sitting.
+    if (auto && Date.now() - lastAutoTry.current < 10000) return;
+    lastAutoTry.current = Date.now();
+    const current = attempt.current;
+    if (!current) return;
+    handedIn.current = true;
+    setSubmitting(true);
+    if (watcher.current) {
+      watcher.current.stop();
+    }
+    try {
+      await send(`${current.attemptId}/autosave`, { answers: sheet.current }).catch(() => {});
+      const response = await fetch(`${apiUrl}/api/exams/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          attemptId: current.attemptId,
+          drawToken: current.drawToken,
+          answers: sheet.current,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || `Server responded with ${response.status}`);
+      }
+      stopCamera();
+      document.body.style.overflow = "auto";
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen().catch(() => {});
+      }
+      navigate(`/result/${data.id}`, { replace: true });
+    } catch (err) {
+      setError(err.message);
+      setSubmitting(false);
+      handedIn.current = false;
+      if (auto) {
+        // A timed-out attempt is closed by the server's sweep; leaving the page open on a failed
+        // auto-submit would only hide the result, so the candidate is told to hand it in again.
+        setNotice(null);
+      }
+    }
+  }
+
+  function chooseAnswer(questionId, option) {
+    setAnswers((prev) => ({ ...prev, [questionId]: option }));
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(saveSheet, 2500);
+  }
+
+  function stopCamera() {
+    if (stream.current) {
+      stream.current.getTracks().forEach((track) => track.stop());
+      stream.current = null;
+    }
+    setCameraOn(false);
+  }
+
+  async function captureFrame(label) {
+    const node = video.current;
+    if (!node || !node.videoWidth || !attempt.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.drawImage(node, 0, 0, canvas.width, canvas.height);
+    try {
+      await send(`${attempt.current.attemptId}/snapshot`, {
+        label,
+        imageDataUrl: canvas.toDataURL("image/jpeg", 0.5),
+      });
+    } catch {
+      setStaleConnection(true);
+    }
+  }
+
+  async function enableCamera() {
+    setCameraMessage(null);
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: { width: 320, height: 240 },
+        audio: false,
+      });
+      stream.current = media;
+      if (video.current) {
+        video.current.srcObject = media;
+        await video.current.play().catch(() => {});
+      }
+      setCameraOn(true);
+      captureFrame("START");
+    } catch (err) {
+      log.observe("CAMERA_DENIED", err && err.name ? err.name : "not permitted");
+      reportProctor();
+      setCameraMessage(
+        "Your browser did not allow the camera. Nothing is captured, and that is recorded as a choice, not a fault."
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (!cameraOn || !attemptId) return undefined;
+    const shot = setInterval(() => captureFrame("PERIODIC"), SNAPSHOT_MS);
+    return () => {
+      clearInterval(shot);
+      stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn, attemptId]);
+
+  const questions = sitting ? sitting.questions : [];
+  const current = questions[index] || null;
+  const answered = Object.keys(answers).length;
+  const elapsed = timeLeft === null ? 0 : (sitting.durationSeconds || 0) - timeLeft;
+  const canHandIn = !sitting || elapsed >= (sitting.minDurationSeconds || 0);
+
+  const clock = useMemo(() => {
+    if (timeLeft === null) return "--:--";
+    return `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}`;
+  }, [timeLeft]);
+
+  if (phase === "rules") {
+    const exhausted = rules ? rules.attemptsRemaining <= 0 : false;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+            Your assessment
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm">
+            Read these before you start. The clock, the questions and your answers are kept on our
+            server, so nothing here depends on your machine being honest.
+          </p>
+
+          {loading && !rules && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading the rules…</p>}
+
+          {rules && (
+            <ul className="space-y-3 mb-6">
+              {rules.disclosures.map((line) => (
+                <li key={line} className="flex items-start text-gray-800 dark:text-gray-300 text-sm">
+                  <span className="mr-3 mt-1 text-indigo-600 dark:text-indigo-400" aria-hidden="true">
+                    •
+                  </span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {rules && exhausted && (
+            <div className="mb-6 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200 p-4 text-sm">
+              {rules.nextAllowedAt
+                ? `You have used every attempt. The next one opens after ${new Date(
+                    rules.nextAllowedAt
+                  ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} on ${new Date(
+                    rules.nextAllowedAt
+                  ).toLocaleDateString()}.`
+                : "You have used every attempt for this exam."}
             </div>
           )}
-          
-          <div 
-            ref={modalRef}
-            className="w-full max-w-5xl h-[90vh] bg-white dark:bg-gray-800 rounded-xl shadow-2xl flex flex-col overflow-hidden"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-          >
-            {/* Modal Header */}
-            <div className="bg-indigo-600 dark:bg-indigo-700 p-4 flex justify-between items-center">
-              <h1 id="modal-title" className="text-2xl font-bold text-white">Online Examination</h1>
-              
-              {/* Timer display */}
-              <div className="flex items-center space-x-4">
-                {examStarted && (
-                  <div className="flex items-center bg-black/25 dark:bg-black/30 rounded-lg px-4 py-1">
-                    <span className="mr-2 text-white font-medium">Time Remaining:</span>
-                    <div className="px-3 py-1 bg-white dark:bg-gray-800 rounded-md">
-                      <span className="text-lg font-semibold text-red-600 dark:text-red-400" aria-live="polite" role="timer">
-                        {formattedTime}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
-                <button
-                  type="button"
-                  onClick={handleCloseAttempt}
-                  className="h-11 w-11 flex items-center justify-center text-white bg-red-500 dark:bg-red-600 hover:bg-red-700 dark:hover:bg-red-800 rounded-full"
-                  aria-label="Close exam"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
+
+          {rules && !exhausted && rules.attemptsUsed > 0 && (
+            <p className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+              This would be attempt {rules.attemptsUsed + 1} of {rules.maxAttempts}. If you reload or
+              lose your connection, starting again returns you to the same exam on the same clock.
+            </p>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-4 text-sm"
+            >
+              <p className="font-medium">The exam could not be prepared</p>
+              <p className="mt-1">{error}</p>
             </div>
-            
-            {!examStarted ? (
-              /* Exam Start Screen */
-              <div className="flex-grow flex flex-col items-center justify-center p-8 text-center bg-gray-50 dark:bg-gray-900">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">Examination Rules</h2>
-                <div className="max-w-2xl bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm mb-8 text-left">
-                  <ul className="space-y-3">
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">You have <strong>40 minutes</strong> to complete the exam.</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">
-                        {loading
-                          ? "We are choosing your questions now."
-                          : questions.length === 0
-                            ? "This course has no question bank yet, so there is nothing to draw."
-                            : <>This attempt has <strong>{questions.length} questions</strong>, drawn fresh from the course bank — a retake gives you a different set.</>}
-                      </span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">Do not leave the examination screen or switch tabs/applications.</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">All unanswered questions will be marked as option E (not answered).</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">Use keyboard shortcuts: Arrow keys (navigation), Numbers 1-4 (options A-D).</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
-                      <span className="text-gray-800 dark:text-gray-300">The exam will automatically submit when the timer reaches zero.</span>
-                    </li>
-                  </ul>
-                </div>
+          )}
 
-                {error && (
-                  <div
-                    role="alert"
-                    className="max-w-2xl mb-6 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-4 rounded-lg text-center"
-                  >
-                    <p className="font-medium mb-1">The exam could not be loaded</p>
-                    <p className="text-sm mb-3">{error}</p>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="min-h-[44px] px-5 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
-                    >
-                      Reload the exam
-                    </button>
-                  </div>
-                )}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={startExam}
+              disabled={loading || exhausted || !!error}
+              className="min-h-[44px] px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Preparing…" : "Start the exam"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="min-h-[44px] px-6 py-3 rounded-lg font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              Not yet
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-                {noQuestions && !error && (
-                  <div className="max-w-2xl mb-6 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 p-4 rounded-lg text-center">
-                    <p className="font-medium mb-1">This course has no exam yet</p>
-                    <p className="text-sm">An administrator needs to add questions before you can be assessed.</p>
-                  </div>
-                )}
+  return (
+    <div ref={root} className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Attempt {sitting.attemptNumber} · {questions.length} questions · {answered} answered
+            </p>
+            <p className="font-semibold text-gray-900 dark:text-gray-100" role="timer">
+              {timeLeft === 0 ? "Time is up" : `${clock} left`}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="hidden sm:block text-xs text-gray-500 dark:text-gray-400">
+              {staleConnection
+                ? "Reconnecting…"
+                : savedAt
+                  ? `Saved at ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                  : "Nothing saved yet"}
+            </p>
+            <button
+              type="button"
+              onClick={() => handIn(false)}
+              disabled={submitting || !canHandIn || !!ending}
+              className="min-h-[44px] px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm disabled:opacity-50"
+            >
+              {submitting
+                ? "Submitting…"
+                : ending
+                  ? "Sitting closed"
+                  : `Submit (${questions.length - answered} unanswered)`}
+            </button>
+          </div>
+        </div>
+        <ProctorBanner level={proctor.level} />
+        {ending && (
+          <p
+            role="status"
+            className="bg-red-600 text-white px-4 py-2 text-center text-sm font-medium"
+          >
+            {ending}{" "}
+            {canHandIn
+              ? "Handing your paper in now."
+              : `It goes in the moment the minimum ${Math.ceil(
+                  (sitting.minDurationSeconds || 0) / 60
+                )} minutes of work is met — the server will not take it earlier, and we will not ask it to.`}
+          </p>
+        )}
+      </header>
 
-                <button
-                  onClick={handleStartExam}
-                  disabled={loading || noQuestions || !!error}
-                  className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
-                >
-                  Start Exam
-                </button>
-              </div>
-            ) : (
-              /* Main Exam Content */
-              <div className="flex-grow flex flex-col p-4 overflow-auto bg-gray-50 dark:bg-gray-900">
-                {/* Progress bar */}
-                <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-6">
-                  <div 
-                    className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                    role="progressbar"
-                    aria-valuenow={progress}
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                  ></div>
-                </div>
-
-                {/* Loading state */}
-                {loading ? (
-                  <div className="flex-grow flex justify-center items-center">
-                    <div className="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" aria-label="Loading"></div>
-                  </div>
-                ) : error ? (
-                  /* Error state */
-                  <div className="flex-grow flex flex-col items-center justify-center">
-                    <div
-                      role="alert"
-                      className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 p-4 rounded-lg mb-4 max-w-md text-center"
-                    >
-                      <p className="text-lg font-medium mb-2">Your exam was not submitted</p>
-                      <p>{error}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={needsNewDraw ? () => window.location.reload() : submitExam}
-                      className="min-h-[44px] px-6 bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-800 text-white rounded-lg font-semibold"
-                    >
-                      {needsNewDraw ? "Load a new question set" : "Try submitting again"}
-                    </button>
-                  </div>
-                ) : submitting ? (
-                  /* Submitting state */
-                  <div className="flex-grow flex flex-col items-center justify-center">
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin mb-4" aria-label="Submitting"></div>
-                      <p className="text-xl font-semibold text-gray-700 dark:text-gray-300">Submitting your exam...</p>
-                      <p className="text-gray-500 dark:text-gray-400 mt-2">Please wait, don't close this window.</p>
-                    </div>
-                  </div>
-                ) : questions.length > 0 && currentQuestion ? (
-                  <div className="flex-grow flex flex-col md:flex-row gap-6">
-                    {/* Question navigation sidebar */}
-                    <div className="w-full md:w-56 flex-shrink-0 md:h-[calc(100vh-220px)] md:overflow-y-auto bg-white dark:bg-gray-800 p-4 rounded-lg">
-                      <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Question Navigator</h2>
-                      <div className="grid grid-cols-5 md:grid-cols-3 gap-2 mb-4">
-                        {questions.map((q, idx) => (
-                          <button
-                            key={q.id}
-                            onClick={() => goToQuestion(idx)}
-                            className={`w-full h-10 flex items-center justify-center rounded-md font-medium transition-all
-                              ${currentQuestionIndex === idx 
-                                ? 'bg-indigo-600 text-white ring-2 ring-offset-2 ring-indigo-300 dark:ring-indigo-500 dark:ring-offset-gray-800' 
-                                : answers[q.id] 
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-300 dark:border-green-600' 
-                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                            aria-label={`Go to question ${idx + 1}${answers[q.id] ? ' (answered)' : ''}`}
-                            aria-current={currentQuestionIndex === idx ? 'true' : 'false'}
-                          >
-                            {idx + 1}
-                            {answers[q.id] && currentQuestionIndex !== idx && (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {/* Summary */}
-                      <div className="mt-4 bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm">
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Exam Progress</h3>
-                        <div className="space-y-2">
-                          <p className="text-sm flex justify-between text-gray-800 dark:text-gray-300">
-                            <span>Total Questions:</span>
-                            <span className="font-medium">{questions.length}</span>
-                          </p>
-                          <p className="text-sm flex justify-between text-gray-800 dark:text-gray-300">
-                            <span>Answered:</span>
-                            <span className="font-medium text-green-700 dark:text-green-400">{Object.keys(answers).length}</span>
-                          </p>
-                          <p className="text-sm flex justify-between text-gray-800 dark:text-gray-300">
-                            <span>Remaining:</span>
-                            <span className="font-medium text-red-600 dark:text-red-400">{questions.length - Object.keys(answers).length}</span>
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Submit button for small screens */}
-                      <div className="mt-4 md:hidden">
-                        <button
-                          className={`w-full py-3 text-white rounded-lg font-semibold transition-colors
-                            ${Object.keys(answers).length === questions.length
-                              ? "bg-green-700 hover:bg-green-800"
-                              : "bg-indigo-600 hover:bg-indigo-700"}`}
-                          onClick={submitExam}
-                        >
-                          {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Main question area */}
-                    <div className="flex-grow flex flex-col">
-                      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm mb-4 flex-grow">
-                        <div className="flex items-center justify-between mb-6">
-                          <h2 className="text-lg font-medium text-gray-500 dark:text-gray-400">
-                            Question {currentQuestionIndex + 1} of {questions.length}
-                          </h2>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium
-                            ${isCurrentQuestionAnswered ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400" : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"}`}>
-                            {isCurrentQuestionAnswered ? "Answered" : "Not Answered"}
-                          </span>
-                        </div>
-                        
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-6">
-                          {currentQuestion.questionText}
-                        </h3>
-
-                        {/* Options */}
-                        <div className="space-y-3">
-                          {["A", "B", "C", "D"].map((option) => (
-                            <label
-                              key={option}
-                              className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-800
-                                ${answers[currentQuestion.id] === option
-                                  ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-600 text-indigo-800 dark:text-indigo-300 shadow-sm"
-                                  : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-300"}`}
-                              htmlFor={`question-${currentQuestion.id}-option-${option}`}
-                            >
-                              <div className={`w-6 h-6 flex items-center justify-center rounded-full mr-3 border-2
-                                ${answers[currentQuestion.id] === option
-                                  ? "bg-indigo-500 dark:bg-indigo-600 border-indigo-500 dark:border-indigo-600 text-white"
-                                  : "border-gray-300 dark:border-gray-500"}`}>
-                                {answers[currentQuestion.id] === option && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </div>
-                              <input
-                                id={`question-${currentQuestion.id}-option-${option}`}
-                                type="radio"
-                                name={`question-${currentQuestion.id}`}
-                                value={option}
-                                checked={answers[currentQuestion.id] === option}
-                                onChange={() => handleAnswerChange(currentQuestion.id, option)}
-                                className="sr-only"
-                              />
-                              <div>
-                                <span className="font-medium">{option}.</span> {currentQuestion[`option${option}`]}
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Navigation Buttons */}
-                      <div className="flex justify-between mt-auto">
-                        <button
-                          className={`px-6 py-3 rounded-lg font-semibold transition-all
-                            ${currentQuestionIndex === 0 
-                              ? "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed" 
-                              : "bg-gray-700 dark:bg-gray-600 hover:bg-gray-900 dark:hover:bg-gray-500 text-white shadow hover:shadow-md"}`}
-                          onClick={prevQuestion}
-                          disabled={currentQuestionIndex === 0}
-                          aria-label="Previous question"
-                        >
-                          ← Previous
-                        </button>
-
-                        {/* Submit button (desktop) */}
-                        {currentQuestionIndex === questions.length - 1 && (
-                          <div className="hidden md:block">
-                            <button
-                              className={`px-8 py-3 text-white rounded-lg font-semibold transition-all shadow hover:shadow-md
-                                ${Object.keys(answers).length === questions.length
-                                  ? "bg-green-700 hover:bg-green-800"
-                                  : "bg-indigo-600 hover:bg-indigo-700"}`}
-                              onClick={submitExam}
-                            >
-                              {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}
-                            </button>
-                          </div>
-                        )}
-
-                        <button
-                          className={`px-6 py-3 rounded-lg font-semibold transition-all shadow hover:shadow-md
-                            ${currentQuestionIndex === questions.length - 1
-                              ? "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                              : "bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-800 dark:hover:bg-indigo-900 text-white"}`}
-                          onClick={nextQuestion}
-                          disabled={currentQuestionIndex === questions.length - 1}
-                          aria-label="Next question"
-                        >
-                          {isCurrentQuestionAnswered ? "Next →" : "Skip →"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-grow flex items-center justify-center">
-                    <p className="text-center text-gray-600 dark:text-gray-400">No questions available for this exam.</p>
-                  </div>
-                )}
-                
-                {/* Keyboard shortcuts help */}
-                {examStarted && !loading && !submitting && questions.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                    <div className="flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-                      <div className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 mr-2">←→</div>
-                      <span className="mr-4">Navigate between questions</span>
-                      
-                      <div className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 mr-2">1-4</div>
-                      <span>Select options A-D</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+      {notice && (
+        <div
+          className="fixed inset-0 z-20 bg-black/60 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              We noticed something
+            </h2>
+            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium">{notice.label}.</span> It is on your attempt record now,
+              with the time our server saw it. The clock kept running the whole time.
+            </p>
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              Keep going — nothing you have answered is lost. Your instructor sees this same record.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                if (root.current && root.current.requestFullscreen) {
+                  root.current.requestFullscreen().catch(() => {});
+                }
+              }}
+              className="mt-5 min-h-[44px] w-full px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+            >
+              Back to the exam
+            </button>
           </div>
         </div>
       )}
-      
-      {/* Background content (hidden when modal is open) */}
-      <div className={`w-full max-w-lg mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 ${isModalOpen ? 'blur-sm' : ''}`}>
-        <h1 className="text-3xl font-bold text-center text-gray-800 dark:text-gray-100 mb-6">Online Examination System</h1>
-        <p className="text-gray-600 dark:text-gray-400 text-center mb-8">Please wait while we prepare your examination...</p>
-        
-        <div className="flex justify-center">
-          <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
-        </div>
-      </div>
+
+      <main className="flex-grow max-w-5xl w-full mx-auto p-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          {submitting ? (
+            <p className="text-gray-700 dark:text-gray-300">Handing your paper in…</p>
+          ) : current ? (
+            <div className="select-none">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Question {index + 1} of {questions.length}
+                </p>
+                <span className="text-xs px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                  {answers[current.id] ? `Answered ${answers[current.id]}` : "Not answered"}
+                </span>
+              </div>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-5">
+                {current.questionText}
+              </h2>
+              <div className="space-y-2">
+                {["A", "B", "C", "D"].map((option) => (
+                  <label
+                    key={option}
+                    className={`flex items-start gap-3 min-h-[44px] p-4 rounded-lg border cursor-pointer transition-colors ${
+                      answers[current.id] === option
+                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-200"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`question-${current.id}`}
+                      value={option}
+                      checked={answers[current.id] === option}
+                      onChange={() => chooseAnswer(current.id, option)}
+                      className="mt-1"
+                    />
+                    <span className="text-sm">
+                      <span className="font-semibold mr-1">{option}.</span>
+                      {current[`option${option}`]}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-600 dark:text-gray-400">No questions were served for this attempt.</p>
+          )}
+
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              disabled={index === 0}
+              className="min-h-[44px] px-5 rounded-lg font-semibold text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <div className="flex gap-1 overflow-x-auto py-1">
+              {questions.map((question, position) => (
+                <button
+                  key={question.id}
+                  type="button"
+                  onClick={() => setIndex(position)}
+                  aria-label={`Question ${position + 1}${answers[question.id] ? ", answered" : ""}`}
+                  aria-current={position === index ? "true" : undefined}
+                  className={`w-9 h-9 flex-shrink-0 rounded-md text-xs font-semibold ${
+                    position === index
+                      ? "bg-indigo-600 text-white"
+                      : answers[question.id]
+                        ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {position + 1}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.min(questions.length - 1, i + 1))}
+              disabled={index >= questions.length - 1}
+              className="min-h-[44px] px-5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </section>
+
+        <aside className="space-y-4">
+          <ExamProctorPanel entries={proctor.entries} points={proctor.points} level={proctor.level} />
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Camera</h3>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+              Optional. One small frame a minute, so a reviewer can see the room. Declining is
+              allowed.
+            </p>
+            <button
+              type="button"
+              onClick={cameraOn ? stopCamera : enableCamera}
+              className="min-h-[44px] w-full px-4 rounded-lg text-sm font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60"
+            >
+              {cameraOn ? "Stop the camera" : "Allow the camera"}
+            </button>
+            {cameraMessage && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{cameraMessage}</p>}
+            <video ref={video} className="sr-only" playsInline muted aria-hidden="true" tabIndex={-1} />
+          </div>
+
+          {!canHandIn && (
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              You can hand in after {Math.ceil((sitting.minDurationSeconds || 0) / 60)} minutes of
+              work. The clock keeps running while you wait.
+            </p>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="rounded-xl bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-4 text-sm"
+            >
+              <p className="font-medium">Your paper is not with us yet</p>
+              <p className="mt-1">{error}</p>
+              <button
+                type="button"
+                onClick={() => handIn(false)}
+                className="mt-3 min-h-[44px] px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm"
+              >
+                Try handing in again
+              </button>
+            </div>
+          )}
+        </aside>
+      </main>
     </div>
   );
 };

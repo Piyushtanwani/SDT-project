@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from './AdminSlidebar';
 import { motion } from 'framer-motion';
-import { BookOpen, Layers, PlusCircle, Wrench, Users, BarChart2, RefreshCw, Clock, Shield } from 'lucide-react';
+import { BookOpen, Layers, PlusCircle, Wrench, Users, BarChart2, RefreshCw, Clock, Shield, ShieldAlert } from 'lucide-react';
 import { API_BASE_URL, getAuthHeaders } from '../config/api';
 
 const AdminPanel = () => {
@@ -51,6 +51,15 @@ const AdminPanel = () => {
       color: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-600 dark:text-red-300',
       borderColor: 'border-red-600 dark:border-red-300'
+    },
+    {
+      to: '/admin/integrity',
+      icon: <ShieldAlert size={24} />,
+      label: 'Exam Integrity',
+      description: 'Review proctor signals and decide flagged sittings.',
+      color: 'bg-teal-100 dark:bg-teal-900',
+      textColor: 'text-teal-700 dark:text-teal-300',
+      borderColor: 'border-teal-700 dark:border-teal-300'
     },
     {
       to: '/leaderboard',

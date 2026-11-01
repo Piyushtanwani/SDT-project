@@ -1,6 +1,6 @@
 package com.elearning.config;
 
-import com.elearning.services.ExamDrawService;
+import com.elearning.services.ExamPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -140,8 +140,8 @@ class SeedContentQualityTest {
             int size = seed.questions().size();
             assertTrue(size >= MIN_QUESTIONS_PER_COURSE,
                     seed.name() + ": " + size + " questions (need " + MIN_QUESTIONS_PER_COURSE + ")");
-            assertTrue(size > ExamDrawService.QUESTIONS_PER_EXAM,
-                    seed.name() + ": bank must be larger than the " + ExamDrawService.QUESTIONS_PER_EXAM
+            assertTrue(size > ExamPolicy.QUESTIONS_PER_EXAM,
+                    seed.name() + ": bank must be larger than the " + ExamPolicy.QUESTIONS_PER_EXAM
                             + " questions one attempt serves");
         }
     }

@@ -3,8 +3,27 @@ package com.elearning.models;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * One exam sitting, owned by the server from the moment a question set is drawn.
+ *
+ * The row exists before the candidate answers anything: it carries the deadline, the exact
+ * questions served and the integrity verdict, so no rule the browser could fake (time limit,
+ * attempt count, which set was served) is decided by the browser.
+ */
 @Entity
 public class ExamAttempt {
+
+    /** The clock is running on the server against {@link #getDeadline()}. */
+    public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    public static final String STATUS_SUBMITTED = "SUBMITTED";
+    /** Ran out of time without a submit; graded from the last saved answers. */
+    public static final String STATUS_EXPIRED = "EXPIRED";
+    /** A reviewer threw the result out; it still cost the candidate an attempt. */
+    public static final String STATUS_VOIDED = "VOIDED";
+
+    public static final String INTEGRITY_CLEAN = "CLEAN";
+    public static final String INTEGRITY_REVIEW = "REVIEW";
+    public static final String INTEGRITY_FLAGGED = "FLAGGED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,65 +44,274 @@ public class ExamAttempt {
     @Column(nullable = false)
     private LocalDateTime attemptedAt = LocalDateTime.now(); // Timestamp of the attempt
 
-	public Long getId() {
-		return id;
-	}
+    @Column(nullable = false)
+    private String status = STATUS_IN_PROGRESS;
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    /** The jti of the signed draw token minted with this row, so a token serves exactly one sitting. */
+    @Column(name = "draw_token_id", length = 64)
+    private String drawTokenId;
 
-	public Long getUserId() {
-		return userId;
-	}
+    /** 1-based ordinal used by the attempt cap; null on rows that predate proctoring. */
+    @Column(name = "attempt_number")
+    private Integer attemptNumber;
 
-	public void setUserId(Long userId) {
-		this.userId = userId;
-	}
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
 
-	public Long getCourseId() {
-		return courseId;
-	}
+    @Column(name = "deadline")
+    private LocalDateTime deadline;
 
-	public void setCourseId(Long courseId) {
-		this.courseId = courseId;
-	}
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
 
-	public double getScore() {
-		return score;
-	}
+    @Column(name = "total_questions")
+    private Integer totalQuestions;
 
-	public void setScore(double score) {
-		this.score = score;
-	}
+    @Column(name = "correct_count")
+    private Integer correctCount;
 
-	public boolean isPassed() {
-		return passed;
-	}
+    /** Comma-separated ids of the served questions, so an expired session can still be graded. */
+    @Column(name = "question_ids", columnDefinition = "TEXT")
+    private String questionIds;
 
-	public void setPassed(boolean passed) {
-		this.passed = passed;
-	}
+    /** Question id to the four canonical letters in the order they were shown for this attempt. */
+    @Column(name = "option_orders", columnDefinition = "TEXT")
+    private String optionOrders;
 
-	public LocalDateTime getAttemptedAt() {
-		return attemptedAt;
-	}
+    /** The most recent answer sheet the server received, kept so a crash cannot erase work. */
+    @Column(columnDefinition = "TEXT")
+    private String answers;
 
-	public void setAttemptedAt(LocalDateTime attemptedAt) {
-		this.attemptedAt = attemptedAt;
-	}
+    @Column(name = "violation_count", nullable = false)
+    private int violationCount = 0;
 
-	public ExamAttempt(Long id, Long userId, Long courseId, double score, boolean passed, LocalDateTime attemptedAt) {
-		super();
-		this.id = id;
-		this.userId = userId;
-		this.courseId = courseId;
-		this.score = score;
-		this.passed = passed;
-		this.attemptedAt = attemptedAt;
-	}
+    /** Weighted severity total; compared with the flag threshold to decide the verdict. */
+    @Column(name = "violation_points", nullable = false)
+    private int violationPoints = 0;
 
-	public ExamAttempt() {
-	}
-    
+    /** Read from the request header at draw time; a change mid-attempt is not the candidate's story to tell. */
+    @Column(name = "user_agent", length = 512)
+    private String userAgent;
+
+    @Column(name = "integrity", nullable = false)
+    private String integrity = INTEGRITY_CLEAN;
+
+    @Column(name = "review_note", columnDefinition = "TEXT")
+    private String reviewNote;
+
+    @Column(name = "reviewed_by")
+    private Long reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public Long getCourseId() {
+        return courseId;
+    }
+
+    public void setCourseId(Long courseId) {
+        this.courseId = courseId;
+    }
+
+    public double getScore() {
+        return score;
+    }
+
+    public void setScore(double score) {
+        this.score = score;
+    }
+
+    public boolean isPassed() {
+        return passed;
+    }
+
+    public void setPassed(boolean passed) {
+        this.passed = passed;
+    }
+
+    public LocalDateTime getAttemptedAt() {
+        return attemptedAt;
+    }
+
+    public void setAttemptedAt(LocalDateTime attemptedAt) {
+        this.attemptedAt = attemptedAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getDrawTokenId() {
+        return drawTokenId;
+    }
+
+    public void setDrawTokenId(String drawTokenId) {
+        this.drawTokenId = drawTokenId;
+    }
+
+    public Integer getAttemptNumber() {
+        return attemptNumber;
+    }
+
+    public void setAttemptNumber(Integer attemptNumber) {
+        this.attemptNumber = attemptNumber;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+
+    public void setStartedAt(LocalDateTime startedAt) {
+        this.startedAt = startedAt;
+    }
+
+    public LocalDateTime getDeadline() {
+        return deadline;
+    }
+
+    public void setDeadline(LocalDateTime deadline) {
+        this.deadline = deadline;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public Integer getTotalQuestions() {
+        return totalQuestions;
+    }
+
+    public void setTotalQuestions(Integer totalQuestions) {
+        this.totalQuestions = totalQuestions;
+    }
+
+    public Integer getCorrectCount() {
+        return correctCount;
+    }
+
+    public void setCorrectCount(Integer correctCount) {
+        this.correctCount = correctCount;
+    }
+
+    public String getQuestionIds() {
+        return questionIds;
+    }
+
+    public void setQuestionIds(String questionIds) {
+        this.questionIds = questionIds;
+    }
+
+    public String getOptionOrders() {
+        return optionOrders;
+    }
+
+    public void setOptionOrders(String optionOrders) {
+        this.optionOrders = optionOrders;
+    }
+
+    public String getAnswers() {
+        return answers;
+    }
+
+    public void setAnswers(String answers) {
+        this.answers = answers;
+    }
+
+    public int getViolationCount() {
+        return violationCount;
+    }
+
+    public void setViolationCount(int violationCount) {
+        this.violationCount = violationCount;
+    }
+
+    public int getViolationPoints() {
+        return violationPoints;
+    }
+
+    public void setViolationPoints(int violationPoints) {
+        this.violationPoints = violationPoints;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+
+    public String getIntegrity() {
+        return integrity;
+    }
+
+    public void setIntegrity(String integrity) {
+        this.integrity = integrity;
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
+    }
+
+    public void setReviewNote(String reviewNote) {
+        this.reviewNote = reviewNote;
+    }
+
+    public Long getReviewedBy() {
+        return reviewedBy;
+    }
+
+    public void setReviewedBy(Long reviewedBy) {
+        this.reviewedBy = reviewedBy;
+    }
+
+    public LocalDateTime getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(LocalDateTime reviewedAt) {
+        this.reviewedAt = reviewedAt;
+    }
+
+    public boolean isOpen() {
+        return STATUS_IN_PROGRESS.equals(status);
+    }
+
+    public ExamAttempt(Long id, Long userId, Long courseId, double score, boolean passed, LocalDateTime attemptedAt) {
+        super();
+        this.id = id;
+        this.userId = userId;
+        this.courseId = courseId;
+        this.score = score;
+        this.passed = passed;
+        this.attemptedAt = attemptedAt;
+    }
+
+    public ExamAttempt() {
+    }
+
 }
