@@ -11,12 +11,15 @@ const ThemeContext = createContext(undefined);
 const STORAGE_KEY = "theme";
 const VALID = ["light", "dark", "system"];
 
+// Visitors start on the light theme; following the operating system would make the
+// first page look different for every device. "system" stays valid for anyone who
+// picks it deliberately, in which case prefersDark() below decides.
 function readStoredTheme() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return VALID.includes(stored) ? stored : "system";
+    return VALID.includes(stored) ? stored : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 

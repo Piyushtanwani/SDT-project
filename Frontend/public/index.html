@@ -2,13 +2,14 @@
 <html lang="en">
   <head>
     <script>
-      // Apply stored theme before first paint to avoid a light/dark flash.
+      // Light is the default for anyone who has not chosen, so the first paint must not
+      // wait on the operating system. Only an explicit stored choice can start dark.
       (function () {
         try {
           var stored = localStorage.getItem("theme");
           var dark =
             stored === "dark" ||
-            ((!stored || stored === "system") &&
+            (stored === "system" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (dark) document.documentElement.classList.add("dark");
         } catch (e) {}
