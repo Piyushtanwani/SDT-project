@@ -73,4 +73,17 @@ public interface ExamAttemptRepository extends JpaRepository<ExamAttempt, Long> 
             ORDER BY a.violationPoints DESC, a.attemptedAt DESC
             """)
     List<ExamAttempt> findAwaitingReview(Pageable pageable);
+
+    /**
+     * Other candidates' sittings that reached us from the same network address.
+     *
+     * A shared home connection is ordinary, so this is context a reviewer reads rather than a fault
+     * that is scored; it exists so "two people sat this exam at once" is visible at all.
+     */
+    List<ExamAttempt> findTop5ByClientIpAndUserIdNotOrderByIdDesc(String clientIp, Long userId);
+
+    List<ExamAttempt> findByClientIp(String clientIp);
+
+    /** Open sittings whose full-screen clock has already run out, for the sweep to close. */
+    List<ExamAttempt> findByStatusAndFullscreenBlockedSecondsGreaterThanEqual(String status, int seconds);
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE_URL, getAuthHeaders } from "../config/api";
+import IntegrityReportSheet from "./IntegrityReportSheet";
+import { formatClock, formatDuration } from "../utils/reportFormat";
 
 /**
  * The result, and the record that produced it.
@@ -28,22 +30,12 @@ const VERDICTS = {
   },
 };
 
-function minutes(seconds) {
-  if (seconds === null || seconds === undefined) return "—";
-  const total = Math.round(seconds);
-  return `${Math.floor(total / 60)}m ${String(total % 60).padStart(2, "0")}s`;
-}
-
-function timeOf(value) {
-  if (!value) return "—";
-  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
 export const ExamResult = () => {
   const { attemptId } = useParams();
   const navigate = useNavigate();
   const [result, setResult] = useState(null);
   const [events, setEvents] = useState([]);
+  const [report, setReport] = useState(null);
   const [error, setError] = useState(null);
   const apiUrl = API_BASE_URL;
 
@@ -70,10 +62,14 @@ export const ExamResult = () => {
         if (!cancelled) setError(err.message);
       });
 
-    fetch(`${apiUrl}/api/exams/${attemptId}/timeline`, { headers })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((list) => {
-        if (!cancelled && Array.isArray(list)) setEvents(list);
+    // The server writes this document. The page only lays it out, which is what stops a candidate's
+    // own browser from deciding what a report says about them.
+    fetch(`${apiUrl}/api/exams/${attemptId}/report`, { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setReport(data);
+        if (Array.isArray(data.events)) setEvents(data.events);
       })
       .catch(() => {});
 
@@ -121,7 +117,7 @@ export const ExamResult = () => {
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Attempt {result.attemptNumber ?? "—"}
             {result.totalQuestions ? ` · ${result.correctCount ?? 0} of ${result.totalQuestions} correct` : ""}
-            {result.durationSeconds !== null ? ` · ${minutes(result.durationSeconds)} of work` : ""}
+            {result.durationSeconds !== null ? ` · ${formatDuration(result.durationSeconds)} of work` : ""}
           </p>
           <h1
             className={`mt-2 text-3xl font-semibold ${
@@ -187,6 +183,8 @@ export const ExamResult = () => {
           </section>
         )}
 
+        {report && <IntegrityReportSheet report={report} variant="learner" />}
+
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
             What was recorded
@@ -219,7 +217,7 @@ export const ExamResult = () => {
                   <div>
                     <p className="text-gray-800 dark:text-gray-200">{event.label}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {timeOf(event.serverReceivedAt)}
+                      {formatClock(event.serverReceivedAt)}
                       {event.elapsedSeconds !== null && event.elapsedSeconds !== undefined
                         ? ` · ${Math.floor(event.elapsedSeconds / 60)}m into the exam`
                         : ""}

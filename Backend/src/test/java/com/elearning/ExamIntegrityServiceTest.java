@@ -12,14 +12,17 @@ import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.repositories.ExamProctorEventRepository;
 import com.elearning.repositories.ExamSnapshotRepository;
 import com.elearning.repositories.UserRepository;
+import com.elearning.response_request.ExamIntegrityReport;
 import com.elearning.response_request.IntegrityAttemptView;
 import com.elearning.response_request.IntegrityOverview;
 import com.elearning.response_request.IntegrityRow;
+import com.elearning.services.CertificateService;
 import com.elearning.services.ExamIntegrityService;
 import com.elearning.services.ExamPolicy;
 import com.elearning.services.ExamProctorService;
 import com.elearning.services.ExamRuleException;
 import com.elearning.services.ProctorSignal;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -106,9 +109,12 @@ class ExamIntegrityServiceTest {
         when(courses.findById(anyLong())).thenAnswer(invocation ->
                 Optional.of(new Course(invocation.getArgument(0), "Cloud Engineering", "d", "6 weeks", null, 4.7)));
 
-        ExamPolicy policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200);
+        ExamPolicy policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true);
+        // The real credential service, on the same mocked repositories: a reviewer's decision is
+        // supposed to move the certificate with it, and a stub would let that rule go untested.
         service = new ExamIntegrityService(attempts, events, snapshots, certificates, users, courses,
-                new ExamProctorService(events, snapshots, policy));
+                new ExamProctorService(events, snapshots, policy),
+                new CertificateService(certificates, attempts), policy, new ObjectMapper());
     }
 
     private List<ExamSnapshot> snapshot(Long attemptId) {
@@ -307,6 +313,84 @@ class ExamIntegrityServiceTest {
         assertTrue(learner.snapshots().isEmpty(), "the learner's copy is the timeline, not the frame archive");
         assertEquals(admin.events().size(), learner.events().size(), "both read the same record of signals");
         assertEquals("Mozilla/5.0 (Macintosh) TestBrowser", admin.userAgent());
+    }
+
+    private static ExamProctorEvent signal(Long attemptId, ProctorSignal kind, String detail) {
+        ExamProctorEvent event = new ExamProctorEvent();
+        event.setAttemptId(attemptId);
+        event.setUserId(7L);
+        event.setCourseId(3L);
+        event.setKind(kind.name());
+        event.setSeverity(kind.severity().name());
+        event.setDetail(detail);
+        event.setServerReceivedAt(LocalDateTime.now().minusMinutes(5));
+        event.setElapsedSeconds(300L);
+        return event;
+    }
+
+    @Test
+    @DisplayName("The report is written by the server, and the learner's copy keeps the private rows back")
+    void reportIsTheServersOwnDocument() {
+        ExamAttempt attempt = attempt(2L, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_REVIEW, 5);
+        attempt.setFullscreenBlockedSeconds(41);
+        attempt.setAnswers("{\"1\":0,\"2\":1,\"3\":2}");
+        when(attempts.findById(2L)).thenReturn(Optional.of(attempt));
+        eventLog.add(signal(2L, ProctorSignal.FULLSCREEN_EXIT, "Out of full screen for 41s."));
+        eventLog.add(signal(2L, ProctorSignal.COPY, null));
+        eventLog.add(signal(2L, ProctorSignal.HEARTBEAT, "still in the foreground"));
+
+        ExamIntegrityReport report = service.report(2L, false);
+
+        assertEquals("Cloud Engineering", report.courseName());
+        assertEquals("learner7", report.candidateName());
+        assertNull(report.candidateEmail(), "the copy a learner reads does not hand out addresses");
+        assertTrue(report.snapshots().isEmpty(), "frames are a reviewer's view, not the candidate's");
+        assertEquals(3, report.events().size());
+        assertEquals(41, report.worked().coveredSeconds());
+        assertEquals(1, report.worked().fullscreenExits());
+        assertEquals(3L, (long) report.worked().answeredCount());
+        assertEquals(1680L, (long) report.worked().workedSeconds(), "28 minutes between the server's start and close");
+        assertEquals(560.0, (double) report.worked().secondsPerAnswer(), 0.001);
+
+        // One row per kind, priced by the server's catalogue rather than by anything the page sent.
+        assertEquals(3, report.groups().size());
+        ExamIntegrityReport.SignalGroup exit = report.groups().stream()
+                .filter(g -> ProctorSignal.FULLSCREEN_EXIT.name().equals(g.kind())).findFirst().orElseThrow();
+        assertEquals(1, exit.count());
+        assertEquals(ProctorSignal.FULLSCREEN_EXIT.points(), exit.pointsEach());
+        assertEquals("Out of full screen for 41s.", exit.lastDetail());
+        ExamIntegrityReport.SignalGroup beat = report.groups().stream()
+                .filter(g -> ProctorSignal.HEARTBEAT.name().equals(g.kind())).findFirst().orElseThrow();
+        assertFalse(beat.counted(), "a heartbeat is presence, not an offence");
+        assertEquals(0, beat.totalPoints());
+
+        assertTrue(report.findings().stream().anyMatch(line -> line.startsWith("Full screen was lost 1 time(s)")),
+                report.findings().toString());
+        assertEquals("MEDIUM", report.riskBand());
+        assertNotNull(report.verdictMeaning());
+    }
+
+    @Test
+    @DisplayName("A void decision pulls the credential with it, and the report says the paper does not stand")
+    void voidingWithdrawsTheCredentialAndSaysSo() {
+        ExamAttempt attempt = attempt(4L, ExamAttempt.STATUS_SUBMITTED, ExamAttempt.INTEGRITY_FLAGGED, 12);
+        Certificate certificate = new Certificate(9L, 7L, 3L, 92.0,
+                LocalDateTime.now().minusDays(1), "BC11112222");
+        certificate.setAttemptId(4L);
+        when(attempts.findById(4L)).thenReturn(Optional.of(attempt));
+        when(attempts.save(any(ExamAttempt.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(certificates.findByUserId(7L)).thenReturn(List.of(certificate));
+        when(certificates.save(any(Certificate.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.voidAttempt(4L, REVIEWER_ID, "The paper was written somewhere else.");
+
+        assertEquals(Certificate.STATUS_REVOKED, certificate.getStatus(),
+                "a credential cannot keep standing on a sitting an invigilator threw out");
+        assertNotNull(certificate.getWithdrawnAt());
+
+        ExamIntegrityReport report = service.report(4L, false);
+        assertFalse(report.certification().issued());
+        assertNotNull(report.certification().notIssuedBecause());
     }
 
     @Test

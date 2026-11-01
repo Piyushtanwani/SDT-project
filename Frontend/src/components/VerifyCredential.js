@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiSearch, FiAlertCircle, FiAward, FiCopy, FiCheckCircle, FiShield, FiClock, FiUsers } from "react-icons/fi";
 import { API_BASE_URL } from "../config/api";
+import { describeCredential } from "../utils/credentialStatus";
 
 export const VerifyCredential = () => {
   const [credentialId, setCredentialId] = useState("");
@@ -70,6 +71,8 @@ export const VerifyCredential = () => {
 
   // Credential IDs are issued in the form BC########
   const sampleCredentialId = "BC7A3F91C2";
+
+  const credentialStatus = certificate ? describeCredential(certificate) : null;
 
   return (
     <div className="w-full min-h-screen flex flex-col items-center">
@@ -207,10 +210,21 @@ export const VerifyCredential = () => {
                   </div>
 
                   <div className="text-center space-y-3 pt-8">
-                    <p role="status" className="flex items-center justify-center gap-1 text-sm font-semibold text-green-700 dark:text-green-400">
-                      <FiCheckCircle aria-hidden="true" />
-                      Verified certificate
+                    <p
+                      role="status"
+                      className={`mx-auto max-w-md rounded-lg border px-3 py-2 text-sm font-semibold ${credentialStatus.tone}`}
+                    >
+                      {credentialStatus.headline}
                     </p>
+                    <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
+                      {credentialStatus.detail}
+                      {credentialStatus.when && ` Withdrawn on ${formatDate(credentialStatus.when)}.`}
+                    </p>
+                    {credentialStatus.proctoring && (
+                      <p className="mx-auto max-w-md text-xs md:text-sm text-gray-700 dark:text-gray-300 italic">
+                        {credentialStatus.proctoring}
+                      </p>
+                    )}
                     <div className="mb-4">
                       <h2 className="text-2xl md:text-4xl font-serif font-bold text-indigo-800 dark:text-indigo-300">
                         {certificate.holderName}
@@ -242,7 +256,11 @@ export const VerifyCredential = () => {
                       <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block" />
                       <div>
                         <span className="block font-medium text-gray-600 dark:text-gray-300">Valid Through</span>
-                        <span className="font-medium text-indigo-700 dark:text-indigo-400">Lifetime</span>
+                        {/* Nothing on this credential carries an expiry date, so the page says so
+                            instead of promising a lifetime nobody issued. */}
+                        <span className="font-medium text-indigo-700 dark:text-indigo-400">
+                          {credentialStatus?.stands ? "No expiry set by the issuer" : "Not valid — withdrawn"}
+                        </span>
                       </div>
                     </div>
                   </div>

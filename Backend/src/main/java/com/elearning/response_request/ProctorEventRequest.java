@@ -11,6 +11,7 @@ public class ProctorEventRequest {
     private String kind;
     private String detail;
     private LocalDateTime clientReportedAt;
+    private Integer outOfFullscreenSeconds;
 
     public String getKind() {
         return kind;
@@ -34,5 +35,14 @@ public class ProctorEventRequest {
 
     public void setClientReportedAt(LocalDateTime clientReportedAt) {
         this.clientReportedAt = clientReportedAt;
+    }
+
+    /** How long the paper was covered before this signal was sent; only ever added, never subtracted. */
+    public Integer getOutOfFullscreenSeconds() {
+        return outOfFullscreenSeconds;
+    }
+
+    public void setOutOfFullscreenSeconds(Integer outOfFullscreenSeconds) {
+        this.outOfFullscreenSeconds = outOfFullscreenSeconds;
     }
 }

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -37,6 +38,21 @@ public class ExamSessionService {
 
     private static final TypeReference<Map<Long, String>> ANSWER_MAP = new TypeReference<>() {
     };
+
+    /**
+     * Fragments a real browser never puts in its own user agent.
+     *
+     * Anything matching here is a script or a headless engine talking to the exam endpoint, which is
+     * a fact worth writing down before the candidate answers a single question.
+     */
+    private static final List<String> NON_BROWSER_MARKERS = List.of(
+            "headlesschrome", "phantomjs", "puppeteer", "playwright", "selenium", "webdriver",
+            "curl/", "wget/", "okhttp/", "python-requests", "python-urllib", "go-http-client",
+            "java/", "httpclient", "node-fetch", "axios/", "libwww");
+
+    /** One letter answered this often means the sheet was filled, not read. */
+    private static final int SINGLE_LETTER_MIN_ANSWERS = 8;
+    private static final int SINGLE_LETTER_SHARE_PERCENT = 80;
 
     private final ExamAttemptRepository attemptRepository;
     private final ExamDrawService examDrawService;
@@ -67,14 +83,21 @@ public class ExamSessionService {
     public record Standing(int attemptsUsed, int attemptsRemaining, LocalDateTime nextAllowedAt) {
     }
 
+    @Transactional
+    public OpenSitting start(Long userId, Long courseId, String userAgent) {
+        return start(userId, courseId, userAgent, null);
+    }
+
     /**
      * Pressing Start.
      *
+     * @param clientIp the address the request reached us from, which the reviewer gets as context;
+     *                 nobody is accused of anything by it, because households share one address
      * @return the existing open sitting if one is already running, so a refresh or a second tab
-     *         resumes the same exam with the same clock instead of banking a second attempt.
+     *         resumes the same exam with the same clock instead of banking a second attempt
      */
     @Transactional
-    public OpenSitting start(Long userId, Long courseId, String userAgent) {
+    public OpenSitting start(Long userId, Long courseId, String userAgent, String clientIp) {
         Optional<ExamAttempt> open = attemptRepository
                 .findFirstByUserIdAndCourseIdAndStatusOrderByStartedAtDesc(userId, courseId, ExamAttempt.STATUS_IN_PROGRESS);
         if (open.isPresent()) {
@@ -112,14 +135,54 @@ public class ExamSessionService {
                 .collect(Collectors.joining(",")));
         attempt.setOptionOrders(writeOrders(draw.optionOrders()));
         attempt.setUserAgent(truncate(userAgent, 512));
+        attempt.setClientIp(truncate(clientIp, 64));
         attempt.setIntegrity(ExamAttempt.INTEGRITY_CLEAN);
         ExamAttempt saved = attemptRepository.save(attempt);
+
+        noteTrafficThatIsNotABrowser(saved, userAgent);
+        noteSharedNetworkAddress(saved, userId);
+        attemptRepository.save(saved);
 
         List<Long> ids = draw.questions().stream().map(ExamQuestion::getId).toList();
         String token = jwtService.generateExamDrawToken(userId, courseId, saved.getId(), ids,
                 policy.drawValidity().toMillis());
         saved.setDrawTokenId(tokenIdOf(token));
         return new OpenSitting(attemptRepository.save(saved), draw.questions(), token);
+    }
+
+    /**
+     * A sitting opened by something that identifies itself as not a browser.
+     *
+     * Real learners arrive with a browser's user agent. A script announces itself as curl, Python or
+     * a headless Chrome, and that is worth a line in the record on its own, not only as a change.
+     */
+    private void noteTrafficThatIsNotABrowser(ExamAttempt attempt, String userAgent) {
+        if (userAgent == null) {
+            return;
+        }
+        String lower = userAgent.toLowerCase(Locale.ROOT);
+        for (String marker : NON_BROWSER_MARKERS) {
+            if (lower.contains(marker)) {
+                proctorService.recordServer(attempt, ProctorSignal.HEADLESS_BROWSER,
+                        "The request identified itself as \"" + truncate(userAgent, 180) + "\".");
+                return;
+            }
+        }
+    }
+
+    /** Records the address itself, not an accusation: households and offices share one. */
+    private void noteSharedNetworkAddress(ExamAttempt attempt, Long userId) {
+        if (attempt.getClientIp() == null) {
+            return;
+        }
+        List<ExamAttempt> others = attemptRepository
+                .findTop5ByClientIpAndUserIdNotOrderByIdDesc(attempt.getClientIp(), userId);
+        if (others.isEmpty()) {
+            return;
+        }
+        proctorService.recordServer(attempt, ProctorSignal.SHARED_NETWORK_ADDRESS,
+                others.size() + " other attempt(s) on this exam were reached from the same address ("
+                        + attempt.getClientIp() + ").");
     }
 
     /**
@@ -202,14 +265,11 @@ public class ExamSessionService {
         if (attempt.getStartedAt() != null) {
             long elapsed = Duration.between(attempt.getStartedAt(), now).getSeconds();
             if (elapsed < policy.minDurationSeconds()) {
+                // Handing in early is the candidate's call, not ours to refuse: the paper is graded
+                // and the record says how little work was in it, which is what a reviewer reads.
                 proctorService.recordServer(attempt, ProctorSignal.TOO_FAST_SUBMIT,
                         "Submitted after " + elapsed + "s; " + policy.minDurationSeconds() + "s is the minimum.");
                 attempt.setIntegrity(ExamAttempt.INTEGRITY_FLAGGED);
-                attempt.setAnswers(writeAnswers(sheet));
-                attemptRepository.save(attempt);
-                throw new ExamRuleException(ExamRuleException.Kind.POLICY,
-                        "This exam needs at least " + policy.minDurationSeconds()
-                                + " seconds of work before it can be handed in.");
             }
         }
 
@@ -234,6 +294,7 @@ public class ExamSessionService {
      * @param status SUBMITTED for a normal hand-in, EXPIRED when time ran out first
      */
     private ExamAttempt gradeAndClose(ExamAttempt attempt, Map<Long, String> sheet, String status, LocalDateTime now) {
+        noteSheetThatDidNotNeedReading(attempt, sheet, now);
         ExamDrawService.GradeResult grade = examDrawService.grade(
                 readIds(attempt.getQuestionIds()), readOrders(attempt.getOptionOrders()), sheet);
         double score = Math.round(Math.max(0.0, Math.min(100.0, grade.score())));
@@ -248,6 +309,53 @@ public class ExamSessionService {
                 ? ExamAttempt.INTEGRITY_FLAGGED
                 : policy.verdictFor(attempt.getViolationPoints()));
         return attemptRepository.save(attempt);
+    }
+
+    /**
+     * Writes down what the shape of a sheet says about how it was made.
+     *
+     * Both of these are arithmetic over what the server already holds — the clock it owns and the
+     * answers it was sent — so neither can be talked out of existing by a candidate's own page.
+     */
+    private void noteSheetThatDidNotNeedReading(ExamAttempt attempt, Map<Long, String> sheet, LocalDateTime now) {
+        int answered = sheet.size();
+        if (answered == 0 || attempt.getStartedAt() == null) {
+            return;
+        }
+        long elapsed = Math.max(0, Duration.between(attempt.getStartedAt(), now).getSeconds());
+        int readable = answered * policy.minSecondsPerQuestion();
+        if (answered >= 5 && elapsed < readable) {
+            proctorService.recordServer(attempt, ProctorSignal.ANSWERED_FASTER_THAN_READING,
+                    answered + " questions in " + elapsed + "s; reading them alone takes about " + readable + "s.");
+        }
+        Map<String, Integer> byLetter = new LinkedHashMap<>();
+        for (String letter : sheet.values()) {
+            if (letter != null) {
+                byLetter.merge(letter.trim().toUpperCase(Locale.ROOT), 1, Integer::sum);
+            }
+        }
+        int best = byLetter.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        if (answered >= SINGLE_LETTER_MIN_ANSWERS && best * 100 >= answered * SINGLE_LETTER_SHARE_PERCENT) {
+            proctorService.recordServer(attempt, ProctorSignal.SINGLE_LETTER_PATTERN,
+                    best + " of " + answered + " answers were the same letter.");
+        }
+    }
+
+    /**
+     * Stops a sitting that has spent too much of its life outside full screen.
+     *
+     * The paper is covered while full screen is lost, so a long stretch means the candidate kept
+     * working somewhere the questions could be read by anyone else in the room. The attempt is
+     * graded from what we hold and closed, because a sitting that cannot be watched cannot be passed.
+     */
+    @Transactional
+    public ExamAttempt closeFullscreenBreach(ExamAttempt attempt) {
+        if (!attempt.isOpen()) {
+            return attempt;
+        }
+        attempt.setIntegrity(ExamAttempt.INTEGRITY_FLAGGED);
+        return gradeAndClose(attempt, readAnswers(attempt.getAnswers()), ExamAttempt.STATUS_SUBMITTED,
+                LocalDateTime.now());
     }
 
     private ExamAttempt closeExpired(ExamAttempt attempt) {
@@ -270,6 +378,17 @@ public class ExamSessionService {
                 closeExpired(attempt);
             } catch (RuntimeException e) {
                 log.warn("Could not close expired exam attempt {}: {}", attempt.getId(), e.getMessage());
+            }
+        }
+        // A page that went offline while covered never gets to close itself, so the sitting that has
+        // already spent its full-screen allowance is stopped here rather than watched by nobody.
+        List<ExamAttempt> breached = attemptRepository.findByStatusAndFullscreenBlockedSecondsGreaterThanEqual(
+                ExamAttempt.STATUS_IN_PROGRESS, policy.maxFullscreenBlockSeconds());
+        for (ExamAttempt attempt : breached) {
+            try {
+                closeFullscreenBreach(attempt);
+            } catch (RuntimeException e) {
+                log.warn("Could not close full-screen breach on exam attempt {}: {}", attempt.getId(), e.getMessage());
             }
         }
     }

@@ -110,7 +110,7 @@ class ExamSessionServiceTest {
         });
 
         jwtService = new JwtService(SECRET, 86400000L);
-        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200);
+        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true);
         proctor = new ExamProctorService(events, mock(ExamSnapshotRepository.class), policy);
         service = new ExamSessionService(attempts,
                 new ExamDrawService(questionRepository), proctor, jwtService, policy, new ObjectMapper());
@@ -350,18 +350,19 @@ class ExamSessionServiceTest {
     }
 
     @Test
-    @DisplayName("Handing in before the minimum working time is refused, and the attempt is flagged")
-    void tooFastSubmitIsRefusedAndFlagged() {
+    @DisplayName("Handing in before the minimum working time is graded, closed and flagged")
+    void tooFastSubmitIsGradedAndFlagged() {
         ExamSessionService.OpenSitting sitting = startFresh(0);
         ExamAttempt attempt = sitting.attempt();
         openIs(attempt);
 
-        ExamRuleException thrown = assertThrows(ExamRuleException.class, () ->
-                service.submit(attempt.getId(), USER_ID, sitting.drawToken(), allCorrect(sitting.questions())));
+        ExamAttempt submitted = service.submit(attempt.getId(), USER_ID, sitting.drawToken(),
+                allCorrect(sitting.questions()));
 
-        assertEquals(ExamRuleException.Kind.POLICY, thrown.kind());
-        assertEquals(ExamAttempt.INTEGRITY_FLAGGED, attempt.getIntegrity());
-        assertEquals(ExamAttempt.STATUS_IN_PROGRESS, attempt.getStatus());
+        assertEquals(ExamAttempt.STATUS_SUBMITTED, submitted.getStatus(),
+                "the candidate decides when the paper is handed in, we do not");
+        assertEquals(ExamAttempt.INTEGRITY_FLAGGED, submitted.getIntegrity());
+        assertTrue(submitted.getScore() > 0, "an early paper is still marked");
         assertTrue(kindsRecorded(attempt.getId()).contains(ProctorSignal.TOO_FAST_SUBMIT.name()));
     }
 

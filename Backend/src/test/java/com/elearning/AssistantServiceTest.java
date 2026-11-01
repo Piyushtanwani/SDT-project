@@ -2,9 +2,11 @@ package com.elearning;
 
 import com.elearning.models.Certificate;
 import com.elearning.models.Course;
+import com.elearning.models.ExamAttempt;
 import com.elearning.models.Module;
 import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
+import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.repositories.ModuleRepository;
 import com.elearning.services.AssistantService;
 import com.elearning.services.ExamPolicy;
@@ -34,6 +36,9 @@ class AssistantServiceTest {
     @Mock
     private CertificateRepository certificateRepository;
 
+    @Mock
+    private ExamAttemptRepository examAttemptRepository;
+
     private AssistantService assistantService;
 
     private Course javaCourse;
@@ -44,7 +49,8 @@ class AssistantServiceTest {
         // The shipped policy, not a mock: the assistant quotes the exam rules, so a drift between
         // the two is exactly the kind of lie this test should catch.
         assistantService = new AssistantService(courseRepository, moduleRepository, certificateRepository,
-                new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200));
+                examAttemptRepository,
+                new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true));
     }
 
     @Test
@@ -92,6 +98,32 @@ class AssistantServiceTest {
         assertTrue(reply.contains("Java"));
         assertTrue(reply.contains("100%"));
         assertTrue(reply.contains("30 Oct 2026"));
+    }
+
+    @Test
+    @DisplayName("Assistant says a withdrawn credential is withdrawn, not valid")
+    void reportsWithdrawnCredential() {
+        Certificate certificate = new Certificate(8L, 3L, 1L, 92.0,
+                LocalDateTime.of(2026, 10, 30, 12, 0), "BCAAAA1111");
+        certificate.setAttemptId(5L);
+        certificate.setStatus(Certificate.STATUS_REVOKED);
+        certificate.setWithdrawnAt(LocalDateTime.of(2026, 11, 1, 9, 30));
+        certificate.setWithdrawalReason("The sitting was flagged and an invigilator voided it.");
+        ExamAttempt attempt = new ExamAttempt();
+        attempt.setId(5L);
+        attempt.setIntegrity(ExamAttempt.INTEGRITY_FLAGGED);
+        attempt.setViolationCount(6);
+        attempt.setViolationPoints(14);
+        when(certificateRepository.getByCredentialId("BCAAAA1111")).thenReturn(certificate);
+        when(courseRepository.findById(1L)).thenReturn(Optional.of(javaCourse));
+        when(examAttemptRepository.findById(5L)).thenReturn(Optional.of(attempt));
+
+        String reply = assistantService.answer("verify BCAAAA1111");
+
+        assertTrue(reply.contains("was withdrawn on 1 Nov 2026"), reply);
+        assertFalse(reply.contains("is valid"), reply);
+        assertTrue(reply.contains("The sitting was flagged and an invigilator voided it."), reply);
+        assertTrue(reply.contains("Invigilation: Proctored sitting"), reply);
     }
 
     @Test

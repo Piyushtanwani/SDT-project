@@ -3,12 +3,32 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getAuthHeaders, API_BASE_URL } from "../config/api";
 import { clockOffsetMs, createProctorLog, remainingSeconds } from "../utils/proctoringEvents";
 import { createProctorWatcher } from "../utils/proctorDom";
+import { enterFullscreen, isFullscreenCapable } from "../utils/fullscreenGuard";
 import { ExamProctorPanel, ProctorBanner } from "./ExamProctorPanel";
 
 /** How often the page checks in with the server while the clock runs. */
 const AUTOSAVE_MS = 15000;
 const SNAPSHOT_MS = 60000;
 const PANEL_REFRESH_MS = 700;
+
+/**
+ * One id per browser tab, kept across a reload so the server can tell "the same tab came back"
+ * from "the same sitting is open in two places at once".
+ */
+function readTabId() {
+  const KEY = "sdt.exam.tab";
+  try {
+    const existing = window.sessionStorage.getItem(KEY);
+    if (existing) {
+      return existing;
+    }
+    const fresh = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    window.sessionStorage.setItem(KEY, fresh);
+    return fresh;
+  } catch {
+    return null;
+  }
+}
 
 export const TakeExam = () => {
   const { courseId } = useParams();
@@ -31,10 +51,11 @@ export const TakeExam = () => {
   const [ending, setEnding] = useState(null);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraMessage, setCameraMessage] = useState(null);
+  const [cover, setCover] = useState({ covered: false, coveredSeconds: 0, budgetSeconds: 0 });
 
   const log = useRef(createProctorLog()).current;
   const watcher = useRef(null);
-  const root = useRef(null);
+  const tabId = useRef(readTabId()).current;
   const video = useRef(null);
   const stream = useRef(null);
   const sheet = useRef(answers);
@@ -44,6 +65,14 @@ export const TakeExam = () => {
   const lastAutoTry = useRef(0);
   const warned = useRef(false);
   const saveTimer = useRef(null);
+  const paper = useRef(null);
+
+  // The cover says the questions "cannot be read or answered". An overlay alone does not make
+  // that true — the options stay tabbable behind it — so the paper itself is switched off while
+  // it is covered, the same condition that paints the cover.
+  useEffect(() => {
+    if (paper.current) paper.current.inert = Boolean(cover.covered && !ending);
+  }, [cover.covered, ending]);
 
   sheet.current = answers;
   attempt.current = sitting;
@@ -86,12 +115,31 @@ export const TakeExam = () => {
 
   useEffect(() => {
     if (!attemptId) return undefined;
+    const required = sitting.fullscreenRequired !== false;
     watcher.current = createProctorWatcher({
       log,
+      tabId,
+      fullscreen: {
+        required,
+        budgetSeconds: sitting.maxFullscreenBlockSeconds || 60,
+        onState: (state) =>
+          setCover({
+            covered: state.covered,
+            coveredSeconds: state.coveredSeconds,
+            budgetSeconds: state.budgetSeconds,
+          }),
+        onBreach: () => closeSitting("Full screen was lost for longer than one sitting allows."),
+      },
       onFlush: (batch, keepalive) => {
-        send(`${attemptId}/events`, { events: batch }, keepalive).catch(() => {
-          setStaleConnection(true);
-        });
+        send(`${attemptId}/events`, { events: batch, browserTabId: tabId }, keepalive)
+          .then((response) => {
+            if (response && response.attemptClosed) {
+              closeSitting(response.message || "This sitting is closed.");
+            }
+          })
+          .catch(() => {
+            setStaleConnection(true);
+          });
       },
     });
     watcher.current.start();
@@ -104,6 +152,17 @@ export const TakeExam = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId]);
 
+  /** The server, the clock or the cover decides this; the candidate's own Submit is never gated. */
+  function closeSitting(reason) {
+    if (endingRef.current) {
+      return;
+    }
+    endingRef.current = reason;
+    setEnding(reason);
+    setNotice(null);
+    handIn(true);
+  }
+
   useEffect(() => {
     if (!attemptId) return undefined;
     const tick = setInterval(() => {
@@ -111,15 +170,14 @@ export const TakeExam = () => {
       if (!current) return;
       const left = remainingSeconds(current.deadline, current.offset, Date.now());
       setTimeLeft(left);
+      if (watcher.current) {
+        watcher.current.tickFullscreen();
+      }
       if (left === 0) {
         handIn(true);
         return;
       }
-      // The proctor can close a sitting, but the server still refuses a paper handed in before
-      // the minimum working time — so wait for the first legal second rather than firing a
-      // submit it would read as a drive-by attempt and flag against the candidate.
-      const worked = left === null ? -1 : (current.durationSeconds || 0) - left;
-      if (endingRef.current && worked >= (current.minDurationSeconds || 0)) {
+      if (endingRef.current) {
         handIn(true);
       }
     }, 1000);
@@ -141,20 +199,6 @@ export const TakeExam = () => {
       setNotice(first);
     }
   }, [phase, proctor.entries]);
-
-  useEffect(() => {
-    if (proctor.level !== "stop" || phase !== "exam" || endingRef.current) return;
-    const reason = "Too much left the screen. This sitting is over.";
-    endingRef.current = reason;
-    setEnding(reason);
-    const current = attempt.current;
-    const left = remainingSeconds(current.deadline, current.offset);
-    const worked = left === null ? -1 : (current.durationSeconds || 0) - left;
-    if (worked >= (current.minDurationSeconds || 0)) {
-      handIn(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proctor.level, phase]);
 
   useEffect(() => {
     if (phase !== "exam") return undefined;
@@ -201,10 +245,22 @@ export const TakeExam = () => {
   async function startExam() {
     setLoading(true);
     setError(null);
+    const wantsFullscreen = !rules || rules.fullscreenRequired !== false;
+    if (wantsFullscreen && !isFullscreenCapable(document, document.documentElement)) {
+      // Better to say so before the clock starts than to run an exam the invigilator cannot read.
+      log.observe("FULLSCREEN_UNAVAILABLE", "This browser cannot put the exam in full screen.");
+      setError(
+        "This exam is taken in full screen, and this browser cannot offer it. Phone and tablet "
+          + "browsers, and windows opened inside another app, do not support it — please use Chrome, "
+          + "Edge or Firefox on a computer."
+      );
+      setLoading(false);
+      return;
+    }
     try {
-      if (root.current && root.current.requestFullscreen) {
+      if (wantsFullscreen) {
         try {
-          await root.current.requestFullscreen();
+          await enterFullscreen(document.documentElement);
         } catch {
           log.observe("FULLSCREEN_DENIED", "The browser refused full screen for this page.");
         }
@@ -225,8 +281,11 @@ export const TakeExam = () => {
         offset: clockOffsetMs(detail.serverNow),
         durationSeconds: detail.durationSeconds,
         minDurationSeconds: detail.minDurationSeconds || 0,
+        maxFullscreenBlockSeconds: detail.maxFullscreenBlockSeconds || 60,
+        fullscreenRequired: detail.fullscreenRequired !== false,
         attemptNumber: detail.attemptNumber,
       });
+      setCover({ covered: false, coveredSeconds: 0, budgetSeconds: detail.maxFullscreenBlockSeconds || 60 });
       setTimeLeft(remainingSeconds(detail.deadline, clockOffsetMs(detail.serverNow)));
       setPhase("exam");
       document.body.style.overflow = "hidden";
@@ -408,6 +467,14 @@ export const TakeExam = () => {
             </p>
           )}
 
+          {rules && rules.fullscreenRequired !== false && !isFullscreenCapable(document, document.documentElement) && (
+            <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-4 text-sm">
+              This exam is taken in full screen, and this browser cannot do it. Phone and tablet
+              browsers, and windows opened inside another app, do not support full screen — open the
+              site in Chrome, Edge or Firefox on a computer to sit the exam.
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"
@@ -441,7 +508,7 @@ export const TakeExam = () => {
   }
 
   return (
-    <div ref={root} className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div>
@@ -463,7 +530,7 @@ export const TakeExam = () => {
             <button
               type="button"
               onClick={() => handIn(false)}
-              disabled={submitting || !canHandIn || !!ending}
+              disabled={submitting || !!ending}
               className="min-h-[44px] px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm disabled:opacity-50"
             >
               {submitting
@@ -480,12 +547,7 @@ export const TakeExam = () => {
             role="status"
             className="bg-red-600 text-white px-4 py-2 text-center text-sm font-medium"
           >
-            {ending}{" "}
-            {canHandIn
-              ? "Handing your paper in now."
-              : `It goes in the moment the minimum ${Math.ceil(
-                  (sitting.minDurationSeconds || 0) / 60
-                )} minutes of work is met — the server will not take it earlier, and we will not ask it to.`}
+            {ending} Handing your paper in now.
           </p>
         )}
       </header>
@@ -511,9 +573,7 @@ export const TakeExam = () => {
               type="button"
               onClick={() => {
                 setNotice(null);
-                if (root.current && root.current.requestFullscreen) {
-                  root.current.requestFullscreen().catch(() => {});
-                }
+                enterFullscreen(document.documentElement).catch(() => {});
               }}
               className="mt-5 min-h-[44px] w-full px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
             >
@@ -523,8 +583,46 @@ export const TakeExam = () => {
         </div>
       )}
 
+      {cover.covered && !ending && (
+        <div
+          className="fixed inset-0 z-30 bg-gray-900 text-white flex items-center justify-center p-6"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="cover-title"
+        >
+          <div className="w-full max-w-md text-center">
+            <h2 id="cover-title" className="text-2xl font-semibold">
+              Full screen is required
+            </h2>
+            <p className="mt-3 text-sm text-gray-300">
+              Your questions are covered while the exam is not in full screen, so nothing can be read
+              over a shoulder or compared against another window. Your answers are safe and the clock
+              keeps running.
+            </p>
+            <p className="mt-4 text-sm text-gray-300">
+              {Math.max(0, cover.budgetSeconds - cover.coveredSeconds)}s left before this sitting
+              closes itself ({cover.budgetSeconds}s outside full screen is the whole allowance).
+            </p>
+            <button
+              type="button"
+              onClick={() => enterFullscreen(document.documentElement).catch(() => {})}
+              className="mt-6 min-h-[48px] w-full px-6 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white font-semibold"
+            >
+              Go back to full screen
+            </button>
+            <button
+              type="button"
+              onClick={() => handIn(false)}
+              className="mt-3 min-h-[44px] w-full px-6 rounded-lg text-sm text-gray-300 hover:text-white"
+            >
+              Hand my paper in now
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="flex-grow max-w-5xl w-full mx-auto p-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <section ref={paper} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
           {submitting ? (
             <p className="text-gray-700 dark:text-gray-300">Handing your paper in…</p>
           ) : current ? (
@@ -632,8 +730,9 @@ export const TakeExam = () => {
 
           {!canHandIn && (
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              You can hand in after {Math.ceil((sitting.minDurationSeconds || 0) / 60)} minutes of
-              work. The clock keeps running while you wait.
+              Submitting is always allowed. Handing in before{" "}
+              {Math.ceil((sitting.minDurationSeconds || 0) / 60)} minutes of work is recorded as a
+              too-fast submission and flagged for review.
             </p>
           )}
 

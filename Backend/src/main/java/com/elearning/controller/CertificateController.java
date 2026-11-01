@@ -8,11 +8,13 @@ import org.springframework.web.bind.annotation.*;
 
 import com.elearning.models.Certificate;
 import com.elearning.models.Course;
+import com.elearning.models.ExamAttempt;
 import com.elearning.models.User;
 import com.elearning.repositories.CourseRepository;
 import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.CredentialVerificationDTO;
 import com.elearning.response_request.UserCertificateDTO;
+import com.elearning.response_request.UserCertificateView;
 import com.elearning.services.CertificateService;
 
 import java.util.List;
@@ -57,7 +59,7 @@ public class CertificateController {
         if (!isAdmin && !caller.get().getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cannot read another user's certificates");
         }
-        return ResponseEntity.ok(certificateService.getCertificatesByUser(userId));
+        return ResponseEntity.ok(certificateService.certificatesWithProctoring(userId));
     }
 
     @GetMapping("/credential/{credentialId}")
@@ -73,8 +75,13 @@ public class CertificateController {
         String courseName = courseRepository.findById(cert.getCourseId())
                 .map(Course::getName)
                 .orElse("Unknown course");
+        // The sitting behind the paper is read here so a verifier sees the invigilation outcome, not
+        // just a score. Only the verdict sentence travels: notes, frames and addresses stay private.
+        ExamAttempt attempt = certificateService.attemptBehind(cert).orElse(null);
         return ResponseEntity.ok(new CredentialVerificationDTO(
-                cert.getCredentialId(), holderName, courseName, cert.getScore(), cert.getIssuedAt()));
+                cert.getCredentialId(), holderName, courseName, cert.getScore(), cert.getIssuedAt(),
+                cert.getStatus(), UserCertificateView.proctoringLine(attempt),
+                cert.getWithdrawnAt(), cert.getWithdrawalReason()));
     }
 
     @PostMapping

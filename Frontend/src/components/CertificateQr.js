@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiAlertCircle, FiAward, FiCalendar, FiCheckCircle, FiHash } from "react-icons/fi";
 import { API_BASE_URL } from "../config/api";
+import { describeCredential } from "../utils/credentialStatus";
 
 export const CertificateQr = () => {
   const { credentialId } = useParams();
@@ -11,6 +12,7 @@ export const CertificateQr = () => {
   const [error, setError] = useState("");
 
   const apiUrl = API_BASE_URL;
+  const credentialStatus = certificate ? describeCredential(certificate) : null;
 
   useEffect(() => {
     const fetchCertificate = async () => {
@@ -60,8 +62,20 @@ export const CertificateQr = () => {
             className="bg-white dark:bg-gray-900 p-6 rounded-2xl ring-1 ring-gray-200/70 dark:ring-white/10 shadow-md"
           >
             <div className="text-center space-y-4">
+              <p
+                role="status"
+                className={`rounded-lg border px-3 py-2 text-sm font-semibold ${credentialStatus.tone}`}
+              >
+                {credentialStatus.headline}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {credentialStatus.detail}
+                {credentialStatus.when && ` Withdrawn on ${new Date(credentialStatus.when).toLocaleDateString()}.`}
+              </p>
               <h2 className="text-3xl font-serif font-bold text-indigo-800 dark:text-indigo-300">{certificate.holderName}</h2>
-              <p className="text-gray-700 dark:text-gray-300 text-lg">has successfully completed</p>
+              <p className="text-gray-700 dark:text-gray-300 text-lg">
+                {credentialStatus.stands ? "has successfully completed" : "was awarded this paper for"}
+              </p>
 
               <div className="bg-white dark:bg-gray-700 p-4 rounded-lg shadow-inner">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{certificate.courseName}</h3>
@@ -83,8 +97,12 @@ export const CertificateQr = () => {
                 <div className="flex items-center justify-between mt-3">
                   <span className="font-medium">Valid Through</span>
                   <div className="flex items-center gap-2">
-                    <FiCheckCircle className="text-green-500 dark:text-green-400" />
-                    <span>{certificate.expiryDate ? new Date(certificate.expiryDate).toLocaleDateString() : "Lifetime"}</span>
+                    <FiCheckCircle
+                      className={credentialStatus.stands ? "text-green-500 dark:text-green-400" : "text-red-500 dark:text-red-400"}
+                    />
+                    {/* Nothing on this credential carries an expiry date, so the page says the
+                        platform's policy instead of reading a field that has never existed. */}
+                    <span>{credentialStatus.stands ? "No expiry set by the issuer" : "Not valid — withdrawn"}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-3">
@@ -95,6 +113,12 @@ export const CertificateQr = () => {
                   </div>
                 </div>
               </div>
+
+              {credentialStatus.proctoring && (
+                <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 italic">
+                  {credentialStatus.proctoring}
+                </p>
+              )}
             </div>
 
             <div className="mt-6 border-t border-gray-200 dark:border-gray-600 pt-4 flex flex-col sm:flex-row sm:justify-between text-xs md:text-sm text-gray-600 dark:text-gray-400">

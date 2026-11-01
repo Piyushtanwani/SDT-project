@@ -93,6 +93,27 @@ public class ExamAttempt {
     @Column(name = "user_agent", length = 512)
     private String userAgent;
 
+    /** The address the sitting was started from, for the reviewer's "who else sits here" question. */
+    @Column(name = "client_ip", length = 64)
+    private String clientIp;
+
+    /**
+     * Cumulative seconds the browser reported the paper was not in full screen.
+     *
+     * Nullable on purpose: the column arrives on a table that already has rows, and a sitting from
+     * before proctoring was compulsory genuinely spent no measurable time covered rather than zero.
+     */
+    @Column(name = "fullscreen_blocked_seconds")
+    private Integer fullscreenBlockedSeconds;
+
+    /** Which browser tab first claimed this sitting; a second one is the same attempt opened twice. */
+    @Column(name = "browser_tab_id", length = 64)
+    private String browserTabId;
+
+    /** When the exam page last said it was still in the foreground. */
+    @Column(name = "last_heartbeat_at")
+    private LocalDateTime lastHeartbeatAt;
+
     @Column(name = "integrity", nullable = false)
     private String integrity = INTEGRITY_CLEAN;
 
@@ -295,6 +316,38 @@ public class ExamAttempt {
 
     public void setReviewedAt(LocalDateTime reviewedAt) {
         this.reviewedAt = reviewedAt;
+    }
+
+    public String getClientIp() {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp) {
+        this.clientIp = clientIp;
+    }
+
+    public int getFullscreenBlockedSeconds() {
+        return fullscreenBlockedSeconds == null ? 0 : fullscreenBlockedSeconds;
+    }
+
+    public void setFullscreenBlockedSeconds(int fullscreenBlockedSeconds) {
+        this.fullscreenBlockedSeconds = Math.max(0, fullscreenBlockedSeconds);
+    }
+
+    public String getBrowserTabId() {
+        return browserTabId;
+    }
+
+    public void setBrowserTabId(String browserTabId) {
+        this.browserTabId = browserTabId;
+    }
+
+    public LocalDateTime getLastHeartbeatAt() {
+        return lastHeartbeatAt;
+    }
+
+    public void setLastHeartbeatAt(LocalDateTime lastHeartbeatAt) {
+        this.lastHeartbeatAt = lastHeartbeatAt;
     }
 
     public boolean isOpen() {

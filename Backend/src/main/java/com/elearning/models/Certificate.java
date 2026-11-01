@@ -5,6 +5,11 @@ import java.time.LocalDateTime;
 @Entity
 public class Certificate {
 
+    /** The credential stands. */
+    public static final String STATUS_ISSUED = "ISSUED";
+    /** A reviewer took the underlying sitting away, so the credential no longer verifies. */
+    public static final String STATUS_REVOKED = "REVOKED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,12 +33,50 @@ public class Certificate {
     @Column(name = "attempt_id")
     private Long attemptId;
 
+    /**
+     * Nullable on purpose: this column lands on a table that already holds issued certificates, and
+     * a certificate with no status written on it was never withdrawn. Read it through getStatus().
+     */
+    @Column(name = "status")
+    private String status = STATUS_ISSUED;
+
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
+
+    /** In the learner's own words, because they are the ones who have to go ask about it. */
+    @Column(name = "withdrawal_reason", length = 500)
+    private String withdrawalReason;
+
     public Long getAttemptId() {
         return attemptId;
     }
 
     public void setAttemptId(Long attemptId) {
         this.attemptId = attemptId;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getWithdrawnAt() {
+        return withdrawnAt;
+    }
+
+    public void setWithdrawnAt(LocalDateTime withdrawnAt) {
+        this.withdrawnAt = withdrawnAt;
+    }
+
+    public String getWithdrawalReason() {
+        return withdrawalReason;
+    }
+
+    public void setWithdrawalReason(String withdrawalReason) {
+        this.withdrawalReason = withdrawalReason;
     }
 
 	public Long getId() {

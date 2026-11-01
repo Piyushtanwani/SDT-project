@@ -6,9 +6,11 @@ import com.elearning.models.Certificate;
 import com.elearning.models.ExamAttempt;
 import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.ExamAttemptRepository;
+import com.elearning.response_request.UserCertificateView;
 import com.elearning.response_request.UserCertificateDTO;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -40,9 +42,35 @@ public class CertificateService {
         return certificateRepository.findByUserId(userId);
     }
 
+    /**
+     * A learner's own credentials, each one carrying what the invigilation of its sitting said.
+     *
+     * The certificate used to be a score and a date, which left a learner holding a piece of paper
+     * while a flag they had never seen sat behind it. The verdict, the weight and whether a human
+     * has read the sitting belong on the certificate, because they are the reason it may not stand.
+     */
+    public List<UserCertificateView> certificatesWithProctoring(Long userId) {
+        List<UserCertificateView> views = new ArrayList<>();
+        for (Certificate certificate : certificateRepository.findByUserId(userId)) {
+            ExamAttempt attempt = certificate.getAttemptId() == null
+                    ? null
+                    : examAttemptRepository.findById(certificate.getAttemptId()).orElse(null);
+            views.add(UserCertificateView.of(certificate, attempt));
+        }
+        return views;
+    }
+
     public Optional<Certificate> getCertificatesByCredentialId(String credentialId) {
         Certificate cert = certificateRepository.getByCredentialId(credentialId);
         return Optional.ofNullable(cert);
+    }
+
+    /** The sitting behind a credential, so a public verification can say how it was watched. */
+    public Optional<ExamAttempt> attemptBehind(Certificate certificate) {
+        if (certificate == null || certificate.getAttemptId() == null) {
+            return Optional.empty();
+        }
+        return examAttemptRepository.findById(certificate.getAttemptId());
     }
 
     @Transactional
@@ -51,6 +79,9 @@ public class CertificateService {
         List<Certificate> existing = certificateRepository.findByUserId(userId);
         for (Certificate c : existing) {
             if (courseId.equals(c.getCourseId())) {
+                // A credential withdrawn because of its sitting is put back the moment that sitting
+                // is cleared, so paying once never buys a second copy of the same certificate.
+                syncCredentialWith(c);
                 return c;
             }
         }
@@ -87,7 +118,67 @@ public class CertificateService {
         certificate.setAttemptId(best.getId());
         certificate.setCredentialId(credentialId);
         certificate.setIssuedAt(LocalDateTime.now());
+        certificate.setStatus(Certificate.STATUS_ISSUED);
         return certificateRepository.save(certificate);
+    }
+
+    /**
+     * Puts a credential back in line with the sitting it was earned on.
+     *
+     * A certificate is not a permanent object here: it stands while the attempt under it stands. So
+     * when a reviewer leaves a sitting flagged or voids it, the credential that came from it stops
+     * verifying and says why; when the same reviewer clears it, the credential comes back without
+     * anybody paying twice for the same piece of evidence.
+     */
+    @Transactional
+    public void syncCredentialsFor(ExamAttempt attempt) {
+        if (attempt == null || attempt.getId() == null) {
+            return;
+        }
+        for (Certificate certificate : certificateRepository.findByUserId(attempt.getUserId())) {
+            if (attempt.getId().equals(certificate.getAttemptId())) {
+                applyVerdict(certificate, attempt);
+            }
+        }
+    }
+
+    /** Re-checks one credential against the attempt behind it, for a caller that only has the certificate. */
+    @Transactional
+    public Certificate syncCredentialWith(Certificate certificate) {
+        if (certificate == null || certificate.getAttemptId() == null) {
+            return certificate;
+        }
+        return applyVerdict(certificate, examAttemptRepository.findById(certificate.getAttemptId()).orElse(null));
+    }
+
+    private Certificate applyVerdict(Certificate certificate, ExamAttempt attempt) {
+        if (attempt == null) {
+            return certificate;
+        }
+        boolean certifiable = isCertifiable(attempt);
+        boolean withdrawn = Certificate.STATUS_REVOKED.equalsIgnoreCase(certificate.getStatus());
+        if (certifiable == !withdrawn) {
+            return certificate;
+        }
+        if (certifiable) {
+            certificate.setStatus(Certificate.STATUS_ISSUED);
+            certificate.setWithdrawnAt(null);
+            certificate.setWithdrawalReason(null);
+        } else {
+            certificate.setStatus(Certificate.STATUS_REVOKED);
+            certificate.setWithdrawnAt(LocalDateTime.now());
+            certificate.setWithdrawalReason(withdrawalReason(attempt));
+        }
+        return certificateRepository.save(certificate);
+    }
+
+    /** Written for the learner to read, not for a log file. */
+    private static String withdrawalReason(ExamAttempt attempt) {
+        if (ExamAttempt.STATUS_VOIDED.equals(attempt.getStatus())) {
+            return "A reviewer voided exam attempt " + attempt.getId() + ", which this certificate was earned on.";
+        }
+        return "Exam attempt " + attempt.getId() + ", which this certificate was earned on, is still flagged"
+                + " for invigilation. A reviewer clearing it restores this certificate.";
     }
 
     /**

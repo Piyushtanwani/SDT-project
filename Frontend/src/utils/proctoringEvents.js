@@ -32,6 +32,29 @@ export const OBSERVABLE = {
   /** Recorded but never weighted, exactly as on the server: declining is a choice, not a fault. */
   CAMERA_DENIED: { severity: "LOW", label: "Camera was not permitted", counts: false },
   HEARTBEAT: { severity: "LOW", label: "Exam page is still in the foreground", counts: false },
+
+  // Everything below is a second pair of eyes on the same room: the tricks that leave a trace in
+  // the page rather than on the webcam. Severities are the server's, copied deliberately, and the
+  // test that reads ProctorSignal.java fails if the two drift apart.
+  FULLSCREEN_UNAVAILABLE: { severity: "MEDIUM", label: "Full screen is not available in this browser" },
+  OUT_OF_FULLSCREEN_LIMIT: { severity: "HIGH", label: "Stayed out of full screen longer than allowed" },
+  SYNTHETIC_EVENT: { severity: "HIGH", label: "A click or key press came from code, not a person" },
+  AUTOMATION_DRIVER: { severity: "HIGH", label: "Automation software was found in this browser" },
+  EMBEDDED_IN_IFRAME: { severity: "HIGH", label: "The exam page was opened inside another page" },
+  SCREEN_SHARE_STARTED: { severity: "HIGH", label: "A screen share was started during the attempt" },
+  PASTE_IMAGE: { severity: "HIGH", label: "Pasted a picture into the exam" },
+  FILE_DROPPED: { severity: "HIGH", label: "Dropped a file onto the exam" },
+  SELECT_ALL: { severity: "MEDIUM", label: "Selected every question at once" },
+  CLIPBOARD_READ: { severity: "MEDIUM", label: "Read the exam's clipboard contents" },
+  NETWORK_OFFLINE: { severity: "MEDIUM", label: "The connection to the exam dropped" },
+  NETWORK_RESTORED: { severity: "LOW", label: "The connection to the exam came back", counts: false },
+  WINDOW_RESIZED: { severity: "LOW", label: "The browser window was resized" },
+  WINDOW_MOVED: { severity: "MEDIUM", label: "The browser window was moved" },
+  VIEWPORT_TOO_SMALL: { severity: "MEDIUM", label: "The exam was shown in a window too small to be real" },
+  OFF_SCREEN_WINDOW: { severity: "MEDIUM", label: "The exam window sat partly off the screen" },
+  ZOOM_CHANGED: { severity: "LOW", label: "The browser zoom changed" },
+  DEVTOOLS_LAYOUT_HINT: { severity: "MEDIUM", label: "The window measured as if developer tools were open" },
+  SECOND_TAB_SAME_ATTEMPT: { severity: "HIGH", label: "The same attempt was open in two tabs" },
 };
 
 /** The same three steps the server's policy uses, so the banner and the verdict agree. */
@@ -85,7 +108,7 @@ export function createProctorLog({
   const lastSeenAt = new Map();
   let totalPoints = 0;
 
-  function observe(kind, detail = null) {
+  function observe(kind, detail = null, extra = null) {
     if (!isKnown(kind)) {
       return null;
     }
@@ -102,6 +125,7 @@ export function createProctorLog({
       points: pointsOf(kind),
       at,
       detail,
+      ...(extra || {}),
     };
     entries.push(entry);
     totalPoints += entry.points;
@@ -109,7 +133,7 @@ export function createProctorLog({
       // The panel shows recent history; the weight of everything observed keeps counting.
       entries.shift();
     }
-    unsent.push({ kind, detail, clientReportedAt: localTimestamp(new Date(at)) });
+    unsent.push({ kind, detail, clientReportedAt: localTimestamp(new Date(at)), ...(extra || {}) });
     return entry;
   }
 

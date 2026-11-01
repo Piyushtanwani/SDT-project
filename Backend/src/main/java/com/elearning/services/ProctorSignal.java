@@ -30,6 +30,25 @@ public enum ProctorSignal {
     CAMERA_LOST(ExamSeverity.HIGH, true, "Camera feed stopped during the attempt"),
     HEARTBEAT(ExamSeverity.LOW, false, "Exam page reported that it is still in the foreground"),
 
+    // Also observed in the browser, but pointed at the tricks that do not need a mouse movement.
+    FULLSCREEN_UNAVAILABLE(ExamSeverity.MEDIUM, true, "Full screen is not available in this browser"),
+    SYNTHETIC_EVENT(ExamSeverity.HIGH, true, "A click or key press was made by code, not by a person"),
+    AUTOMATION_DRIVER(ExamSeverity.HIGH, true, "Automation software was found controlling this browser"),
+    EMBEDDED_IN_IFRAME(ExamSeverity.HIGH, true, "The exam page was opened inside another page"),
+    SCREEN_SHARE_STARTED(ExamSeverity.HIGH, true, "A screen share was started during the attempt"),
+    PASTE_IMAGE(ExamSeverity.HIGH, true, "Pasted a picture into the exam"),
+    FILE_DROPPED(ExamSeverity.HIGH, true, "Dropped a file onto the exam"),
+    SELECT_ALL(ExamSeverity.MEDIUM, true, "Selected every question at once"),
+    CLIPBOARD_READ(ExamSeverity.MEDIUM, true, "The exam's clipboard contents were read"),
+    NETWORK_OFFLINE(ExamSeverity.MEDIUM, true, "The connection to the exam dropped"),
+    NETWORK_RESTORED(ExamSeverity.LOW, false, "The connection to the exam came back"),
+    WINDOW_RESIZED(ExamSeverity.LOW, true, "The browser window was resized during the attempt"),
+    WINDOW_MOVED(ExamSeverity.MEDIUM, true, "The browser window was moved during the attempt"),
+    VIEWPORT_TOO_SMALL(ExamSeverity.MEDIUM, true, "The exam was shown in a window too small to be a real sitting"),
+    OFF_SCREEN_WINDOW(ExamSeverity.MEDIUM, true, "The exam window was dragged partly off the screen"),
+    ZOOM_CHANGED(ExamSeverity.LOW, true, "The browser zoom changed during the attempt"),
+    DEVTOOLS_LAYOUT_HINT(ExamSeverity.MEDIUM, true, "The window size suggested developer tools were open"),
+
     // Decided by the server, which the candidate cannot influence.
     TOO_FAST_SUBMIT(ExamSeverity.HIGH, true, "Submitted faster than the minimum attempt time"),
     LATE_SUBMIT(ExamSeverity.HIGH, true, "Submitted after the exam deadline"),
@@ -37,6 +56,13 @@ public enum ProctorSignal {
     TOKEN_REPLAY(ExamSeverity.HIGH, true, "Presented a question set that had already been used"),
     EVENT_OVERFLOW(ExamSeverity.MEDIUM, true, "Reported more signals than one attempt can hold"),
     CLOCK_SKEW(ExamSeverity.MEDIUM, true, "Browser clock disagreed with the server"),
+    OUT_OF_FULLSCREEN_LIMIT(ExamSeverity.HIGH, true, "Stayed out of full screen longer than the sitting allows"),
+    HEADLESS_BROWSER(ExamSeverity.HIGH, true, "Traffic for this attempt came from a headless browser"),
+    SHARED_NETWORK_ADDRESS(ExamSeverity.LOW, false, "Other attempts reached us from the same network address"),
+    SECOND_TAB_SAME_ATTEMPT(ExamSeverity.HIGH, true, "The same attempt was opened in more than one browser tab"),
+    HEARTBEAT_GAP(ExamSeverity.MEDIUM, true, "The exam page went silent for longer than one heartbeat should"),
+    ANSWERED_FASTER_THAN_READING(ExamSeverity.HIGH, true, "Answered more questions than the time taken allows"),
+    SINGLE_LETTER_PATTERN(ExamSeverity.HIGH, true, "Nearly every answer was the same letter"),
     REVIEW_DECISION(ExamSeverity.LOW, false, "A reviewer recorded a decision on this attempt"),
     VOIDED_BY_REVIEWER(ExamSeverity.LOW, false, "A reviewer voided this attempt's result");
 

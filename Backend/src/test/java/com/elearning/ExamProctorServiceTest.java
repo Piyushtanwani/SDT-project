@@ -85,7 +85,7 @@ class ExamProctorServiceTest {
             return snapshot;
         });
 
-        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200);
+        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true);
         service = new ExamProctorService(events, snapshots, policy);
     }
 
@@ -226,7 +226,7 @@ class ExamProctorServiceTest {
     @Test
     @DisplayName("An attempt only holds the documented number of signals, then says so once")
     void eventCapAddsOneOverflowMarker() {
-        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 3, 15, 200);
+        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 3, 15, 200, 60, 90, 3, true);
         service = new ExamProctorService(events, snapshots, policy);
         ExamAttempt attempt = attempt();
 
@@ -371,7 +371,7 @@ class ExamProctorServiceTest {
     @Test
     @DisplayName("A page cannot fill the database with frames: the per-attempt cap holds")
     void snapshotCapHolds() {
-        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 2, 200);
+        policy = new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 2, 200, 60, 90, 3, true);
         service = new ExamProctorService(events, snapshots, policy);
         ExamAttempt attempt = attempt();
 

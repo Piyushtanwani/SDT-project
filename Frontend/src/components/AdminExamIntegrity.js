@@ -11,7 +11,9 @@ import {
   X,
 } from "lucide-react";
 import Sidebar from "./AdminSlidebar";
+import IntegrityReportSheet from "./IntegrityReportSheet";
 import { API_BASE_URL } from "../config/api";
+import { formatDuration, formatServerTime } from "../utils/reportFormat";
 
 const ENDPOINT = `${API_BASE_URL}/api/admin/exam-integrity`;
 
@@ -46,31 +48,6 @@ const FILTERS = [
   { key: "CLEAN", label: "Clean", param: "CLEAN" },
   { key: "ALL", label: "All sittings", param: null },
 ];
-
-/**
- * The backend hands back a zone-less timestamp from its own clock. Formatting it with
- * `new Date()` would silently re-project it into the reviewer's timezone, so the string is
- * read as written and labelled as server time — the same instant the candidate's record shows.
- */
-const formatServerTime = (value) => {
-  if (!value) return "—";
-  const [day, time = ""] = String(value).split("T");
-  const [y, m, d] = day.split("-").map(Number);
-  if (!y || !m || !d) return String(value);
-  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1];
-  return `${String(d).padStart(2, "0")} ${month} ${y}, ${time.slice(0, 5)}`;
-};
-
-const formatDuration = (seconds) => {
-  if (seconds === null || seconds === undefined) return "—";
-  const total = Math.max(0, Math.round(seconds));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h) return `${h}h ${String(m).padStart(2, "0")}m`;
-  if (m) return `${m}m ${String(s).padStart(2, "0")}s`;
-  return `${s}s`;
-};
 
 const Badge = ({ value }) => {
   const style = VERDICTS[value] || VERDICTS.CLEAN;
@@ -194,6 +171,7 @@ const Lightbox = ({ snapshots, index, onClose, onStep }) => {
 
 const Detail = ({ attemptId, onClose, onChanged }) => {
   const [attempt, setAttempt] = useState(null);
+  const [report, setReport] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [verdict, setVerdict] = useState("CLEAN");
@@ -206,11 +184,18 @@ const Detail = ({ attemptId, onClose, onChanged }) => {
   const load = useCallback(() => {
     setLoading(true);
     setError("");
-    axios.get(`${ENDPOINT}/attempts/${attemptId}`)
-      .then(({ data }) => {
-        setAttempt(data);
-        setVerdict(data.integrity || "CLEAN");
-        setNote(data.reviewNote || "");
+    // Two documents, one sitting: the working record (rows, frames, the decision form's current
+    // values) and the report the server writes from it. Reloading both after a decision is what
+    // keeps the printed copy and the on-screen verdict telling the same story.
+    Promise.all([
+      axios.get(`${ENDPOINT}/attempts/${attemptId}`),
+      axios.get(`${ENDPOINT}/attempts/${attemptId}/report`),
+    ])
+      .then(([detail, sheet]) => {
+        setAttempt(detail.data);
+        setReport(sheet.data);
+        setVerdict(detail.data.integrity || "CLEAN");
+        setNote(detail.data.reviewNote || "");
       })
       .catch((err) => setError(err.response?.data?.message || "We could not open this attempt."))
       .finally(() => setLoading(false));
@@ -351,6 +336,8 @@ const Detail = ({ attemptId, onClose, onChanged }) => {
                 )}
               </div>
             )}
+
+            <IntegrityReportSheet report={report} variant="reviewer" />
 
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">

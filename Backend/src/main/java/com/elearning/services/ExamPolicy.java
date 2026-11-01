@@ -29,6 +29,10 @@ public class ExamPolicy {
     private final int maxSnapshotChars;
     private final int flagThreshold;
     private final int reviewThreshold;
+    private final int maxFullscreenBlockSeconds;
+    private final int heartbeatGapSeconds;
+    private final int minSecondsPerQuestion;
+    private final boolean fullscreenRequired;
 
     public ExamPolicy(
             @Value("${app.exam.duration-minutes:40}") long durationMinutes,
@@ -40,7 +44,11 @@ public class ExamPolicy {
             @Value("${app.exam.review-threshold:3}") int reviewThreshold,
             @Value("${app.exam.max-events-per-attempt:400}") int maxEventsPerAttempt,
             @Value("${app.exam.max-snapshots-per-attempt:15}") int maxSnapshotsPerAttempt,
-            @Value("${app.exam.max-snapshot-kb:200}") int maxSnapshotKb) {
+            @Value("${app.exam.max-snapshot-kb:200}") int maxSnapshotKb,
+            @Value("${app.exam.max-fullscreen-block-seconds:60}") int maxFullscreenBlockSeconds,
+            @Value("${app.exam.heartbeat-gap-seconds:90}") int heartbeatGapSeconds,
+            @Value("${app.exam.min-seconds-per-question:3}") int minSecondsPerQuestion,
+            @Value("${app.exam.fullscreen-required:true}") boolean fullscreenRequired) {
         this.duration = Duration.ofMinutes(Math.max(1, durationMinutes));
         this.submitGrace = Duration.ofSeconds(Math.max(0, submitGraceSeconds));
         this.maxAttempts = Math.max(1, maxAttempts);
@@ -52,6 +60,10 @@ public class ExamPolicy {
         this.maxSnapshotsPerAttempt = Math.max(0, maxSnapshotsPerAttempt);
         // A base64 data URL is about 4/3 of the image bytes, with room for the data: prefix.
         this.maxSnapshotChars = Math.max(1, maxSnapshotKb) * 1024 * 2;
+        this.maxFullscreenBlockSeconds = Math.max(0, maxFullscreenBlockSeconds);
+        this.heartbeatGapSeconds = Math.max(1, heartbeatGapSeconds);
+        this.minSecondsPerQuestion = Math.max(0, minSecondsPerQuestion);
+        this.fullscreenRequired = fullscreenRequired;
     }
 
     public Duration duration() {
@@ -80,9 +92,35 @@ public class ExamPolicy {
         return maxAttempts;
     }
 
-    /** A submit faster than this cannot reflect real work, so it is refused and flagged. */
+    /** A submit faster than this cannot reflect real work, so it is graded, flagged and left to a reviewer. */
     public int minDurationSeconds() {
         return minDurationSeconds;
+    }
+
+    /**
+     * How long, in total, the paper may sit outside full screen before the sitting is closed.
+     *
+     * Full screen is what makes the questions unreadable to whoever else is in the room, so the
+     * browser covers the paper the moment it is lost; this is the grace the covering is allowed
+     * before the server stops believing the sitting is being taken honestly.
+     */
+    public int maxFullscreenBlockSeconds() {
+        return maxFullscreenBlockSeconds;
+    }
+
+    /** How long the exam page may go without a heartbeat before the gap is worth a reviewer's eye. */
+    public int heartbeatGapSeconds() {
+        return heartbeatGapSeconds;
+    }
+
+    /** Below this average time per answered question, the sheet was not read, it was filled. */
+    public int minSecondsPerQuestion() {
+        return minSecondsPerQuestion;
+    }
+
+    /** Whether the sitting demands full screen; false only for an environment that cannot offer it. */
+    public boolean fullscreenRequired() {
+        return fullscreenRequired;
     }
 
     public int maxEventsPerAttempt() {

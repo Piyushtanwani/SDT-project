@@ -2,11 +2,14 @@ package com.elearning.services;
 
 import com.elearning.models.Certificate;
 import com.elearning.models.Course;
+import com.elearning.models.ExamAttempt;
 import com.elearning.models.Module;
 import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
+import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.repositories.ModuleRepository;
 import com.elearning.response_request.UserCertificateDTO;
+import com.elearning.response_request.UserCertificateView;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
@@ -48,15 +51,18 @@ public class AssistantService {
     private final CourseRepository courseRepository;
     private final ModuleRepository moduleRepository;
     private final CertificateRepository certificateRepository;
+    private final ExamAttemptRepository examAttemptRepository;
     private final ExamPolicy examPolicy;
 
     public AssistantService(CourseRepository courseRepository,
                             ModuleRepository moduleRepository,
                             CertificateRepository certificateRepository,
+                            ExamAttemptRepository examAttemptRepository,
                             ExamPolicy examPolicy) {
         this.courseRepository = courseRepository;
         this.moduleRepository = moduleRepository;
         this.certificateRepository = certificateRepository;
+        this.examAttemptRepository = examAttemptRepository;
         this.examPolicy = examPolicy;
     }
 
@@ -226,10 +232,29 @@ public class AssistantService {
         String issued = certificate.getIssuedAt() == null
                 ? "an unknown date"
                 : DATE_FORMAT.format(certificate.getIssuedAt());
-        return "Certificate " + credentialId + " is valid.\n"
-                + "• Course: " + courseName + "\n"
-                + "• Score: " + Math.round(certificate.getScore()) + "%\n"
-                + "• Issued: " + issued;
+        ExamAttempt attempt = certificate.getAttemptId() == null
+                ? null
+                : examAttemptRepository.findById(certificate.getAttemptId()).orElse(null);
+        boolean withdrawn = Certificate.STATUS_REVOKED.equalsIgnoreCase(certificate.getStatus());
+
+        StringBuilder answer = new StringBuilder();
+        if (withdrawn) {
+            answer.append("Certificate ").append(credentialId).append(" was withdrawn");
+            answer.append(certificate.getWithdrawnAt() == null ? ".\n"
+                    : " on " + DATE_FORMAT.format(certificate.getWithdrawnAt()) + ".\n");
+            answer.append("• Reason: ").append(certificate.getWithdrawalReason() == null
+                    ? "an invigilator withdrew the sitting this paper was printed from."
+                    : certificate.getWithdrawalReason()).append("\n");
+        } else {
+            answer.append("Certificate ").append(credentialId).append(" is valid.\n");
+        }
+        answer.append("• Course: ").append(courseName).append("\n");
+        answer.append("• Score: ").append(Math.round(certificate.getScore())).append("%\n");
+        answer.append("• Issued: ").append(issued).append("\n");
+        // The chat answer is a public surface too: it must not present a watched-and-flagged paper
+        // as a plain success, and it uses the same sentence the certificate page prints.
+        answer.append("• Invigilation: ").append(UserCertificateView.proctoringLine(attempt));
+        return answer.toString();
     }
 
     private String leaderboard() {

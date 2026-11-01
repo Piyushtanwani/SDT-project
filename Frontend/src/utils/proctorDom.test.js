@@ -39,6 +39,12 @@ function setup(overrides = {}) {
     heartbeatMs: 30000,
     flushMs: 15000,
     onFlush: (batch, keepalive) => flushed.push({ batch, keepalive }),
+    // Most of these tests are about a single DOM fact. The full-screen budget is set on its own
+    // describe, so that a 60-second clock does not close every sitting under test.
+    fullscreen: { required: false },
+    // A test harness only ever dispatches events, which is precisely what the synthetic detector
+    // condemns in a browser — so it is switched off here and turned on by the test that needs it.
+    isSynthetic: () => false,
     ...overrides,
   });
   watcher.start();
@@ -217,5 +223,215 @@ describe("the reporting loop", () => {
 
     expect(kinds(log)).toEqual([]);
     expect(watcher.isRunning()).toBe(false);
+  });
+});
+
+describe("the wider watch", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("tells a click written by code apart from one made by a hand", () => {
+    const { log, doc } = setup({ isSynthetic: (event) => event.__fromCode === true });
+    fire(doc, "keydown", { key: "ArrowRight", __fromCode: true });
+    fire(doc, "click", { __fromCode: true });
+
+    expect(kinds(log)).toEqual(["SYNTHETIC_EVENT", "SYNTHETIC_EVENT"]);
+    expect(log.points()).toBe(6);
+  });
+
+  it("leaves a real keystroke unaccused", () => {
+    const { log, doc } = setup({ isSynthetic: (event) => event.__fromCode === true });
+    fire(doc, "keydown", { key: "ArrowRight" });
+    expect(kinds(log)).toEqual([]);
+  });
+
+  it("refuses a file dropped onto the exam and says what it was", () => {
+    const { log, doc } = setup();
+    const event = fire(doc, "drop", { dataTransfer: { files: [{ name: "answers.pdf" }] } });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(log.entries()[0]).toMatchObject({ kind: "FILE_DROPPED", severity: "HIGH", detail: "Dropped: answers.pdf." });
+  });
+
+  it("names a pasted picture, which is not the same thing as a pasted letter", () => {
+    const { log, doc } = setup();
+    fire(doc, "paste", { clipboardData: { getData: () => "", items: [{ kind: "file", type: "image/png" }] } });
+
+    expect(kinds(log)).toEqual(["PASTE_IMAGE"]);
+  });
+
+  it("refuses select-all", () => {
+    const { log, doc } = setup();
+    expect(fire(doc, "keydown", { key: "a", ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(kinds(log)).toEqual(["SELECT_ALL"]);
+  });
+
+  it("reports a connection that went away, and the way back without weight", () => {
+    const { log, win } = setup();
+    fire(win, "offline");
+    fire(win, "online");
+
+    expect(kinds(log)).toEqual(["NETWORK_OFFLINE", "NETWORK_RESTORED"]);
+    expect(log.points()).toBe(2);
+  });
+
+  it("reads a docked panel out of the window's own measurements", () => {
+    const win = Object.assign(fakeWindow(), {
+      innerWidth: 1280, innerHeight: 800, outerWidth: 1280, outerHeight: 860, screenX: 100, screenY: 100,
+    });
+    const { log } = setup({ win });
+    Object.assign(win, { innerWidth: 880 });
+    fire(win, "resize");
+
+    expect(kinds(log)).toEqual(["WINDOW_RESIZED", "DEVTOOLS_LAYOUT_HINT"]);
+  });
+
+  it("notices a window that is too small to be read, but not a phone", () => {
+    const laptop = Object.assign(fakeWindow(), {
+      innerWidth: 1200, innerHeight: 700, outerWidth: 1200, outerHeight: 760,
+    });
+    const { log } = setup({ win: laptop });
+    Object.assign(laptop, { innerWidth: 420, innerHeight: 300, outerWidth: 420, outerHeight: 360 });
+    fire(laptop, "resize");
+
+    expect(kinds(log)).toEqual(["WINDOW_RESIZED", "VIEWPORT_TOO_SMALL"]);
+
+    const phone = Object.assign(fakeWindow(), {
+      innerWidth: 1200, innerHeight: 700, outerWidth: 1200, outerHeight: 760,
+      matchMedia: () => ({ matches: true }),
+    });
+    const coarse = setup({ win: phone });
+    Object.assign(phone, { innerWidth: 420, innerHeight: 300, outerWidth: 420, outerHeight: 360 });
+    fire(phone, "resize");
+
+    expect(kinds(coarse.log)).toEqual(["WINDOW_RESIZED"]);
+  });
+
+  it("sees a window dragged off the edge of the display", () => {
+    const win = Object.assign(fakeWindow(), {
+      innerWidth: 1200, innerHeight: 700, outerWidth: 1200, outerHeight: 760, screenX: 40, screenY: 40,
+    });
+    const { log } = setup({ win });
+    Object.assign(win, { screenX: -400 });
+    fire(win, "resize");
+
+    expect(kinds(log)).toEqual(["WINDOW_MOVED", "OFF_SCREEN_WINDOW"]);
+  });
+
+  it("names automation software the moment the sitting starts", () => {
+    const win = Object.assign(fakeWindow(), { navigator: { webdriver: true } });
+    win.top = win;
+    win.self = win;
+    const { log } = setup({ win });
+
+    expect(kinds(log)).toEqual(["AUTOMATION_DRIVER"]);
+    expect(log.entries()[0].detail).toBe("Found navigator.webdriver.");
+  });
+
+  it("says when the exam was opened inside somebody else's page", () => {
+    const win = fakeWindow();
+    win.top = { different: true };
+    win.self = win;
+    const { log } = setup({ win });
+
+    expect(kinds(log)).toEqual(["EMBEDDED_IN_IFRAME"]);
+  });
+});
+
+describe("full screen is compulsory", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  function proctenedSetup(budgetSeconds = 10) {
+    const log = createProctorLog({ dedupeMs: 0 });
+    const win = Object.assign(fakeWindow(), {
+      innerWidth: 1280, innerHeight: 800, outerWidth: 1280, outerHeight: 860, screenX: 0, screenY: 0,
+    });
+    const doc = fakeDocument();
+    const states = [];
+    const breaches = [];
+    const flushed = [];
+    doc.fullscreenElement = { id: "exam" };
+    const watcher = createProctorWatcher({
+      log,
+      win,
+      doc,
+      onFlush: (batch, keepalive) => flushed.push({ batch, keepalive }),
+      fullscreen: {
+        required: true,
+        budgetSeconds,
+        onState: (state) => states.push(state),
+        onBreach: (seconds) => breaches.push(seconds),
+      },
+    });
+    watcher.start();
+    return { log, win, doc, watcher, states, breaches, flushed };
+  }
+
+  it("covers the paper the moment full screen goes, and uncovers it when it comes back", () => {
+    const { doc, watcher, states } = proctenedSetup();
+    expect(watcher.fullscreenState().covered).toBe(false);
+
+    doc.fullscreenElement = null;
+    fire(doc, "fullscreenchange");
+    expect(watcher.fullscreenState().covered).toBe(true);
+
+    doc.fullscreenElement = { id: "exam" };
+    fire(doc, "fullscreenchange");
+    expect(watcher.fullscreenState().covered).toBe(false);
+    expect(states.map((state) => state.covered)).toEqual([false, true, false]);
+  });
+
+  it("reports one row per departure, with the seconds the paper was covered for", () => {
+    const { doc, log } = proctenedSetup();
+    doc.fullscreenElement = null;
+    fire(doc, "fullscreenchange");
+    expect(kinds(log)).toEqual([]);
+
+    jest.advanceTimersByTime(4000);
+    doc.fullscreenElement = { id: "exam" };
+    fire(doc, "fullscreenchange");
+
+    expect(log.entries()[0]).toMatchObject({
+      kind: "FULLSCREEN_EXIT",
+      detail: "Out of full screen for 4s.",
+      outOfFullscreenSeconds: 4,
+    });
+  });
+
+  it("closes the sitting once the covered time spends the budget", () => {
+    const { doc, log, breaches } = proctenedSetup(10);
+    doc.fullscreenElement = null;
+    fire(doc, "fullscreenchange");
+    jest.advanceTimersByTime(12000);
+    doc.fullscreenElement = { id: "exam" };
+    fire(doc, "fullscreenchange");
+
+    expect(breaches).toEqual([12]);
+    expect(kinds(log)).toEqual(["FULLSCREEN_EXIT", "OUT_OF_FULLSCREEN_LIMIT"]);
+  });
+
+  it("still counts the seconds when the page never comes back", () => {
+    const { doc, log, watcher } = proctenedSetup();
+    doc.fullscreenElement = null;
+    fire(doc, "fullscreenchange");
+    jest.advanceTimersByTime(6000);
+
+    watcher.stop();
+    expect(log.entries()[0]).toMatchObject({ kind: "FULLSCREEN_EXIT", outOfFullscreenSeconds: 6 });
+  });
+
+  it("does not blame the candidate for measurements full screen itself changed", () => {
+    const { doc, win, log } = proctenedSetup();
+    doc.fullscreenElement = null;
+    fire(doc, "fullscreenchange");
+    Object.assign(win, { innerWidth: 1000 });
+    fire(win, "resize");
+    expect(kinds(log)).toEqual([]);
+
+    jest.advanceTimersByTime(3000);
+    Object.assign(win, { innerWidth: 1280 });
+    fire(win, "resize");
+    expect(kinds(log)).toEqual(["WINDOW_RESIZED"]);
   });
 });

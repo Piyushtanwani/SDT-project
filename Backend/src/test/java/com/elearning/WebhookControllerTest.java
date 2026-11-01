@@ -3,6 +3,7 @@ package com.elearning;
 import com.elearning.controller.WebhookController;
 import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
+import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.repositories.ModuleRepository;
 import com.elearning.services.AssistantService;
 import com.elearning.services.ExamPolicy;
@@ -34,13 +35,17 @@ class WebhookControllerTest {
     @Mock
     private CertificateRepository certificateRepository;
 
+    @Mock
+    private ExamAttemptRepository examAttemptRepository;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         AssistantService assistantService =
                 new AssistantService(courseRepository, moduleRepository, certificateRepository,
-                        new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200));
+                        examAttemptRepository,
+                        new ExamPolicy(40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true));
         MessagingService messagingService = new MessagingService(
                 new ObjectMapper(), "telegram-token", "sdt_helper", "whatsapp-token", "123456", "");
         WebhookController controller = new WebhookController(

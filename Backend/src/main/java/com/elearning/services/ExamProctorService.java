@@ -37,6 +37,14 @@ public class ExamProctorService {
 
     private static final int DETAIL_LIMIT = 500;
 
+    /**
+     * The most one report may claim to have spent outside full screen.
+     *
+     * A page can say anything, so a single stretch is capped at an hour: enough for a machine that
+     * slept through a sitting, far short of letting one message bury the rest of the record.
+     */
+    private static final int MAX_REPORTED_STRETCH_SECONDS = 3600;
+
     /** The leading bytes of the only picture formats a browser canvas produces. */
     private static final byte[] JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
     private static final byte[] PNG = {(byte) 0x89, 0x50, 0x4E, 0x47};
@@ -56,11 +64,21 @@ public class ExamProctorService {
         this.policy = policy;
     }
 
-    /** @param recorded how many signals landed, @param dropped how many were refused */
-    public record IngestResult(int recorded, int dropped) {
+    /**
+     * @param recorded how many signals landed
+     * @param dropped how many were refused
+     * @param fullscreenBreach whether the sitting has now spent more of its life outside full
+     *                         screen than the policy allows, which the caller must act on because
+     *                         only the session service can grade and close an attempt
+     */
+    public record IngestResult(int recorded, int dropped, boolean fullscreenBreach) {
     }
 
     public record SnapshotResult(boolean stored, int reason) {
+    }
+
+    public IngestResult record(ExamAttempt attempt, List<ProctorEventRequest> events, String requestUserAgent) {
+        return record(attempt, events, requestUserAgent, null);
     }
 
     /**
@@ -68,11 +86,14 @@ public class ExamProctorService {
      *
      * @param requestUserAgent the header Spring saw on this call, compared with the one captured at
      *                         draw time; a change means the attempt is no longer one browser.
+     * @param browserTabId     the id this browser tab minted for itself; a second one against the
+     *                         same sitting means the exam is open in two places at once
      */
     @Transactional
-    public IngestResult record(ExamAttempt attempt, List<ProctorEventRequest> events, String requestUserAgent) {
+    public IngestResult record(ExamAttempt attempt, List<ProctorEventRequest> events, String requestUserAgent,
+                               String browserTabId) {
         if (events == null || events.isEmpty()) {
-            return new IngestResult(0, 0);
+            return new IngestResult(0, 0, false);
         }
         int dropped = 0;
         List<ExamProctorEvent> accepted = new ArrayList<>();
@@ -106,6 +127,16 @@ public class ExamProctorService {
                         now, candidate.getClientReportedAt()));
                 skewAdded = true;
             }
+            if (signal == ProctorSignal.HEARTBEAT) {
+                LocalDateTime previous = attempt.getLastHeartbeatAt();
+                if (previous != null && Duration.between(previous, now).getSeconds() > policy.heartbeatGapSeconds()) {
+                    accepted.add(row(attempt, ProctorSignal.HEARTBEAT_GAP,
+                            "Silence lasted " + Duration.between(previous, now).getSeconds()
+                                    + "s; a heartbeat is due every " + policy.heartbeatGapSeconds() + "s at most.",
+                            now, null));
+                }
+                attempt.setLastHeartbeatAt(now);
+            }
         }
 
         if (attempt.getUserAgent() != null && requestUserAgent != null
@@ -114,12 +145,70 @@ public class ExamProctorService {
             accepted.add(row(attempt, ProctorSignal.USER_AGENT_CHANGED, trim(requestUserAgent), now, null));
         }
 
+        noteSecondTab(attempt, browserTabId, alreadyStored, now, accepted);
+        boolean breach = noteFullscreenTime(attempt, events, alreadyStored, now, accepted);
+
         if (accepted.isEmpty()) {
-            return new IngestResult(0, dropped);
+            return new IngestResult(0, dropped, breach);
         }
         eventRepository.saveAll(accepted);
         applyWeight(attempt, accepted);
-        return new IngestResult(accepted.size(), dropped);
+        return new IngestResult(accepted.size(), dropped, breach);
+    }
+
+    /**
+     * Adds the seconds the browser says the paper was covered to the attempt's own total.
+     *
+     * The number arrives from the candidate's page, so it is clamped and only ever added to; what
+     * decides the sitting is the running total this server keeps, not whatever the page chooses to
+     * claim about a single stretch.
+     *
+     * @return true once the cumulative time outside full screen passes the policy limit
+     */
+    private boolean noteFullscreenTime(ExamAttempt attempt, List<ProctorEventRequest> events,
+                                       Set<String> alreadyStored, LocalDateTime now,
+                                       List<ExamProctorEvent> accepted) {
+        long reported = 0;
+        for (ProctorEventRequest event : events) {
+            Integer seconds = event == null ? null : event.getOutOfFullscreenSeconds();
+            if (seconds != null && seconds > 0) {
+                reported += Math.min(seconds, MAX_REPORTED_STRETCH_SECONDS);
+            }
+        }
+        if (reported == 0) {
+            return false;
+        }
+        attempt.setFullscreenBlockedSeconds(attempt.getFullscreenBlockedSeconds() + (int) Math.min(reported, Integer.MAX_VALUE));
+        if (attempt.getFullscreenBlockedSeconds() < policy.maxFullscreenBlockSeconds()) {
+            return false;
+        }
+        if (!alreadyStored.contains(ProctorSignal.OUT_OF_FULLSCREEN_LIMIT.name())) {
+            accepted.add(row(attempt, ProctorSignal.OUT_OF_FULLSCREEN_LIMIT,
+                    attempt.getFullscreenBlockedSeconds() + "s of the sitting were spent outside full screen; "
+                            + policy.maxFullscreenBlockSeconds() + "s is the most one sitting is given.",
+                    now, null));
+        }
+        return true;
+    }
+
+    /** One sitting, one browser: a second tab id means the same attempt is open in two places. */
+    private void noteSecondTab(ExamAttempt attempt, String browserTabId, Set<String> alreadyStored,
+                               LocalDateTime now, List<ExamProctorEvent> accepted) {
+        if (browserTabId == null || browserTabId.isBlank()) {
+            return;
+        }
+        String claim = trim(browserTabId);
+        if (attempt.getBrowserTabId() == null) {
+            attempt.setBrowserTabId(claim);
+            return;
+        }
+        if (!attempt.getBrowserTabId().equals(claim)
+                && !alreadyStored.contains(ProctorSignal.SECOND_TAB_SAME_ATTEMPT.name())) {
+            accepted.add(row(attempt, ProctorSignal.SECOND_TAB_SAME_ATTEMPT,
+                    "This page reported a different browser identity than the one that opened the sitting.",
+                    now, null));
+            alreadyStored.add(ProctorSignal.SECOND_TAB_SAME_ATTEMPT.name());
+        }
     }
 
     /** A signal the server decided for itself, such as a submit that beat the clock. */

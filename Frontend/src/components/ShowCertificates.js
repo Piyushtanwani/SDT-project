@@ -368,6 +368,19 @@ export const ShowCertificates = () => {
                             <span className="inline-block mt-3 text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 px-2 py-1 rounded-full">
                               {getCourseCategory(certificate.courseId)}
                             </span>
+                            {/* The sitting behind the paper is part of the paper. A learner is shown
+                                the same sentence a verifier reads, so nothing arrives as a surprise
+                                later, in somebody else's words. */}
+                            {certificate.proctoringLine && (
+                              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                {certificate.proctoringLine}
+                              </p>
+                            )}
+                            {String(certificate.status).toUpperCase() === "REVOKED" && (
+                              <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
+                                Withdrawn{certificate.withdrawalReason ? `: ${certificate.withdrawalReason}` : ""}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -512,6 +525,19 @@ export const ShowCertificates = () => {
                   {/* Certificate Footer */}
                   <div className="mt-8 border-t border-gray-200 dark:border-gray-600 pt-4 text-sm text-gray-600 dark:text-gray-400">
                     <p>This certificate verifies the completion of the online course as indicated above.</p>
+                    {selectedCertificate.proctoringLine && (
+                      <p className="mt-2 text-xs italic text-gray-700 dark:text-gray-300">
+                        {selectedCertificate.proctoringLine}
+                      </p>
+                    )}
+                    {String(selectedCertificate.status).toUpperCase() === "REVOKED" && (
+                      <p className="mt-3 text-sm font-bold uppercase tracking-wide text-red-700">
+                        Withdrawn — this credential no longer stands
+                        {selectedCertificate.withdrawalReason
+                          ? `: ${selectedCertificate.withdrawalReason}`
+                          : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

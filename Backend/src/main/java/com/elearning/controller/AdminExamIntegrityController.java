@@ -68,6 +68,22 @@ public class AdminExamIntegrityController {
         return ResponseEntity.ok(integrityService.detail(attemptId));
     }
 
+    /**
+     * The report one sitting earns, with the camera frames attached.
+     *
+     * This is the document an invigilator quotes from, so it is the same one the candidate can read
+     * at their own result page — plus the frames, which only a reviewer is shown.
+     */
+    @GetMapping("/attempts/{attemptId}/report")
+    public ResponseEntity<?> report(@PathVariable Long attemptId,
+                                    @AuthenticationPrincipal UserDetails userDetails) {
+        User caller = caller(userDetails);
+        if (caller == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(integrityService.report(attemptId, true));
+    }
+
     @PostMapping("/attempts/{attemptId}/review")
     public ResponseEntity<?> review(@PathVariable Long attemptId,
                                     @RequestBody IntegrityReviewRequest request,

@@ -19,5 +19,7 @@ public record ExamStartResponse(Long attemptId,
                                 LocalDateTime serverNow,
                                 int durationSeconds,
                                 int minDurationSeconds,
+                                int maxFullscreenBlockSeconds,
+                                boolean fullscreenRequired,
                                 Integer attemptNumber) {
 }

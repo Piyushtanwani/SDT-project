@@ -391,7 +391,7 @@ class ExamDrawServiceTest {
     void examSizeIsADocumentableConstant() {
         assertEquals(25, com.elearning.services.ExamPolicy.QUESTIONS_PER_EXAM);
         com.elearning.services.ExamPolicy policy = new com.elearning.services.ExamPolicy(
-                40, 90, 3, 6, 120, 6, 3, 400, 15, 200);
+                40, 90, 3, 6, 120, 6, 3, 400, 15, 200, 60, 90, 3, true);
         assertTrue(policy.drawValidity().toMinutes() >= 45,
                 "the signed draw must outlive the 40-minute exam timer");
         assertEquals(40, policy.durationMinutes());

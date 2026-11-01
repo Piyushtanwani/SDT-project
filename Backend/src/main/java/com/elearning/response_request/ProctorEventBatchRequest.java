@@ -6,6 +6,7 @@ import java.util.List;
 public class ProctorEventBatchRequest {
 
     private List<ProctorEventRequest> events;
+    private String browserTabId;
 
     public List<ProctorEventRequest> getEvents() {
         return events;
@@ -13,5 +14,14 @@ public class ProctorEventBatchRequest {
 
     public void setEvents(List<ProctorEventRequest> events) {
         this.events = events;
+    }
+
+    /** A random id this browser tab minted once, so a second tab on the same sitting shows up. */
+    public String getBrowserTabId() {
+        return browserTabId;
+    }
+
+    public void setBrowserTabId(String browserTabId) {
+        this.browserTabId = browserTabId;
     }
 }
