@@ -9,38 +9,47 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import com.elearning.models.ExamAttempt;
-import com.elearning.models.ExamQuestion;
 import com.elearning.models.User;
 import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.ApiResponse;
 import com.elearning.response_request.ExamAttemptRequest;
+import com.elearning.response_request.ExamDrawResponse;
 import com.elearning.services.CertificateService;
 import com.elearning.services.ExamAttemptService;
-import com.elearning.services.ExamQuestionService;
+import com.elearning.services.ExamDrawService;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/exams")
 public class ExamController {
 
-    private final ExamQuestionService examQuestionService;
+    private final ExamDrawService examDrawService;
     private final ExamAttemptService examAttemptService;
     private final UserRepository userRepository;
 
     public ExamController(
-            ExamQuestionService examQuestionService,
+            ExamDrawService examDrawService,
             ExamAttemptService examAttemptService,
             UserRepository userRepository) {
-        this.examQuestionService = examQuestionService;
+        this.examDrawService = examDrawService;
         this.examAttemptService = examAttemptService;
         this.userRepository = userRepository;
     }
 
     @GetMapping("/course/{courseId}/random")
-    public List<ExamQuestion> getRandomQuestions(@PathVariable Long courseId) {
-        return examQuestionService.getRandomQuestions(courseId, 50);
+    public ResponseEntity<?> getRandomQuestions(
+            @PathVariable Long courseId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        User caller = userDetails == null ? null : userRepository.findByEmail(userDetails.getUsername()).orElse(null);
+        if (caller == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse(false, "Authentication required to load an exam."));
+        }
+        ExamDrawService.ExamDraw draw =
+                examDrawService.issueDraw(courseId, caller.getId(), ExamDrawService.QUESTIONS_PER_EXAM);
+        return ResponseEntity.ok(new ExamDrawResponse(
+                draw.questions(), draw.drawToken(), draw.questions().size(), draw.expiresAt()));
     }
 
     @PostMapping("/submit")
@@ -63,7 +72,15 @@ public class ExamController {
                     .body(new ApiResponse(false, "Cannot submit exam on behalf of another user."));
         }
 
-        double score = examQuestionService.evaluateExam(request.getCourseId(), request.getAnswers());
+        double score;
+        try {
+            score = examDrawService.grade(user.getId(), request.getCourseId(),
+                    request.getDrawToken(), request.getAnswers());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse(false, "The exam could not be graded. " + e.getMessage()
+                            + " Start the exam again to load a fresh question set."));
+        }
         if (!(score >= 0.0 && score <= 100.0)) {
             score = 0.0;
         }

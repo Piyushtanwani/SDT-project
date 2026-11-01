@@ -33,6 +33,7 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState("");
+  const [errorRetryable, setErrorRetryable] = useState(false);
   const [sendError, setSendError] = useState("");
   const [isSending, setIsSending] = useState(false);
   const stompClient = useRef(null);
@@ -75,7 +76,7 @@ const ChatPage = () => {
 
         // Check the connection before revealing the other user's profile
         if (!validConnections.some((conn) => conn.id === parseInt(id))) {
-          if (!cancelled) setError("You can only chat with people you are connected to.");
+          if (!cancelled) { setErrorRetryable(false); setError("You can only chat with people you are connected to."); }
           return;
         }
 
@@ -98,6 +99,7 @@ const ChatPage = () => {
         } catch (historyErr) {
           console.error("Failed to fetch message history:", historyErr);
           if (!cancelled) {
+            setErrorRetryable(true);
             setError("Could not load this conversation's history. Please try again.");
           }
         }
@@ -105,8 +107,10 @@ const ChatPage = () => {
         console.error("Error fetching chat data:", err);
         if (cancelled) return;
         if (err.response?.status === 404) {
+          setErrorRetryable(false);
           setError("This user no longer exists.");
         } else {
+          setErrorRetryable(true);
           setError("Failed to load chat. Please try again.");
         }
       }
@@ -238,24 +242,31 @@ const ChatPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 px-4">
+      <div className="min-h-screen flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center max-w-md"
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 text-center max-w-md ring-1 ring-gray-200/70 dark:ring-white/10"
         >
-          <p className="text-red-600 dark:text-red-400 mb-4" role="alert">{error}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">This chat is not available</h1>
+          <p className="text-red-700 dark:text-red-300 mb-6" role="alert">{error}</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
-            >
-              Try again
-            </button>
+            {errorRetryable && (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+              >
+                Try again
+              </button>
+            )}
             <Link
               to="/connections"
-              className="inline-block min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium"
+              className={`inline-block min-h-[44px] px-4 py-2 rounded-xl text-sm font-medium ${
+                errorRetryable
+                  ? "bg-gray-100 hover:bg-gray-200 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100"
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              }`}
             >
               Back to Connections
             </Link>
@@ -267,7 +278,7 @@ const ChatPage = () => {
 
   if (!currentUser || !otherUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 px-4">
+      <div className="min-h-screen flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -281,7 +292,7 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -336,7 +347,7 @@ const ChatPage = () => {
                 type="button"
                 onClick={loadEarlierMessages}
                 disabled={loadingEarlier}
-                className="min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-gray-600 hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                className="min-h-[44px] px-3 py-1.5 text-xs font-medium rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-gray-600 hover:bg-indigo-50 dark:hover:bg-gray-700 disabled:opacity-60"
               >
                 {loadingEarlier ? "Loading..." : "Load earlier messages"}
               </button>

@@ -3,6 +3,7 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, Upload, X } from "lucide-react";
+import Sidebar from "./AdminSlidebar";
 import { API_BASE_URL } from "../config/api";
 import { useNavigate } from "react-router-dom";
 
@@ -88,7 +89,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
       className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 p-4"
     >
       <div
-        className="relative max-w-md w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6"
+        className="relative max-w-md w-full bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 ring-1 ring-gray-200/70 dark:ring-white/10"
         role="dialog"
         aria-label="Add course"
       >
@@ -142,7 +143,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
             <input
               id="course-name"
               type="text"
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
+              className="min-h-[44px] mt-1 w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300"
               value={courseName}
               onChange={(e) => setCourseName(e.target.value)}
               required
@@ -158,7 +159,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
             </label>
             <textarea
               id="course-description"
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
+              className="min-h-[44px] mt-1 w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
@@ -176,7 +177,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
             <input
               id="course-duration"
               type="number"
-              className="mt-1 w-full px-4 py-2 bg-white/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300"
+              className="min-h-[44px] mt-1 w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               required
@@ -191,7 +192,7 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
             <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Course Thumbnail <span className="text-gray-600 dark:text-gray-300 font-normal">(optional)</span>
             </label>
-            <div className="mt-1 flex items-center justify-center px-4 py-6 bg-white/30 dark:bg-gray-800/30 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-all duration-300 focus-within:ring-2 focus-within:ring-blue-500">
+            <div className="mt-1 flex items-center justify-center px-4 py-6 bg-gray-50 dark:bg-gray-800/40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-all duration-300 focus-within:ring-2 focus-within:ring-indigo-500">
               <label
                 htmlFor="file-upload"
                 className="flex flex-col items-center cursor-pointer"
@@ -215,10 +216,10 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
           {/* Submit Button */}
           <motion.button
             type="submit"
-            className="w-full py-3 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 disabled:opacity-50 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
+            className="w-full py-3 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all duration-300 shadow-sm hover:shadow-md"
             disabled={loading}
             whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: 0.98 }}
           >
             {loading ? (
               <span className="flex items-center justify-center">
@@ -252,90 +253,123 @@ export const AddCourse = ({ closeModal, refreshCourses }) => {
   );
 };
 
-// CourseList Component (Display up to 3 courses per row)
-const CourseList = () => {
+// Page mounted at /admin/add-course: opens the modal and lists what already exists.
+const AddCoursePage = () => {
   const [courses, setCourses] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { userToken } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   const fetchCourses = useCallback(async () => {
     try {
-      const response = await axios.get(`${apiUrl}/course`, {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
-      setCourses(response.data.slice(0, 3)); // Limit to 3 courses
-    } catch (error) {
-      console.error("Failed to fetch courses:", error);
+      setLoadError("");
+      const response = await axios.get(`${apiUrl}/course/getCourses`);
+      setCourses(Array.isArray(response.data) ? response.data : []);
+    } catch {
+      setLoadError("Could not load courses. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-  }, [apiUrl, userToken]);
+  }, [apiUrl]);
 
   useEffect(() => {
     fetchCourses();
   }, [fetchCourses]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
-      {/* Add Course Button */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <motion.button
-          onClick={() => setIsModalOpen(true)}
-          className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Add New Course
-        </motion.button>
-      </div>
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <div className="flex-1 flex flex-col p-4 sm:p-6">
+        <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 dark:text-white mb-2">
+          Add a course
+        </h1>
+        <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
+          A course needs modules before learners can take it. Add those from the module pages afterwards.
+        </p>
 
-      {/* Course Grid */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.map((course) => (
-          <motion.div
-            key={course.id}
-            className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-2xl overflow-hidden shadow-lg hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ scale: 1.03 }}
+        <div className="max-w-7xl w-full mx-auto mb-8">
+          <motion.button
+            onClick={() => setIsModalOpen(true)}
+            className="py-3 px-6 rounded-xl text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 shadow-sm hover:shadow-md"
+            whileHover={{ y: -2 }}
             whileTap={{ scale: 0.97 }}
           >
-            <img
-              src={course.thumbnailUrl}
-              alt={course.name}
-              className="w-full h-48 object-cover"
-            />
-            <div className="p-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {course.name}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                {course.description}
-              </p>
-              <p className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400">
-                {course.duration} hours
-              </p>
-            </div>
-            {/* Glowing Border Effect */}
-            <div className="absolute inset-0 pointer-events-none rounded-2xl border border-transparent hover:border-blue-400/30 transition-all duration-300" />
-          </motion.div>
-        ))}
-      </div>
+            Add New Course
+          </motion.button>
+        </div>
 
-      {/* Add Course Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <AddCourse
-            closeModal={() => setIsModalOpen(false)}
-            refreshCourses={fetchCourses}
-          />
+        {isLoading && courses.length === 0 && (
+          <p role="status" className="text-center text-gray-600 dark:text-gray-400 py-10">
+            Loading courses…
+          </p>
         )}
-      </AnimatePresence>
+
+        {!isLoading && loadError && (
+          <div className="max-w-7xl w-full mx-auto mb-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoading(true);
+                fetchCourses();
+              }}
+              className="font-semibold underline underline-offset-2 hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !loadError && courses.length === 0 && (
+          <p className="text-center text-gray-600 dark:text-gray-400 py-10">
+            No courses yet. Add the first one above.
+          </p>
+        )}
+
+        <div className="max-w-7xl w-full mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map((course) => (
+            <motion.div
+              key={course.id}
+              className="lift relative bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-md ring-1 ring-gray-200/70 dark:ring-white/10"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <img
+                src={course.thumbnailUrl || "/default-thumbnail.svg"}
+                alt={course.name}
+                className="w-full h-48 object-cover bg-gray-200 dark:bg-gray-700"
+                onError={(e) => (e.target.src = "/default-thumbnail.svg")}
+              />
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {course.name}
+                </h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                  {course.description}
+                </p>
+                <p className="mt-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                  {course.duration ? `${course.duration} hours` : "Self-paced"}
+                </p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <AnimatePresence>
+          {isModalOpen && (
+            <AddCourse
+              closeModal={() => setIsModalOpen(false)}
+              refreshCourses={fetchCourses}
+            />
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
 
-export default CourseList;
+export default AddCoursePage;

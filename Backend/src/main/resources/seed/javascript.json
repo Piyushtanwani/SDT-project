@@ -1,0 +1,459 @@
+{
+  "name" : "JavaScript",
+  "description" : "Modern JavaScript semantics, the event loop, prototypes and the React patterns used in this application.",
+  "duration" : "6 weeks",
+  "rating" : 4.8,
+  "modules" : [ {
+    "title" : "Language Semantics",
+    "content" : [ "Values have types, but typeof has two famous quirks: typeof null is 'object', and typeof a function is 'function'. Prefer Array.isArray and explicit null checks over clever typeof tests. The null quirk is a historical accident: the first engine stored a type tag with every value and reused the object tag for null, and the web broke too badly to fix it. typeof is also the only operator that safely reads an undeclared name, because typeof mysteryName evaluates to 'undefined' instead of throwing a ReferenceError. Outside those special cases, validate by shape: Array.isArray for lists, Number.isFinite for real finite numbers, and instanceof when you genuinely care about a specific class.",
+      "The event loop drains the microtask queue after each task. Promise callbacks therefore run before a setTimeout callback scheduled in the same turn. Microtasks include promise reactions, queueMicrotask callbacks and the continuation of an async function after an await, and the queue is drained completely, including microtasks queued during the drain, before the loop takes another macrotask. A microtask that keeps re-scheduling itself therefore freezes rendering in a browser and starves I/O in Node, while the equivalent recursive setTimeout yields between turns. Keep microtasks short and non-recursive, and move anything user-visible or long-running into tasks or timers.",
+      "const prevents reassignment of the binding, not mutation of the referenced object. Freezing an object requires Object.freeze or immutable update patterns. A const object still accepts property writes, pushes and deletes; only replacing the name itself throws a TypeError. The binding also lives in a temporal dead zone from the start of its block until the declaration executes, so reading it early throws instead of returning undefined like a hoisted var would. In for loops, let and const create a fresh binding per iteration, which is why closures built inside the loop body capture per-iteration values rather than the final one.",
+      "Loose equality coerces its operands before comparing, using ToPrimitive and then ToNumber when a string meets a number. That is why '5' == 5 is true while '5' === 5 is false, and why [] == false also holds: the empty array primitives to the empty string, then to the number zero, and false coerces to the same zero. These coercion chains are hard to reason about under pressure, so prefer strict equality everywhere except the narrow idiom x == null, which catches both null and undefined in one test. When you need exact same-value semantics, including NaN equal to itself and positive zero distinct from negative zero, use Object.is rather than either equality operator.",
+      "How this is bound follows four rules, checked in order. A new expression binds the freshly created object, an explicit call, apply or bind uses the supplied receiver, a method invoked through a dot uses the object before the dot, and a plain function call falls back to the default binding, which is undefined in strict mode and the global object in sloppy scripts. Detaching a method breaks the dot rule: const f = obj.method followed by f() runs without a receiver, so internal this references stop working. Arrow functions participate in none of the rules because they resolve this lexically where they are written, and call, apply or bind cannot change that receiver later.",
+      "Every ordinary object has an internal link to a prototype, and property reads that miss the own property walk that chain until they find the key or reach null. Class syntax is sugar over exactly this mechanism, so methods live on one shared prototype object rather than being copied into each instance. Assignment usually creates an own property instead of writing through the chain, but if the chain holds a setter-less accessor or a non-writable data property, strict mode turns the assignment into a TypeError instead of shadowing quietly. Reach for Object.create(null) when you need a pure dictionary with no inherited keys, which also removes prototype-pollution surprises from Object.prototype.",
+      "var declarations and function declarations hoist to the top of their enclosing scope, but they behave differently once there. A hoisted var reads as undefined until its assignment runs, while let, const and class are hoisted into a temporal dead zone where every access throws a ReferenceError until the declaration executes. Function declarations are fully callable before their source position; function expressions stored in var, let or const are only as ready as their assignment line. TDZ errors show up late and confusingly in circular imports, hoisted code paths and default parameter values that reference a later declaration, so keep dependencies pointing downward in the file.",
+      "Object and array destructuring unpack values by key or position, and each pattern can carry a default that fires only when the matched value is strictly undefined. That is why the pattern assigning port a fallback of 3000 still yields 0 or an empty string when those are present, and only a missing key produces the default. Destructuring null or undefined throws a TypeError, so guard nullable sources before unpacking them. Rest patterns copy only shallowly: excluding one key with a rest element shares all nested objects with the original rather than cloning them, which surprises developers who assume the syntax performs a deep copy." ]
+    }, {
+    "title" : "Application Patterns",
+    "content" : [ "Closures capture variable bindings, not snapshots. That is why a loop using var can expose the final value to every callback while let creates a fresh binding per iteration. The captured environment stays alive as long as any reachable closure can see it, which makes closures a genuine privacy mechanism for module-private state but also a memory-leak source when a long-lived listener keeps a large enclosing scope alive. In React this same semantic explains stale closures: a callback created during one render keeps reading that render's props and state, so effects observing current values need dependency entries or functional updates.",
+      "Arrow functions take this lexically from the surrounding scope, which makes them convenient for callbacks but unsuitable as object methods that need their own receiver. They also have no arguments object, no super, no new.target and no prototype property, so using one as a constructor throws. Inside a class, an arrow function stored in a field is bound to the instance at construction and survives being passed around as a detached handler, which is why event APIs that invoke your callback without a receiver often push you toward fields rather than prototype methods. In DOM listeners, prefer event.currentTarget over this when you need the element the handler is attached to.",
+      "In React, keys let the reconciler match elements between renders. State updates are batched, so repeated setCount(count + 1) calls in one handler both read the same stale value; functional updates fix that. Array-index keys are only safe while the list never reorders, inserts or removes: after a reorder React moves the DOM and each item keeps the local state of whatever index it lands on, producing inputs full of someone else's text. React 18 and later batch updates even inside promises and timers, so several setStates still render once, and a functional updater sees every queued change because each callback receives the accumulated pending result.",
+      "Debounce and throttle both tame high-frequency events, but they promise different things. A trailing-edge debounce resets a timer on every call and fires once after the burst stops, which suits search boxes where only the final query matters; a throttle enforces a maximum rate and keeps firing while events stream, which suits scroll tracking. Both are closures over a timer id and a pending call, and both leak timers unless the component clears them in an effect cleanup. Debouncing alone also does not fix staleness: a slow response from an earlier keystroke can still land after the newer one, so pair in-flight cancellation with an AbortController rather than trusting ordering.",
+      "A custom hook is a function that calls other hooks, named with the use prefix so the linter can enforce the rules of hooks about top-level calls. The value is reusing stateful logic, not sharing state: every calling component gets its own instance of the hook's state, tracked positionally by the order of hook calls inside that component. Changing the number of hook calls between renders corrupts the whole component's state mapping, which is why early returns must never skip a useState. Return a small API with functional updates or useCallback so consumers do not rebuild object literals each render and re-render every dependent memoized child.",
+      "JavaScript can throw values that are not Error objects, and catch clauses receive primitives too, so defensive handlers should normalise unknown values before reading message or stack. Rejected promises are the async sibling: without a catch attached, Node escalates an unhandled rejection and browsers log a console error, silently swallowing real failures in code that nobody wired up. Because fetch resolves for 404 and 500 responses, promise-based error paths only capture network-level failures unless you check status explicitly. Throwing inside a promise callback converts into a rejection, but throwing inside a setTimeout callback escapes any surrounding try block entirely, because that try has already finished.",
+      "Spread and Object.assign produce shallow copies, so taking a copy of state and then writing into a nested object still mutates the shared original; a real immutable update replaces every object along the changed path. React depends on that identity discipline because setState compares references, and memoized components skip renders only when props are referentially unchanged. Structural sharing keeps the copies affordable: only the spine from the changed item up to the root is recreated while untouched siblings are reused. The same habit gives cheap equality checks and undo history, but watch for gratuitously rebuilding arrays or objects during render, which defeats memoization as surely as mutating in place does." ]
+    }, {
+    "title" : "Asynchronous JavaScript: Event Loop, Promises and Fetch",
+    "content" : [ "Every JavaScript environment interleaves one call stack with queues of pending work, but the queue structure differs by host. Browsers run one macrotask, drain the microtask queue completely, then may render a frame. Node's libuv loop has explicit phases such as timers, poll and check, and it drains microtasks after each individual callback rather than once per turn; Node also exposes process.nextTick, a queue with priority above promise microtasks. The practical rules are the same everywhere: promise reactions and queueMicrotask run before the next timer, self-rescheduling microtasks starve everything else, and I/O callbacks interleave with timers only at phase boundaries.",
+      "A promise is a state machine that transitions once, from pending to fulfilled or rejected, and later handlers observe the settled value whenever they attach. Then never mutates the original promise; it returns a fresh one that resolves with the callback's return value, so a rejection skips the remaining then handlers until something catches it. Returning a promise from a callback makes the chain adopt it, which flattens nesting instead of producing a promise of a promise, and throwing inside a callback converts into a rejection of the derived promise. That derivation model is why forgetting to return inside a then chain creates a detached branch whose failures nobody sees.",
+      "An async function is syntactic sugar over promises: it always returns a promise, executes synchronously up to the first await, and reschedules the remaining body as a microtask when the awaited value settles. Awaiting a non-promise still yields one tick, which is what lets straight-line code coexist with the event loop. Rejection surfaces as a thrown exception, so try/catch works, but wrapping a whole function body in one try also swallows synchronous programming errors from every line inside it. The classic performance bug is awaiting in a loop, which serializes independent requests; start the promises first and await them together with Promise.all when every result is required.",
+      "Promise combinators differ in exactly the ways that break production code. Promise.all resolves with an array in input order or rejects with the first error while the other promises keep running unobserved. Promise.allSettled never rejects and reports each outcome as an object with a status and a value or reason, which fits partial-success fan-out. Promise.race settles with whichever promise settles first, success or failure, making it the shape of timeout patterns, while Promise.any resolves with the first success and rejects with an AggregateError only when every input fails. An empty iterable is legal but not equivalent across them: all fulfills immediately while any rejects.",
+      "fetch resolves as soon as response headers arrive; the body is a separate stream, so response.json() returns its own promise and can be called only once because reading consumes the stream. HTTP status is not an error condition: 404 and 500 both resolve, and code must branch on response.ok or response.status. Cross-origin requests send cookies only when the credentials option is set, and responses from opaque no-cors requests cannot be read. There is no timeout option, so the standard recipe is to pass a signal from an AbortController or AbortSignal.timeout where available, and always cancel the controller when a component unmounts so a late response cannot schedule a state update.",
+      "Cancellation in async JavaScript is cooperative. An AbortController's signal fires an abort event, fetch rejects with a DOMException named AbortError rather than a network failure, and a correct catch block distinguishes that name before reporting an error to the user. A signal cannot be revived once aborted, so each operation needs its own controller. Aborting stops new work but does not unwind code already queued, and it cannot cancel work that does not listen to the signal at all, which is true of plain promise chains and most CPU-bound helpers. For racing searches, track a request id or generation counter so only the newest response is allowed to touch state.",
+      "Async iterators extend the iterator protocol with promises, and for await...of repeatedly calls next and awaits each produced result, letting pull-based sources with unknown length be consumed with ordinary loop syntax, including break and early return. Node readable streams are async iterable, so a file or socket can be processed chunk by chunk with backpressure applied automatically. Awaiting inside the loop is correct here, unlike the request fan-out case, because each chunk genuinely depends on the previous one being handled. Async generators combine both sides, yielding awaited values, and are the cleanest way to model paginated APIs where each page must be fetched before the next cursor exists." ]
+    }, {
+    "title" : "Modules, Bundling and Modern Toolchains",
+    "content" : [ "CommonJS and ES modules disagree on whether an import is a value or a window. A require call executes the target module and copies names off its exports object at that moment, so destructured bindings never update even though the exports object itself may change later. ESM imports are read-only live bindings: when the exporting module updates an exported let, importers observe the new value on the next read, while assigning to the imported name is a static error. That difference explains why circular dependencies silently return half-initialized objects in CJS and throw clearer reference errors when a live binding is touched too early in ESM.",
+      "ES module files are strict mode whether or not you ask, and the top-level scope is the module rather than the global object, so a forgotten var stops leaking between files. Top-level this is undefined, unlike in CommonJS where it refers to module.exports. Because import and export declarations must be static, you cannot build specifier strings at runtime; conditional loading uses the dynamic import() expression instead, which returns a promise for the module namespace object. Bundlers exploit that static structure, and the strict, lexically isolated module scope removes an entire class of accidental-global bugs that plain scripts carry.",
+      "Static analysis and code splitting pull in opposite directions. A bundler can only split reliably at dynamic import boundaries, because a static import graph is normally prefetched and can be awaited in parallel. Side-effect imports with no bindings can be dropped unless package.json marks the package as side-effectful, which is why CSS imports and polyfill registrations need configuration attention. Top-level await is allowed only in ESM, and a module using it delays evaluation of everything that imports it. Dynamic specifiers, the ones computed at runtime, defeat analysis entirely, so keep them behind explicit maps from keys to literal import calls.",
+      "How an import string becomes a file is specified, not magical. Bare specifiers are resolved through package.json, whose exports field maps subpaths to files and can hand different paths to import versus require, the dual-package hazard where one library exists as two incompatible copies in one build. Browsers resolve bare specifiers only through import maps; otherwise ESM in the browser needs relative paths with explicit file extensions, because there is no filesystem sniffing. The extensions-optional shorthand of classic Node CommonJS does not exist in ESM, and file URLs make that explicit because they treat the URL as the module's identity.",
+      "A bundler concatenates modules into a few output files and rewrites each module scope into something shareable. Tree shaking removes unused exports, but only under ESM, whose static import and export structure lets the bundler prove a binding is never referenced; require's runtime evaluation cannot be proved, so CommonJS imports resist shaking. The sideEffects flag tells the bundler whether an untouched module may still do work. Content hashing names outputs for immutable caching, and a stable module id ordering keeps hashed bundles from churning when unrelated files change, which matters for deploy diff noise.",
+      "A modern JavaScript toolchain layers three distinct jobs. Transpilation rewrites newer syntax into older equivalents, TypeScript type stripping removes annotations without changing runtime behavior, and polyfills add missing runtime built-ins that no syntax rewriting can conjure: compiling to ES5 does not give old engines Array.prototype.flat. Bundling then merges modules for shipping. Tools like esbuild and SWC do syntax transforms at speeds Babel never matched, Vite serves native ESM during development and bundles only for production, and browserslist plus a target-aware transform decide which features actually need rewriting for your audience.",
+      "Cycles between modules expose the order in which code executes, and neither module system rescues you. In CommonJS the second require returns whatever exports exists mid-evaluation, so properties are silently undefined until someone changes the load order. ESM cycles survive function hoisting and live bindings but throw when a const or class is touched before its declaration runs. Fixing either at the import layer is fragile; the durable fix is design, moving the shared dependency down into a lower module or inverting it with dependency injection, so the graph points in one direction again." ]
+    }, {
+    "title" : "TypeScript Over JavaScript",
+    "content" : [ "TypeScript is structurally typed: a value satisfies a type when it has compatible members, not when it was declared with that name, so any object shaped like a point is assignable to a point type. The exception is the excess-property check, which fires only on object literals assigned directly, catching typos like latitute without punishing structurally compatible objects. Nominal-feeling patterns must be encoded deliberately with private fields or brand properties, because two identical interfaces remain mutually assignable no matter what they were meant to represent. That structural openness is also why renaming a type rarely breaks anything, unlike a nominal system.",
+      "The any type is an opt-out: it accepts any operation and is assignable to everything, so a single any in a pipeline silently disables checking downstream of it, which is how untyped JSON creeps into typed code. Unknown is the safe counterpart: you can receive anything into it, but you must narrow before use, through typeof guards, instanceof or user-defined predicates. Never is the type of unreachable code, and it makes exhaustive-switch checks work, since a union member left unhandled leaves the switch fallthrough typed as never, which the compiler can reject. Strict configs and lint rules against explicit any keep the ladder honest.",
+      "Inference follows declaration discipline. The expression assigning the string north to a const infers the literal type 'north', while the same assignment to a let widens to string, because the compiler assumes a mutable binding may later hold other strings. The as const operator freezes nesting into literals, which is the idiomatic way to derive union types from arrays of allowed values. Annotations can also be bidirectional: a parameter type flows into an arrow function passed as a callback, so contextually typed callbacks need no explicit parameter annotations at all, and adding them can make code staler than inference would be.",
+      "Unions model uncertainty, and the compiler only trusts a union member after narrowing. A discriminated union, where every variant carries a literal tag property, narrows through switch or conditional checks and exposes variant-specific fields; a plain union of objects does not narrow on property existence without an in check or a user-defined predicate. Intersections combine members and mostly meet at functions with overloads, while distributing over unions lives in conditional types. Remember the footgun that boolean is the union true or false, so excluding true from a boolean value leaves the type boolean narrowed to false rather than never.",
+      "Generics defer a type decision to the call site and infer it from arguments unless explicitly supplied. The extends keyword constrains what a type parameter accepts and can also extract a key of a union into a return type, which is how a typed getter function returns the exact property type rather than a widening union. Constraints flow through inference chains, so over-constraining hurts more than under-constraining. Mapped types and conditional types build libraries like schema validators, but readable errors come from keeping type parameters few and names honest rather than clever.",
+      "Types are erased at compile time: the emitted JavaScript contains no annotations, no interfaces and no generics, so nothing validates an incoming API payload at runtime. That is why boundary validation with a library like zod, which parses unknown and narrows to an inferred static type, remains a separate and necessary layer. Type-only imports and exports exist precisely because the emitted code must drop them, and module systems with isolated transpilation require that syntax to tell loaders what is erasable. Assertions with as silence the compiler but change no runtime bytes; a wrong assertion ships the bug, so it is a TODO marker rather than a check.",
+      "strictNullChecks is the highest-value flag in the compiler because it removes null and undefined from every reference type, forcing the code to prove a value exists before using it. Optional parameters, question-mark property syntax and the nullish coalescing and optional chaining operators are the ergonomic payoff of that discipline. The non-null assertion operator is the escape hatch, and overusing it recreates the runtime TypeErrors that the mode was enabled to prevent. The strict umbrella flag also turns on noImplicitAny and related checks, so migrating a large JavaScript codebase is usually a per-module campaign rather than a single switch." ]
+    }, {
+    "title" : "Node.js Runtime and Server-Side JavaScript",
+    "content" : [ "Node pairs a single-threaded JavaScript isolate with libuv, which owns an event loop and a thread pool for file system operations and some crypto and zlib work. Callbacks for I/O execute on the main thread between loop phases, so the model serves many concurrent connections well but dies on anything CPU-heavy: one long parsing or hashing loop stalls every connection, one timer and one socket alike. That constraint is the reason performance work in Node is about yielding regularly and offloading heavy computation rather than adding async/await in more places.",
+      "Node schedules follow-up work through three queues with different priorities. The nextTick queue runs after the current operation completes, before promise microtasks, and a nextTick that reschedules itself starves the entire event loop, so prefer setImmediate, which queues onto the check phase and lets I/O happen between iterations. setImmediate normally fires before a setTimeout with a zero delay outside the I/O cycle, while inside a poll-phase callback the order depends on timer expiry. The guidance mirrors browsers: use nextTick only for narrow, non-recursive continuations that must precede all other queued work.",
+      "Streams are event-driven sources with backpressure built in, and that is the whole reason they exist. A readable pushes chunks to a consumer that signals readiness; unhandled consumption means buffering, which can exceed the process memory on large uploads or downloads. Piping wires pause and resume between source and sink automatically, async iteration applies the same pressure per awaited chunk, and the highWaterMark option sets the buffering target. The objectMode flag turns a byte stream into an object conveyor, which is convenient for row pipelines and changes the meaning of a chunk's size for every consumer.",
+      "Node's module system straddles two formats. CommonJS is the default in a package with no type field: require is a synchronous function available in module scope, and __dirname and __filename exist as locals. Files with an mjs extension, or packages declaring type module, parse as ESM, which brings import.meta.url instead of __filename, top-level await, and mandatory file extensions in relative specifiers. Loading ESM from CJS needs the promise-returning dynamic import, while require of an ES module fails. Dual packages keep separate copies of a library loaded for each format, quietly duplicating module-level state.",
+      "Node's JavaScript strings are UTF-16 code units, so slicing by index can split a surrogate pair, and a string's length is not its byte count. Buffers are fixed allocations of raw bytes that live outside that string model: reading a file yields a Buffer, and decoding it with the wrong charset is lossy rather than recoverable. Encoding conversions happen through Buffer.from, whose second argument selects the charset, or through string_decoder, which holds back split multibyte sequences across chunk boundaries. Never decode chunked UTF-8 with a naive per-chunk conversion; a two-byte sequence can straddle the boundary.",
+      "When one process is not enough, Node exposes three different scalings. The cluster module forks worker processes that share a listening socket and each run their own event loop, which scales I/O throughput across cores; the default routing lets the operating system distribute connections, so sticky-session assumptions break. worker_threads run separate isolates in one process with structured-clone message passing and SharedArrayBuffer coordination, the right tool for CPU-bound work that must not freeze the loop. child_process spawns external programs, and the choice among the three is about startup cost, memory sharing and whether the work is even JavaScript.",
+      "Package manifests steer dependency resolution more than most developers expect. A caret range allows minor and patch upgrades within the same major, so a tilde pins minor lines while a caret floats, and a fresh install can differ from a teammate's because the lockfile encodes the exact resolved tree and integrity hashes. npm, pnpm and yarn differ on node_modules layout, with pnpm hard-linking from a content-addressed store and hiding transitive dependencies, which surfaces phantom-import errors but keeps accidental imports honest. Audit the range semantics before trusting a clean install to be reproducible." ]
+    } ],
+  "questions" : [ {
+    "text" : "What does typeof null return?",
+    "a" : "'null'",
+    "b" : "'undefined'",
+    "c" : "'boolean'",
+    "d" : "'object'",
+    "correct" : "D",
+    "explanation" : "This is a long-standing JavaScript quirk: the null tag was historically encoded as an object reference.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What order does this print? console.log('A'); setTimeout(() => console.log('B')); Promise.resolve().then(() => console.log('C')); console.log('D');",
+    "a" : "A B C D",
+    "b" : "A D B C",
+    "c" : "A D C B",
+    "d" : "D A C B",
+    "correct" : "C",
+    "explanation" : "Synchronous code prints A and D first, then the microtask queue runs C, and the timer task prints B.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does declaring an object with const actually guarantee?",
+    "a" : "It freezes the object so properties cannot change after initialization or reassignment",
+    "b" : "It prevents reassignment of the binding but allows property mutation",
+    "c" : "It makes the object immutable in strict mode",
+    "d" : "It is a syntax error for objects",
+    "correct" : "B",
+    "explanation" : "const guards the name, not the value. Use Object.freeze for shallow immutability or immutable update patterns.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which statement about closures is correct?",
+    "a" : "They copy the value of every outer variable at creation time",
+    "b" : "They only work with var declarations",
+    "c" : "They capture the variable binding, so later changes are visible",
+    "d" : "They are removed by the garbage collector immediately",
+    "correct" : "C",
+    "explanation" : "A closure keeps the environment alive, and reads observe the current value of captured bindings.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How is this determined inside an arrow function?",
+    "a" : "It is rebound by call()",
+    "b" : "It always refers to window",
+    "c" : "It is undefined in strict mode unless the caller binds it explicitly",
+    "d" : "It is defined by the enclosing lexical scope",
+    "correct" : "D",
+    "explanation" : "Arrow functions have no own this; call, apply and bind cannot change the receiver.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "When an object does not have an own property, how is it resolved?",
+    "a" : "Property lookup walks the prototype chain",
+    "b" : "Every object has a copy of all prototype methods",
+    "c" : "Prototypes are only available with class syntax",
+    "d" : "Object.create(null) creates a frozen object",
+    "correct" : "A",
+    "explanation" : "The prototype chain is consulted until the property is found or the chain ends at null.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In strict mode, what happens when you assign to an undeclared variable?",
+    "a" : "A ReferenceError is thrown",
+    "b" : "The variable becomes global",
+    "c" : "The assignment is silently ignored",
+    "d" : "The value is stored in the prototype",
+    "correct" : "A",
+    "explanation" : "Strict mode turns that silent global creation into an error, catching typos early.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In React, what is the primary purpose of the key prop in a list?",
+    "a" : "It sets the DOM id attribute",
+    "b" : "It lets React match elements between renders",
+    "c" : "It controls CSS order",
+    "d" : "It is only required for the first item",
+    "correct" : "B",
+    "explanation" : "Stable keys preserve component identity and local state during reconciliation.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A component calls setCount(count + 1) twice in one click handler. What is the result?",
+    "a" : "The counter increases by two because each call triggers a separate re-render",
+    "b" : "The counter stays the same",
+    "c" : "The counter increases by one because both calls read the same stale value",
+    "d" : "React throws an error",
+    "correct" : "C",
+    "explanation" : "Updates are batched and both expressions use the count from the current render; use setCount(c => c + 1) twice to increment twice.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What distinguishes Promise.all from Promise.allSettled?",
+    "a" : "Promise.all resolves with all results even if some reject",
+    "b" : "allSettled rejects on the first failure",
+    "c" : "They are identical",
+    "d" : "Promise.all fails fast; allSettled resolves with statuses",
+    "correct" : "D",
+    "explanation" : "Use all when every result is required, and allSettled when partial success is acceptable.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A module exports `let count = 0` plus a function that increments it; a second module imports count by name, calls that function, then logs count. What does it see?",
+    "a" : "Zero, because imports copy the exported value at link time",
+    "b" : "A TypeError, because ESM freezes every imported binding at link time",
+    "c" : "Zero, because let bindings stay private to the exporting module scope",
+    "d" : "The updated value, because ESM imports are live read-only bindings",
+    "correct" : "D",
+    "explanation" : "ESM import bindings are live but read-only, so reads observe changes made through the exported function. Option A describes the destructured-require snapshot from CommonJS, not ESM.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Run from a Node.js module's top level: `Promise.resolve().then(() => console.log('p')); process.nextTick(() => console.log('t'));` What is the order?",
+    "a" : "p first, because microtasks always beat every Node-specific queue",
+    "b" : "t first, because the nextTick queue drains before promise microtasks",
+    "c" : "Unpredictable, because the order depends on the current loop phase",
+    "d" : "Either, because nextTick is just an alias for queueMicrotask",
+    "correct" : "B",
+    "explanation" : "Node runs the nextTick queue after the current operation and before microtasks, so t prints first. Option D's alias claim is a common myth, and option A imports browser-only ordering as universal.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does `parseInt('10px')` return?",
+    "a" : "10, because parseInt stops at the first invalid character",
+    "b" : "NaN, because the string contains any non-digit character",
+    "c" : "A TypeError, because parseInt requires an explicit radix",
+    "d" : "'10px', because parseInt preserves the original string form",
+    "correct" : "A",
+    "explanation" : "parseInt consumes leading digits and ignores the trailing suffix. The NaN answer confuses it with Number('10px'), which really is NaN because Number demands a fully numeric string.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "With `const obj = Object.freeze({ n: 2, nested: { b: 1 } })`, which operation still succeeds?",
+    "a" : "Adding a brand-new property directly to obj",
+    "b" : "Changing obj.n from 2 to 3",
+    "c" : "Assigning a new value to obj.nested.b",
+    "d" : "Deleting the frozen n property from obj",
+    "correct" : "C",
+    "explanation" : "Object.freeze is shallow, so only the top-level properties are sealed. The nested object is a separate, unfrozen object, which breaks code that treats freeze as deep immutability.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the value of `Array.from(new Set([1, 1, 2, 3, 3])).length`?",
+    "a" : "5, because Set keeps every insertion it is given",
+    "b" : "3, because Set deduplicates with same-value equality",
+    "c" : "1, because Set collapses to the first inserted value",
+    "d" : "0, because Array.from cannot accept a Set",
+    "correct" : "B",
+    "explanation" : "A Set stores each distinct key once, leaving 1, 2 and 3, and Array.from converts iterables including Sets. Option A describes a plain array, which does not deduplicate.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does `[] == false` evaluate to?",
+    "a" : "false, because an array is an object and objects never equal booleans",
+    "b" : "false, because the array primitives to '0' which mismatches false",
+    "c" : "A TypeError, because equality between arrays and booleans is illegal",
+    "d" : "true, because both operands coerce to the number 0",
+    "correct" : "D",
+    "explanation" : "Under == the array primitives to '', then to 0, and false coerces to 0 as well, so the comparison holds. Option B gets the intermediate string wrong: Number([]) is 0, not an error, and nothing 'mismatches'.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which value survives a round trip through `JSON.parse(JSON.stringify(data))` unchanged?",
+    "a" : "A function stored as a property of the object",
+    "b" : "A property whose value is undefined",
+    "c" : "A number, string or plain nested object value",
+    "d" : "A Date, which comes back as a Date instance",
+    "correct" : "C",
+    "explanation" : "JSON serializes data values only; functions and undefined properties are dropped and Dates become strings. The Date claim is the classic bug this clone pattern introduces.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `user?.profile.name` evaluate to when `user` is null?",
+    "a" : "undefined, because the rest of the chain is skipped",
+    "b" : "A TypeError, because profile is still read from a null value",
+    "c" : "null, because the operator propagates the nullish value itself",
+    "d" : "undefined, because property reads on null silently create keys",
+    "correct" : "A",
+    "explanation" : "The ? operator aborts evaluation of the rest of the chain when its operand is null or undefined, yielding undefined. It propagates undefined rather than null (option C), and only the first access is guarded.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What order prints? `(async () => { console.log('a'); await null; console.log('b'); })(); console.log('c');`",
+    "a" : "a b c",
+    "b" : "a c b",
+    "c" : "c a b",
+    "d" : "b a c",
+    "correct" : "B",
+    "explanation" : "The async body runs synchronously until the await, which reschedules the rest as a microtask, so c prints before b. Reading a b c treats await like a blocking call that never returns control.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A loop `for (const url of urls) { await fetch(url); }` is slow for many URLs. Why?",
+    "a" : "fetch runs on the main thread, so two requests can never overlap",
+    "b" : "await rebuilds the microtask queue each tick, which slows the engine",
+    "c" : "Iterables pause while any pending promise remains unresolved",
+    "d" : "Each iteration waits for the previous response before the next fetch starts",
+    "correct" : "D",
+    "explanation" : "Awaiting inside the loop serializes the requests; mapping fetch over urls and awaiting Promise.all starts them together. Option A is the common myth that fetch performs its work on the JavaScript thread.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In TypeScript, what happens to type annotations in the emitted JavaScript?",
+    "a" : "They are erased and no trace is left in the output",
+    "b" : "They compile into runtime checks that throw on mismatch",
+    "c" : "They become validation helpers for each function parameter",
+    "d" : "They survive as comments only when noImplicitAny is enabled",
+    "correct" : "A",
+    "explanation" : "TypeScript is a compile-time layer; types disappear, so API payloads still need runtime validation like a parsing library. Options B and C describe the imagined runtime behavior that makes developers trust annotations at boundaries.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Module a.js requires b.js and b.js requires a.js. While a.js is still executing, what does b.js receive from its require of a?",
+    "a" : "A thrown circular dependency error at the second require",
+    "b" : "The fully initialized exports once a.js finishes evaluating",
+    "c" : "A exports object as it exists so far, possibly incomplete",
+    "d" : "An empty object, because module cache starts blank always",
+    "correct" : "C",
+    "explanation" : "CommonJS caches a module mid-evaluation, so the reentrant require sees whatever exports were assigned before the cycle. Option B assumes evaluation completed, which is exactly the timing cycles break.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `async function f() { try { throw new Error('bad'); } finally { return 1; } }` do when called?",
+    "a" : "It rejects with the thrown Error, because throws win over finally",
+    "b" : "A syntax error, because return cannot appear inside finally",
+    "c" : "It rejects with undefined, since the try block has no catch",
+    "d" : "It resolves with 1, because finally's return overrides the throw",
+    "correct" : "D",
+    "explanation" : "A return in finally overrides an exception still in flight, so the promise fulfills and the Error vanishes. The missing catch in option C is irrelevant, because an uncaught rejection only propagates out of the async body.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does `Array(3).map(() => 1)` produce?",
+    "a" : "[1, 1, 1], because map visits every index of the array",
+    "b" : "an array of three holes, because map skips unvisited holes",
+    "c" : "[undefined, undefined, undefined], the initialized values",
+    "d" : "A TypeError, because Array(3) has no iterable content",
+    "correct" : "B",
+    "explanation" : "Array(3) creates holes and map leaves unvisited indexes as holes instead of calling the callback. fill(0) or Array.from before mapping produces the [1, 1, 1] result option A promises.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A search box calls a trailing-edge debounced handler (300ms) on every keystroke. When does the request fire?",
+    "a" : "Once, 300ms after the user stops typing",
+    "b" : "On every keystroke, with requests capped to one in flight",
+    "c" : "Immediately on the first keystroke, then every 300ms",
+    "d" : "300ms after every keystroke, once for each keypress",
+    "correct" : "A",
+    "explanation" : "A trailing debounce resets its timer on each call and fires only after the burst goes quiet. Option C describes leading-edge plus interval behavior, and option B describes a throttle.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In strict mode, what happens with `const arr = [1]; const { push } = arr; push(2);`?",
+    "a" : "It appends 2 to arr, because destructuring preserves the receiver",
+    "b" : "It silently does nothing, because strict mode drops unbound calls",
+    "c" : "It throws, because push runs with this left as undefined",
+    "d" : "It pushes the value onto Array.prototype itself",
+    "correct" : "C",
+    "explanation" : "Pulling a method off its object loses the dot receiver, so push runs with this undefined and throws in strict mode. Option A is the misconception that methods carry their instance with them.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which statement about unknown versus any in TypeScript is correct?",
+    "a" : "unknown is an alias for any when strict mode is enabled",
+    "b" : "unknown values may be passed to any parameter without checks",
+    "c" : "any is only legal in declarations, never inside expressions",
+    "d" : "unknown must be narrowed before use; any opts out of checks",
+    "correct" : "D",
+    "explanation" : "unknown is the type-safe top type that forces narrowing, while any disables checking and leaks to everything it touches. Option B swaps the two: it is any that can be passed anywhere without a guard.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does `Number.isFinite('5')` return?",
+    "a" : "false, because Number.isFinite performs no string coercion",
+    "b" : "true, because '5' converts to the number 5 first",
+    "c" : "A TypeError, because the argument is not a number",
+    "d" : "NaN, because the conversion is only partially completed",
+    "correct" : "A",
+    "explanation" : "Number.isFinite only accepts actual numeric values, so a string fails immediately. The true answer comes from the older global isFinite('5'), which does coerce first.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "An instance's prototype has property greeting; the instance long shadowed it with its own value until `delete obj.greeting` ran. What does `obj.greeting` read now?",
+    "a" : "The prototype's value, because the own property no longer shadows it",
+    "b" : "undefined, because delete marks the property name as permanently gone",
+    "c" : "A TypeError, because inherited properties cannot be shadowed first",
+    "d" : "undefined, because delete walks up and clears the prototype too",
+    "correct" : "A",
+    "explanation" : "delete removes only own properties, so lookups resume walking the prototype chain and find the inherited value. Option D mistakes delete for a chain-wide wipe, which it never is.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A useEffect with an empty dependency array registers a resize listener whose callback logs a state value. Why does it log the initial value forever?",
+    "a" : "React detaches event listeners and rebinds them on every render",
+    "b" : "State values are copied into the DOM event system at mount time",
+    "c" : "The effect closes over the first render's bindings and never re-runs",
+    "d" : "Resize events carry stale data because the browser batches them",
+    "correct" : "C",
+    "explanation" : "The mount-only effect captures that render's state binding, and no re-subscription happens without a dependency change. Option A is the opposite of the real behavior: React leaves manually attached listeners alone.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In an ES module, why do side effects of imported modules run before any statement in the importing module's body?",
+    "a" : "Because imports load lazily on the line where they first appear",
+    "b" : "Because imports are hoisted and dependencies evaluate before the body",
+    "c" : "Because bundlers rewrite every import into a synchronous require",
+    "d" : "Because module bodies always execute inside an IIFE wrapper",
+    "correct" : "B",
+    "explanation" : "The whole import graph is instantiated and evaluated depth-first before the module body runs. Option A describes dynamic import() behavior, which is the only genuinely lazy form.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In a package whose package.json has no type field, which system does Node use for a .js file?",
+    "a" : "ESM, whenever the file contains an import statement",
+    "b" : "Whatever the first require call decides at runtime",
+    "c" : "Both systems parsed together in one hybrid module",
+    "d" : "CommonJS, because type defaults to commonjs when absent",
+    "correct" : "D",
+    "explanation" : "Without a type field the .js extension means CommonJS; import syntax in the file is simply a syntax error there. Option A is the belief that content sniffing picks the format, which Node deliberately avoids.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is `const p = Promise.resolve(1).then(x => x + 1)`?",
+    "a" : "A new promise that resolves to 2 when the callback runs",
+    "b" : "The number 2, because then returns the callback's value",
+    "c" : "The original promise, left unchanged by the chain",
+    "d" : "undefined, until a second await consumes the chain",
+    "correct" : "A",
+    "explanation" : "then always returns a fresh derived promise resolving with the callback's result, which is how chains compose. Option B forgets the scheduling step: the callback has not even run by the time p is assigned.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "TypeScript compiles your code to ES5 syntax. Why does an older browser still crash calling Array.prototype.flat?",
+    "a" : "Because the compiler strips library method calls it cannot prove",
+    "b" : "Because transpilers rewrite built-ins but never new syntax",
+    "c" : "Because transpiling fixes syntax only; built-ins need polyfills",
+    "d" : "Because flat is a getter, and getters are not transpilable",
+    "correct" : "C",
+    "explanation" : "downlevelIteration and syntax transforms cannot add methods that never existed in the engine, so a polyfill or core-js is required. Option B reverses what transpilers actually touch.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In a script that is not in strict mode, what does `console.log(x); var x = 1;` print?",
+    "a" : "A ReferenceError, because x is used before it is assigned",
+    "b" : "1, because var declarations hoist with their initialized value",
+    "c" : "null, because unassigned declarations default to null",
+    "d" : "undefined, because var hoists the declaration but not the assignment",
+    "correct" : "D",
+    "explanation" : "var creates the binding at scope top holding undefined; the assignment runs on its original line. With let instead of var this would throw a ReferenceError from the temporal dead zone, which option A half-remembers.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A prototype defines property x as an accessor with only a getter. In strict mode, what does `obj.x = 5` do on an instance whose chain holds that prototype?",
+    "a" : "It creates an own x, shadowing the inherited getter quietly",
+    "b" : "It throws a TypeError, because the accessor has no setter",
+    "c" : "It fails silently, leaving the prototype value untouched",
+    "d" : "It invokes the getter, passing 5 as an extra argument",
+    "correct" : "B",
+    "explanation" : "Assignment through the chain that finds a setter-less accessor is a TypeError in strict code and a silent no-op in sloppy code. Option C describes precisely that sloppy-mode outcome, which strict mode exists to surface.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A page schedules a microtask that queues another microtask before returning, repeating forever. Compared with the equivalent recursive setTimeout, what happens?",
+    "a" : "Nothing differs; both yield to the loop once per turn",
+    "b" : "Only network requests block; painting continues normally",
+    "c" : "The page never paints, because microtasks fully drain before rendering",
+    "d" : "The microtask queue overflows to macrotasks at its size limit",
+    "correct" : "C",
+    "explanation" : "The loop finishes the entire microtask queue, including newly queued jobs, before it can render, so a self-rescheduling chain freezes the page. A recursive setTimeout instead yields between turns, which option A wrongly assumes for both.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In TypeScript, what does `const dir = 'north';` infer, compared with `let dir2 = 'north';`?",
+    "a" : "const infers the literal type 'north'; let widens to string",
+    "b" : "Both infer string, because annotations are required for literals",
+    "c" : "Both infer the literal type, which never widens at all",
+    "d" : "const errors unless the literal type is written explicitly",
+    "correct" : "A",
+    "explanation" : "Immutable bindings can keep the narrowest type, while let assumes reassignment with any string. Option C ignores widening: reassigning a literal-typed let to another string would fail without it.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `for (var i = 0; i < 3; i++) { setTimeout(() => console.log(i), 0); }` print?",
+    "a" : "0 1 2",
+    "b" : "0 0 0",
+    "c" : "1 2 3",
+    "d" : "3 3 3",
+    "correct" : "D",
+    "explanation" : "All three closures capture the single var binding, which reaches 3 before any timer fires. Changing var to let creates a fresh per-iteration binding and prints 0 1 2, the answer option A mistakenly gives for var.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is `new Set([1, '1']).size`?",
+    "a" : "1, because Set coerces values before comparing them",
+    "b" : "2, because 1 and '1' are distinct same-value keys",
+    "c" : "0, because mixed primitive types are rejected",
+    "d" : "A TypeError at construction time from mixed types",
+    "correct" : "B",
+    "explanation" : "Set membership uses sameValueZero equality, which keeps a number and a string apart. Option A applies the loose-equality intuition of ==, which Set does not use.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does `src.pipe(dest)` protect memory better than forwarding data events from src into dest.write yourself?",
+    "a" : "It buffers the whole stream in memory first, then writes it",
+    "b" : "It converts the stream into an awaitable promise end to end",
+    "c" : "It pauses src when dest reports backpressure on its buffer",
+    "d" : "It only operates on streams opened in objectMode",
+    "correct" : "C",
+    "explanation" : "pipe listens for a false return from dest.write and pauses the source until drain fires, which manual forwarding usually forgets. Option A describes the memory behavior pipe exists to avoid.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In development with React 18 Strict Mode, why does a useEffect that POSTs on mount fire the request twice?",
+    "a" : "Strict Mode duplicates every network call to catch slow ones",
+    "b" : "Effects intentionally run twice at mount for performance wins",
+    "c" : "fetch retries once automatically in development builds",
+    "d" : "Strict Mode mounts, unmounts and remounts to expose cleanup bugs",
+    "correct" : "D",
+    "explanation" : "The double invocation simulates an unmount/remount cycle so missing cleanup and non-idempotent effects surface in development. It happens only in development builds, and option B wrongly claims it is a rendering optimization.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In a JavaScript class, how does a field holding an arrow function differ from a prototype method of the same name?",
+    "a" : "No difference at runtime; the compiler emits identical code",
+    "b" : "The field is a per-instance closure; the method sits on the prototype",
+    "c" : "The field is shared across instances; the method is copied each",
+    "d" : "Only the field form can be reached through subclass instances",
+    "correct" : "B",
+    "explanation" : "Class fields are created on each instance at construction, so detached callbacks keep the right this, while methods are allocated once on the prototype. Option C swaps the two allocation strategies, and option D is wrong because both forms reach instances.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "If mysteryName was never declared anywhere, what does `typeof mysteryName` evaluate to?",
+    "a" : "'undefined', because typeof never throws on undeclared names",
+    "b" : "A ReferenceError, like reading the bare name directly would do",
+    "c" : "'null', for a name the engine has no record of",
+    "d" : "'object', because unknown identifiers default to objects",
+    "correct" : "A",
+    "explanation" : "typeof is the one operator that tolerates an unresolvable reference and reports 'undefined'. Reading the bare identifier itself, as option B describes, really does throw.",
+    "difficulty" : "EASY"
+  } ]
+}

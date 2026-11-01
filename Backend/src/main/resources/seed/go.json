@@ -1,0 +1,490 @@
+{
+  "name" : "Go",
+  "description" : "Goroutines, channels, explicit errors and the small set of rules that make Go services predictable.",
+  "duration" : "5 weeks",
+  "rating" : 4.6,
+  "modules" : [ {
+    "title" : "Concurrency Foundations",
+    "content" : [ "Goroutines are scheduled by the Go runtime and start cheaply. Channels are the typed conduits used both to pass values and to synchronize completion. A goroutine is only a function value the runtime multiplexes onto an operating-system thread, so starting one costs a few hundred bytes rather than a kernel stack, which is why fanning out thousands of them is an ordinary design choice. A channel carries a declared element type, so the compiler rejects a send of the wrong type at build time instead of corrupting a queue at runtime. The behaviour worth memorising is that a receive parks the receiver until some sender is ready, which makes a channel as useful for signalling completion as for moving data. The failure mode appears when a pipeline signals with struct{} values and nobody closes the channel: receivers stay parked, the runtime never warns you, and the symptom is a goroutine count that climbs slowly under traffic instead of a crash.", "A buffered channel decouples sender and receiver until the buffer is full; a send then blocks until space is available. Unbuffered channels synchronize both sides on every exchange. The capacity chosen by make(chan T, n) is fixed for the life of the channel, there is no resize, so a buffer sized for a burst that never arrives is wasted memory while a buffer sized too small behaves exactly like a rendezvous. A buffer also hides a slow consumer: the producer keeps running while work piles up in the queue, and the pressure moves somewhere else instead of pushing back on the caller. That is why most Go pipelines use unbuffered or capacity-one channels and let the caller's context bound the total work, treating backpressure as something to expose rather than smooth away. Long buffers also make latency invisible, so a request that quietly waits behind nine hundred queued items still looks healthy on a dashboard.", "defer schedules a call for function exit, and deferred calls run in last-in-first-out order, which makes cleanup compose naturally. Arguments to a deferred call are evaluated when the defer statement runs, not when the deferred function finally executes, so deferring a print of a variable shows the value at the defer site while deferring a closure over a pointer observes later mutations. Deferred calls run on a normal return, during a panic unwinding, and when runtime.Goexit is called, but not when the process is killed or os.Exit runs, which is why os.Exit skips cleanup entirely and belongs in main at most. A defer inside a loop is not per-iteration cleanup: the calls pile up until the enclosing function returns, so a worker that opens a file each tick and defers its Close keeps every descriptor alive and eventually hits the process limit. Wrapping the loop body in its own function, or closing explicitly, is the fix.", "Closing a channel is a broadcast rather than a value: every blocked and every future receiver wakes, immediately gets the element type's zero value, and sees the two-value form report a boolean of false. The sender owns the close, because a send on a closed channel panics and a second close panics too, so closing from the receiving side or from several concurrent producers is a crash that depends only on scheduling. When several goroutines produce into one channel, a WaitGroup or an errgroup watches the count and the last producer closes it, which is the only shape that is safe under load. Two related facts surprise people: a receive from a nil channel blocks forever rather than panicking, and a select case whose channel variable is nil is effectively disabled, which is occasionally a deliberate trick but usually an uninitialized struct field quietly deadlocking a worker.", "A select statement waits until at least one of its communication cases can proceed, and when several are ready at the same instant it chooses pseudo-randomly rather than top-down, so a fast case cannot starve a slow one. Adding a default turns the select into a non-blocking poll, which is exactly what you want inside a drain loop and exactly what you do not want in a busy loop, because that spins a core. Timers inside a select need care: calling time.After on each iteration allocates a new timer that is never stopped, so a long-lived loop leaves one pending timer per tick and the values you discard still hold memory until they fire. The sturdier shape holds a single time.Timer, checks whether its channel was already drained before calling Reset, and adds a case on the context's Done channel so a parked worker also notices cancellation.", "Every goroutine you start needs a documented way to end, and the leaks are mechanical rather than subtle: one parked forever on a channel nobody closes, one blocked on an unbuffered send whose receiver returned early, or a loop watching a plain boolean field instead of a channel or a context. The runtime neither garbage-collects blocked goroutines nor reports them, so a leak is invisible until a profile shows the count, which is why a goroutine gauge belongs next to the latency graphs. The structural fix is that the code starting a goroutine also owns its shutdown path, usually a context the caller cancels, and the loop selects on that Done channel every iteration so cancellation wins over a pending send. Where fan-out is unbounded, a worker pool turns it into a queue plus a fixed number of consumers, which bounds both memory and how much damage one slow dependency can do.", "Channels are not the only synchronization Go offers, and for plain mutual exclusion a sync.Mutex is clearer and cheaper than inventing a one-slot channel. A Mutex is not reentrant: locking twice in the same goroutine deadlocks instead of counting depth, which surprises developers arriving from languages where nested locking is free. sync.WaitGroup requires that Add happen before the corresponding Wait, so calling Add inside the goroutine being waited for is a race that intermittently returns too early, and a counter that goes negative panics rather than clamping. sync.Once runs its argument exactly once even under concurrent callers, the right shape for lazy setup, while the atomic package gives individually atomic operations that provide no compound invariant a held lock would. Whichever primitive you choose, the underlying rule is the same: a write concurrent with another access, with no synchronization edge between them, is a data race and undefined behaviour.", "Send and receive are ordinary assignments, which means they copy the value handed to the channel; pushing a large struct sends a fresh copy of every field, and a struct whose fields include a slice or map still shares that underlying storage with the sender. Sending a pointer is the cheap option, but it transfers a mutation hazard instead of a value, so the receiver must treat the pointed-at data as owned or agree who may write it. The same copy rule explains why a channel of a type that contains a sync.Mutex compiles and then misbehaves: the lock that gets copied is not the caller's lock, and vet reports the copy of a lock by value. When a producer wants a fresh object per consumer, either send a value built for sending or define a Clear and reuse protocol around a sync.Pool, and never share one mutable struct between several receivers just because the send was cheap." ]
+  },
+  {
+    "title" : "Types, Errors and Tooling",
+    "content" : [ "Interfaces are satisfied implicitly: any type with the required method set implements the interface, so packages stay decoupled without registration. An interface value is internally a pair of pointers, one to a dynamic type descriptor and one to the data, and it compares equal to nil only when both halves are nil. That single fact produces the most reported error-handling bug in Go: a function that returns a *MyError which happens to be nil, assigned to an error interface, hands the caller a non-nil interface wrapping a nil pointer, so the failure branch runs on a successful call. The remedy is to return a literal nil, or to declare the function's result as error rather than the concrete type. Method sets matter too: if the methods are declared on pointer receivers, only the pointer type satisfies the interface, and the compiler says the value type is missing methods rather than offering a conversion you can force.", "Errors are ordinary values returned by functions. Callers decide whether to handle, wrap with fmt.Errorf('%w') or propagate, and panic is reserved for unrecoverable programmer errors. Wrapping records the context of the layer that observed the failure without erasing the cause, so errors.Is can still walk the chain to a sentinel such as sql.ErrNoRows, and errors.As can still reach a concrete driver type with fields worth inspecting. A fmt.Errorf call without the %w verb produces a string-only error and silently severs that chain, which is precisely what go vet reports, and comparing a wrapped error with == only ever matches the outermost value. The consequence for a service is practical: an HTTP layer that switches on errors.Is returns honest status codes, while one that does err.Error() string matching breaks the moment someone adds a prefix to the message.", "The race detector instruments memory accesses at runtime: go test -race and go run -race report data races that tests happen to trigger. It is a dynamic, sampling analysis rather than a proof, because a clean run only says the interleavings that actually executed contained no unsynchronized conflicting access, and a different schedule under production traffic can expose the same line tomorrow. Its reports name both accesses and the goroutines involved, which makes them actionable in continuous integration logs, and the detector can only see code the test reached. It also needs cgo and a supported platform, so building with CGO_ENABLED=0 turns -race into an outright error instead of a quiet pass, and the overhead, often several times the normal runtime and memory, is why instrumented builds stay in the test job. A production binary compiled without the flag contains no instrumented checks at all, so shipping it proves nothing about races.", "Go has only value assignment: every pass to a function, every append, every send on a channel and every return copies the value, and there are no reference types, copy constructors or move semantics to hide that cost. Arrays are values, so passing a large [1024]int duplicates all of it, while a slice header is a pointer plus a length and a capacity, making copies cheap and aliasing silent. Structs copy field by field, which is why a method on a value receiver can never mutate the caller's copy and why embedding a mutex in a struct that gets passed around produces a lock nobody shares. Maps, channels, pointers and slices are the four kinds whose copies keep referring to shared state; everything else you passed was duplicated at the call site, and the escape analysis behind where that copy lives is a compiler decision rather than a hint you can give.", "A slice is a window into an array, and append writes into the existing capacity until it runs out; when the length would exceed cap the runtime allocates a larger array, roughly doubling small slices, copies the elements, and returns a header pointing at the new storage. That is why the result of append must always be reassigned and why two slices sharing a backing array diverge after one of them grows, the grown one writing elsewhere while the other keeps mutating the old tail. The three-index form s[low:high:max] caps the capacity so the next append is forced to copy, which is the standard defence against handing a sub-slice to a library that later corrupts your data. Copying does not free anything either: while a sub-slice references a large buffer, that whole buffer stays alive, which is how a small cached string can pin megabytes.", "A string is an immutable header over a byte sequence plus its length, so converting one to []byte, or back, allocates and copies, and in benchmarks that conversion is often the entire measured cost of a routine shuttling text between io and strings. Ranging over a string yields runes together with their byte index, while ranging over []byte yields raw bytes, so the two loops disagree for any non-ASCII input and only one of them mis-decodes. len counts bytes rather than characters, which is why a validation rule written against len rejects legitimate user names, and why truncating a string at a byte boundary can produce an invalid sequence that renders as a replacement character. The utf8 package exists for the cases where character semantics genuinely matter, and the same byte-versus-rune distinction decides whether a protocol parser is correct or merely lucky with ASCII test data.", "Structs compose by embedding rather than inheritance: embedding a type promotes its exported methods onto the outer type, and a method declared on the outer type shadows a promoted one, so a wrapper that intercepts one call and forwards the rest needs a single line rather than a delegation stub for every method. Promotion follows receiver rules, so a method declared on a pointer receiver is reachable through an embedded value only when that value is addressable, which is one reason embedding a type whose methods mutate state by value is usually wrong. encoding/json only sees exported fields, honours a field's tag including omitempty, and skips unexported ones entirely, so a payload that arrives with a mysteriously empty member is nearly always a lower-case first letter rather than a broken encoder. Malformed tags are reported by vet, and tag format is easy to get wrong in ways that silently change the JSON key.", "Tooling is part of the culture rather than an add-on: gofmt is not a personal preference but the definition of acceptable formatting, so many projects fail a build when gofmt -l prints anything at all. go vet runs the checks the compiler deliberately omits, including printf verb-and-argument mismatches, a lostcancel warning when the cancel function returned by context.WithCancel is discarded, an HTTP response body that is never closed, and copying a type that contains a sync lock by value. The language server reports the same information while you type, and go generate executes the commands marked with //go:generate, which is the sanctioned home for code generation. Build constraints written as //go:build lines keep platform-specific files out of a cross-compiled build, and GOFLAGS in the environment quietly changes every command, which explains a build that works locally and fails in CI." ]
+  },
+  {
+    "title" : "Goroutine Scheduling and the Runtime",
+    "content" : [ "Go's scheduler multiplexes goroutines, the G of the model, onto a small pool of operating-system threads, the M, through per-core run queues attached to logical processors called P. A goroutine runs on a thread only while some P is available to pick it up, and the count of usable Ps is GOMAXPROCS, so an eight-core machine runs eight goroutines simultaneously no matter how many are runnable. Newly created goroutines land in a local queue and overflow to a global one, and an idle P steals work from a busier peer rather than waiting on a central lock, which is what keeps scheduling latency low without a bottleneck. The detail people miss is that GOMAXPROCS caps execution concurrency, not thread count: goroutines blocked in syscalls can leave the process holding far more threads than cores, and a service can sit on hundreds of parked threads while still running only eight at once.", "Before Go 1.14 a goroutine could only be preempted at function-call safety points, so a tight loop with no calls held its P for milliseconds and delayed the garbage collector's stop-the-world phase; the runtime can now interrupt a goroutine almost anywhere, which removed those latency spikes without turning the scheduler into a fixed-quantum round robin. Time slicing is not the whole story: a CPU-bound goroutine yields when the scheduler decides it has run long enough, while a blocked call is handled quite differently. A syscall parks the thread with its goroutine and, if no idle thread is left, the runtime creates another so the P keeps running, whereas network I/O goes through the poller and blocks no thread at all. That asymmetry is why a hundred thousand idle sockets cost almost nothing while a single pure-CPU loop permanently occupies one scheduling slot.", "A goroutine begins with a small stack, a couple of kilobytes allocated by the runtime rather than the operating system, and that stack grows by copying itself into a larger block when a call would overflow it. Because the stack can move, the address of a local variable cannot always stay a stack address, which is why taking a pointer to something local is not a hint to the compiler but a question the compiler answers with escape analysis: the same variable lives on the stack or on the heap depending on whether the pointer outlives the call. Shrinking happens lazily during collection, so a code path that once recursed deeply leaves a high-water mark behind. The practical consequence is that spawning is cheap enough to make wide fan-out a legitimate design, provided each of those goroutines is accounted for and the per-goroutine stack cost stays bounded rather than depending on one accidental deep recursion.", "The garbage collector is a concurrent tri-colour marker: it traces live objects while the program keeps running, accepts a modest allocation slowdown, and stops the world briefly twice per cycle to bracket the marking phase. GOGC sets the growth target, so the default value of 100 means the heap roughly doubles before the next cycle, and the soft memory ceiling introduced later lets you name a limit the collector tries to respect by working harder instead of letting usage spike. In a service that allocates several small structs per request, the collector's share of CPU can easily exceed the cost of the lock you were worried about, which is why pooling and reuse show up so often in profile output rather than in benchmarks. Pauses on ordinary heaps are sub-millisecond, so a ten-millisecond tail-latency problem is almost never the collector's fault, and blaming it without a profile is a habit the numbers tend to break.", "Go offers no thread-local or goroutine-local storage, and the absence is deliberate: a goroutine's identity is not available to library code, so a value either travels as an explicit parameter or does not travel at all. Context is the sanctioned carrier for request-scoped values, and WithValue keys are meant to be values of an unexported type precisely so two packages cannot collide on the string user. Reading from context is a lookup that can miss, which is why the idiomatic style keeps ambient keys few and never puts a required dependency there; a database handle or a logger belongs in a struct field on the handler, visible in the constructor, not fetched from a context three layers down. The same reasoning rejects package-level mutable state: with hundreds of goroutines sharing one process, a global map is a data race that happens to be quiet, not an accident awaiting a rare schedule.", "Tuning the scheduler by hand is mostly a mistake, except in containers, where it has been a real one: older runtimes derived GOMAXPROCS from the host's core count rather than the cgroup quota, so a pod limited to half a CPU scheduled eight logical processors, paid for the extra context switches and then got throttled by the kernel. Recent runtimes consult the cgroup CPU limit when choosing the default, and the effect is visible as fewer runnable threads rather than as extra throughput. runtime.Gosched hands the P to another goroutine without blocking, which is occasionally right inside a long computation loop so a latency-sensitive peer is not starved, and almost never right as a substitute for genuine synchronization. Raising GOMAXPROCS above the number of processors you can actually get adds threads and memory but no parallelism, since concurrency is still bounded by the processors the scheduler holds.", "The Go memory model states precisely which reads are guaranteed to see which writes, and it is weaker than most developers expect: with no synchronization edge between them, a read may observe any value ever written to that location, including a stale one, and both compiler and hardware may reorder. A channel send happens before the corresponding receive returns, a lock acquisition happens before the matching unlock, and a WaitGroup's Done happens before the Wait that follows, which is why these primitives are the documented way to publish a value rather than merely to guard one. The claim that a spinning goroutine may never see another's write is not theoretical; it is what a plain boolean field polled in a loop can legitimately do forever. Anything a second goroutine must observe needs a channel, a lock, or an atomic operation, and no amount of testing substitutes for that edge.", "The garbage collector is concurrent but not magical, and it is allocation volume rather than object count alone that sets the cost of a service. A hot loop that builds a short-lived string or slice per request can spend a surprising part of its CPU budget in collection, which is what a heap profile shows as bytes allocated per second instead of bytes held live. sync.Pool amortises that by keeping per-processor caches of reusable objects, but its contents can be discarded at any collection, so a pool is a performance device and never an ownership or lifetime model. Escape analysis tells you whether the allocation happened at all, and the compiler's report shows the reason a variable moved to the heap, usually an interface conversion or a returned pointer. Reducing allocations is the cheapest optimisation Go offers, and it is measurable without touching lock contention or scheduler tuning at all." ]
+  },
+  {
+    "title" : "Packages, Modules and the Standard Library",
+    "content" : [ "A Go package is a directory of files sharing one import path and one namespace, and visibility is decided by the first letter of an identifier rather than by a keyword: exported names are reachable by importers, unexported ones are invisible outside the package yet fully shared inside it, so any file in the package may touch another file's private state. There is no protected modifier and no module-private tier, and there are no import cycles, because the compiler demands an acyclic graph and reports a cycle by printing the entire path. Package initialisation runs variable initialisers in dependency order and then init functions, which cannot be called explicitly, so using init for anything that needs configuration or a shutdown path is a trap. A package whose init opens a database connection cannot be tested without that database, which is why the convention reserves it for cheap registration, such as a driver naming itself to database/sql.", "A module is a versioned unit of distribution: a directory whose go.mod names the module path, states the Go version it expects, and lists the requirements needed to build it. Selection uses minimal versions, so the build uses exactly the version listed rather than the highest any dependency mentioned, which makes builds reproducible but also lets one stale indirect requirement pin an old library until go mod tidy or an explicit get rewrites it. Major versions above one belong in the import path, so example.com/x/v3 is a genuinely different package from example.com/x, and that is what lets an old consumer keep compiling while another adopts a breaking release. Every fetched version is checked against hashes recorded in go.sum, and a mismatch is a hard failure rather than a warning, while a vendor directory is an optional snapshot for offline builds rather than a cache you must maintain.", "Modules are fetched through a proxy, and a private repository is reached by naming its paths in GOPRIVATE so both the proxy and the public checksum database are skipped for them. A replace directive is the legitimate way to build against a fork or a local working copy, but a replace that points at a relative directory becomes a landmine once CI clones the repo without that folder, so keep replaces in the application module and never publish one from a library. A tool requirement records that a generator belongs to the module rather than to the build, and the version line in go.mod states the minimum Go release the module expects rather than the compiler you must personally own. When source uses a language feature newer than that line, the compiler refuses and names the version it wanted rather than emitting a confusing parse error, and hand-editing these files is rarely better than letting the tooling rewrite them.", "The standard library is broad enough that most services need few third-party dependencies: strings and bytes hold the text and buffer operations other ecosystems package, the sort, slices and maps helpers cover ordering and searching, errors supplies Is, As and Unwrap, and time carries a monotonic reading so duration arithmetic survives a clock adjustment. Because those types ship with the language, they are what public APIs should accept; a function that takes a bespoke string wrapper is harder to compose than one taking string or []byte. The library's taste shows in what it leaves out: no ORM, no injection container, no exception hierarchy, and no structured logger until log/slog arrived in Go 1.21, all decisions that push weight back onto small interfaces you implement locally. Reaching for a dependency therefore needs an argument against the standard types, not merely a preference for a nicer builder.", "The io package is the standard library's spine: io.Reader is one Read method, io.Writer is one Write method, and nearly every extra capability is a separate optional interface such as Closer, Seeker, ReaderFrom or WriterTo that a type may implement on top of those two. That decomposition lets io.Copy stream from an HTTP body to a file with no intermediate buffer, and lets a gzip reader wrap a file reader while neither knows about the other. Wrapping is also where the bugs live: a type assertion for a Seeker against a doubly wrapped reader fails unless the wrapper forwards the extra method, and a short read with a nil error is legal, because a source that temporarily has nothing to give may return a count below the requested length. Loops therefore check the byte count as well as the error, and code that assumes one Read fills the buffer is the classic truncated-file bug.", "Generics arrived in Go 1.18 as type parameters bounded by interfaces, and the language uses them sparingly: it added a constraints package plus slices and maps helpers and no linked list or tree, because slice and map with the standard library cover most needs. A constraint declares which operations a type argument permits, so a function bounded to numbers may compare but cannot format without another bound, and a type parameter list that accepts any type then immediately boxes it into an interface is the sign the code wanted an ordinary interface method, since behaviour that varies belongs in a method while shape that varies belongs in a parameter. The compiler deduplicates identical garbage-collection shapes and passes dictionaries for operations a constraint does not cover, so the cost is indirection and sometimes lost inlining rather than an explosion of copies. Write a generic when two concrete implementations are genuinely the same code.", "File access stays close to the operating system: os.Open returns a file handle and an error, permissions come from mode bits, and a missing file is an error value rather than an exception, so the branch you write is errors.Is against fs.ErrNotExist. io.ReadAll on a request body is the convenience that turns an unbounded stream into an unbounded allocation, which is why a limit reader, or a size check first, belongs in front of any read from an untrusted source. The embed directive ships static assets inside the binary as a read-only filesystem that satisfies the same fs.FS interfaces the os package satisfies, so a handler can be aimed at a directory or at embedded assets by changing one argument. The path package treats slash as the separator while filepath is aware of the host, and mixing them is a portable way to build a traversal bug that only appears on one operating system." ]
+  },
+  {
+    "title" : "Testing, Benchmarks and Profiling",
+    "content" : [ "A test is a function named TestXxx taking a pointer to testing.T in a file whose name ends with _test.go, and the tool discovers them per package, so the package must compile for anything to run at all. A test file may declare the same package or the package name suffixed with _test: the first sees unexported identifiers, the second forces you against the public surface and is the only shape that can import the package without a cycle. Subtests created with t.Run give each table row its own name, so a failure reports one case instead of an opaque loop that stops at the first error, which is what a break in a bare loop does. Only the test's own goroutine may call the Fatal family, because that method stops the calling goroutine; a Fatal from a goroutine you spawned strands the test, and reporting from a helper belongs on t's error path instead.", "Table-driven tests are the idiom: a slice of structs holding inputs and expectations, then one loop that calls t.Run per row, and the row's fields appear in failure output because t.Errorf prints a format plus values. Parallelism is opt-in per subtest through t.Parallel, which pauses the subtest and resumes it when the parent's loop has finished registering siblings, and that is exactly where the loop-variable capture bug used to bite: before Go 1.22 the loop variable is one variable shared by every iteration, so all parallel rows observe the last table entry unless the test rebinds it with an explicit local copy or passes the value in. Go 1.22 gave each iteration its own variable, which silently fixes new code while an older toolchain still runs the old behaviour, so a suite that must build across versions binds explicitly rather than relying on the release notes.", "A BenchmarkXxx function is measured by running the body b.N times, and the harness grows N until the loop is long enough to time reliably, which is why the result is nanoseconds per operation rather than total elapsed wall time. Benchmarks compare rather than judge: the claim worth making is that a change moved ns/op or allocs/op, so a baseline gets stored and repeated runs get statistics instead of eyeballing one noisy sample. Work that is not part of what you measure belongs after a ResetTimer, allocation figures come from ReportAllocs or the memory flag, and a benchmark that mutates package state measures its own leftovers. A result whose value is never used can be optimised away, so keeping a sink, a package-level variable or a field of the result, is what proves the work happened. Sub-benchmarks over input sizes reveal the curve a single number hides.", "Profiling comes from runtime/pprof inside a process and net/http/pprof for a running service, and both expose the same set: CPU, heap, goroutine, block and mutex. A CPU profile is a periodic sampling of stack traces, so interpreting it means reading flat against cumulative: a function high in the flat column but never at the top of a cumulative path is not the problem, and sampling an idle service for ten seconds measures nothing except the scheduler's patience. The heap profile distinguishes objects currently live from bytes allocated over time, and reading the allocation view is how you find churn that costs CPU, while the live view is how you find a leak that costs memory. Block and mutex profiles stay empty until you set a profiling fraction in code, which is why a contention complaint normally needs a change plus a restart rather than one more URL scraped from the debug endpoint.", "Fuzzing runs a target function against generated inputs, mutating a seed corpus in search of a panic or a broken property, and writes any crashing input into the corpus directory so an ordinary test run replays it forever as a regression. A fuzz target takes a pointer to testing.F, must be deterministic, must avoid sleeping, and must not touch the network or the clock, because the harness runs it a great many times per second, and an allocation-heavy target spends its budget on the collector instead of on edge cases. Coverage counts statements executed, and it tells you which lines no test reached; it says nothing about whether assertions are strong, which is why a suite can report very high coverage while passing a broken implementation. Concurrency needs a different signal altogether: the race detector converts an unsynchronised interleaving into a failure, while a plain run can pass for months before some schedule exposes the same line.", "The standard library ships a test server that genuinely listens on a loopback port and a recorder that captures a handler's output without touching a socket, so a handler is tested by calling ServeHTTP with a synthesised request and asserting on the recorded status, headers and body rather than by booting the whole application. External services get faked at the HTTP boundary by pointing a base-URL field at that test server, and time gets faked by injecting a clock function, because a test that sleeps to let something finish is a test slowly becoming flaky and eventually deleted. A hand-written fake that implements the same interface records calls and stops compiling when the interface changes, which is the failure mode people reach for a generator to avoid; a generated mock hides that signal behind runtime expectations. Keep the fixture per test rather than shared across them so ordering flags stay usable.", "The test result cache is keyed on the package's sources, its dependencies, the build flags and the test binary, which is why a green run does not always prove the current code executed: an untouched package replays stored output, and only a change in one of those inputs forces a rerun. A count flag defeats the cache, a shuffle flag randomises order to expose tests that quietly depend on one another, and running the race detector alongside vet in one job catches the mistakes reviewers stop noticing. A panicking test, or a package that fails to build, produces non-zero exit status but does not stop other packages from running, so CI that greps only for the word FAIL can misread a crash as a pass. Coverage merged across packages reports the whole build rather than the coverage of one well-tested leaf, and the profile format needs the race mode when the code is concurrent." ]
+  },
+  {
+    "title" : "HTTP Services and Data Access in Go",
+    "content" : [ "A handler is anything with a ServeHTTP method taking a response writer and a pointer to a request, and the standard server supplies routing, TLS and connection management around it, so a service that needs nothing exotic has no framework in it. Since Go 1.22 the mux understands method-and-path patterns, so a registration for GET on a templated path stores the segment for r.PathValue, which replaced a whole category of third-party routers. Write the response in one pass, because the first Write flushes the status line and the headers implied so far: a header set afterwards is silently dropped, a later WriteHeader logs that the superfluous call was ignored, and a handler that returns without writing anything sends an empty success. Middleware is just a function taking a handler and returning one, so ordering stays explicit, visible in the route table, and testable.", "An HTTP client is safe for concurrent use and should be reused, because a client is only configuration while its transport holds the connection pool; building a fresh client per request throws that pool away, burns ephemeral ports and turns a latency graph into a sawtooth. The default client has no timeout whatsoever, so a server that stops responding parks the caller until the context or the process dies, which is why production transports set a dial timeout, a response-header timeout and a whole-exchange client timeout including body reads. Every response body must be closed exactly once, and a body you do not want still has to be drained before closing if you expect the connection to be returned to the pool; skipping that step is the usual cause of mysterious connection churn. An error from Do reports a transport failure, never an HTTP status, so a 500 response arrives with a nil error.", "Every inbound request carries a context that is cancelled when the client disappears, when the server's own deadline fires, or when code above cancels it, and that cancellation propagates only if the code downstream checks it. Passing the context to the database call, to the outbound request and to any fan-out helper is what stops a cancelled request from continuing to cost money, while a goroutine spawned from a handler that ignores it keeps working after the response was written and after nobody was listening. Calling WithTimeout and dropping the cancel function is exactly what vet's lostcancel check reports, since the timer and its child context stay reachable until the deadline passes. Server-side timeouts are three different settings with three meanings: reading a header slowly is one problem, a slow writer is another, and an idle keep-alive connection held open forever is a third, so name each explicitly instead of trusting one blanket value.", "database/sql is a connection pool wearing a SQL-shaped API, not a single connection, and its defaults of unlimited open and unlimited idle connections will surprise a server with a hard session limit, so maximum opens, maximum idles and a connection lifetime are not tuning but the difference between a service and an outage. Parameters travel to the driver as placeholders in that driver's dialect and are never interpolated by the library, so injection comes from your own string concatenation rather than from the package. A prepared statement belongs to a connection, which is why preparing on the database handle and executing inside a transaction behaves oddly, and why the transaction is the right receiver for a statement used within it. A one-row query does not report a miss as an error at assignment: the failure surfaces from Scan as the driver's no-rows sentinel, so checking only the first error silently treats an empty result as a zero-valued record.", "A transaction pins one pooled connection for its life, opened by a begin that takes a context so cancellation reaches the server, and it ends in a commit or a rollback; a function that returns between the two leaks that connection until collection, the standard shape of a Go service's pool exhaustion. The idiomatic wrapper defers a rollback guarded by a success flag, or takes a closure it runs with retry logic, because a serialization conflict on a busy database is transient and the retry must re-execute the whole body rather than resume it. Result sets share the contract: while a Rows iterator is open it holds the connection, so nesting a query inside a row loop on a pool of one blocks until iteration finishes, and an unconsumed result set must be closed explicitly. Check the iterator's error after the loop, because reaching the end of a truncated stream reports nothing through the row-scanning call itself.", "JSON marshalling walks exported fields reflectively and builds the whole document in memory, so a very large payload becomes a very large allocation, while a stream over an io.Writer keeps memory flat. A handler that accepts bodies should wrap the request reader in a max-bytes limit before decoding, because otherwise the client chooses your allocation size; decode into a typed struct so a shape change becomes a compile error. Field names come from tags, an absent incoming member leaves the zero value rather than raising an error, and unknown keys are ignored unless the decoder is told to reject them, so a mistyped client field becomes a silent no-op rather than a bad request. Numbers decode to float64 by default, so an identifier larger than two to the fifty-third power loses precision unless the field is typed as an integer or decoded through the raw number type. Set the content type explicitly, because the server sniffs the first bytes otherwise.", "A server started through the one-line helper has no shutdown path, so a rolling deploy cuts requests in flight; the shape that closes cleanly keeps listening separate from serving, holds the listener, sets header-read timeouts before accepting, and on a signal calls the graceful shutdown with a context whose deadline is shorter than the orchestrator's kill window, then lets a WaitGroup drain handlers. TLS needs no extra dependency: serving with a certificate and key is built in, the config's certificate callback is where rotation swaps material without a restart, and minimum and maximum protocol versions are set there rather than hoped for. Because the library covers serving, security and lifecycle, a Go service's third-party surface is usually one driver, one logging package and metrics, and every dependency beyond that should justify itself against the upgrade and advisory history it brings along.", "Writing to the response writer commits it, and several mistakes look identical from the client's side until you read the contract closely. A handler that returns an error description after already streaming a body appends text to a response that was sent with status 200, because the writer has no way to retract bytes. A template rendered into the writer twice emits both documents, and a redirect after any Write never reaches the browser since the status line was already flushed. The disciplined pattern renders into a buffer, checks for an error, and then copies the buffer to the writer exactly once, which also lets the error path choose a status honestly. That buffering costs one allocation per request and buys the only shape in which a failure after partial work can be turned into a coherent 500 instead of a truncated 200." ]
+  } ],
+  "questions" : [ {
+    "text" : "What happens when a goroutine sends on a buffered channel that is full?",
+    "a" : "The value is silently dropped",
+    "b" : "The channel grows automatically",
+    "c" : "The sender blocks until space is available",
+    "d" : "The program panics",
+    "correct" : "C",
+    "explanation" : "A full buffer makes the send block; only a closed channel causes a panic on send.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "In what order do deferred calls run when a function returns?",
+    "a" : "In declaration order",
+    "b" : "In reverse order of declaration",
+    "c" : "Only the last defer runs",
+    "d" : "In random order",
+    "correct" : "B",
+    "explanation" : "Defers are stacked: the most recently deferred call runs first.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "s is a slice with spare capacity and t = append(s[:2], 9) stays within it. What is s[2] afterwards?",
+    "a" : "It stays 3 because slices copy their elements when appended to",
+    "b" : "The program fails to compile",
+    "c" : "The program panics at runtime",
+    "d" : "It becomes 9 because append reused the same backing array",
+    "correct" : "D",
+    "explanation" : "Slices are descriptors over a backing array. Appending within capacity writes into shared storage, a classic aliasing bug.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "What happens when you read from a nil map, and when you write to one?",
+    "a" : "Reading returns the zero value; writing panics",
+    "b" : "Both reads and writes panic",
+    "c" : "Both reads and writes are safe because nil maps are initialized lazily",
+    "d" : "The compiler rejects nil maps",
+    "correct" : "A",
+    "explanation" : "A nil map behaves like an empty map for reads, but there is no storage to write to, so assignment panics. Use make first.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "How does idiomatic Go report a recoverable failure?",
+    "a" : "By throwing exceptions that callers catch",
+    "b" : "By panicking and recovering at the top level",
+    "c" : "By returning an error value that the caller handles",
+    "d" : "By writing to a global error variable",
+    "correct" : "C",
+    "explanation" : "Errors are explicit return values; ignoring them is visible in code review and the compiler helps with unused results.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "How does a concrete type satisfy an interface in Go?",
+    "a" : "It must explicitly declare that it implements the interface",
+    "b" : "Interfaces can have fields",
+    "c" : "Only pointer receivers can satisfy interfaces",
+    "d" : "Implicitly, by defining the required method set",
+    "correct" : "D",
+    "explanation" : "There is no implements keyword; satisfaction is structural and checked by the compiler at assignment.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "What does go test -race do?",
+    "a" : "It instruments the binary and reports data races observed at runtime",
+    "b" : "It proves the absence of races by static analysis",
+    "c" : "It prevents all races at compile time",
+    "d" : "It only works for packages without goroutines",
+    "correct" : "A",
+    "explanation" : "The detector catches races that actually execute during the test, so coverage depends on the exercised paths.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "What is the effect of a default case inside select?",
+    "a" : "It makes the select block indefinitely until a channel becomes ready",
+    "b" : "It runs when no other case is ready, making the select non-blocking",
+    "c" : "It is required in every select",
+    "d" : "It panics when no channel is ready",
+    "correct" : "B",
+    "explanation" : "A default case turns select into a non-blocking poll of the listed channels.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "What is context primarily used for?",
+    "a" : "Storing application configuration in a global variable",
+    "b" : "Replacing goroutines",
+    "c" : "Guaranteeing strongly typed values",
+    "d" : "Propagating cancellation and deadlines across call boundaries",
+    "correct" : "D",
+    "explanation" : "Context carries cancellation, deadlines and request-scoped values through APIs that accept it as the first parameter.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "Given s := make([]int, 0, 10), what are len(s) and cap(s)?",
+    "a" : "0 and 10",
+    "b" : "10 and 10",
+    "c" : "0 and 0",
+    "d" : "10 and 0",
+    "correct" : "A",
+    "explanation" : "make with a length of zero and a capacity of ten allocates storage without exposing elements yet.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "In Go, what is the value of an int64 declared as var n int64 with no assignment?",
+    "a" : "It is initialised to 0",
+    "b" : "It is nil until something assigns it",
+    "c" : "It holds indeterminate memory contents",
+    "d" : "The compiler rejects the declaration",
+    "correct" : "A",
+    "explanation" : "Every Go variable starts at its type's zero value, so a numeric var is 0 and never garbage. Option B borrows the map idea that a missing value is nil, which numbers do not have.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "What does the blank identifier do in a multi-value assignment such as _, err := strconv.Atoi(s)?",
+    "a" : "It discards every value the call returns",
+    "b" : "It discards only that position's value",
+    "c" : "It stores the value so it can be read later",
+    "d" : "It tells the compiler the call cannot fail",
+    "correct" : "B",
+    "explanation" : "The blank identifier is a sink for one position in an assignment, leaving the other results still bound. It does not silence errors, so D is the trap that keeps a failing parse unnoticed.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "Which signature and file name make a function discoverable as a Go test?",
+    "a" : "Test_anything(t testing.T) in any .go file",
+    "b" : "func TestThing(t *testing.T) in a file named main.go",
+    "c" : "func TestThing(t *testing.T) in a file ending _test.go",
+    "d" : "func BenchmarkThing(t *testing.T) in a file ending _test.go",
+    "correct" : "C",
+    "explanation" : "Tests must be in a _test.go file, start with Test followed by an uppercase-starting name, and take a pointer to testing.T. D is the trap: BenchmarkXxx takes *testing.B and is not run by default.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "With s declared as an empty slice of strings, what happens if you call append(s, \"a\") and ignore the result?",
+    "a" : "The slice grows in place, so no reassignment is needed",
+    "b" : "The compiler refuses the append call",
+    "c" : "The call panics because there is no backing array yet",
+    "d" : "Nothing changes: s still has length zero",
+    "correct" : "D",
+    "explanation" : "append returns a new slice header, so discarding it leaves the original descriptor untouched. C is the tempting trap: appending to a nil or empty slice is perfectly legal and allocates storage.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "What happens to pending deferred calls when a Go function executes a return statement?",
+    "a" : "They are skipped, since the function already returned",
+    "b" : "They run at function exit, after the return value is set",
+    "c" : "They run before the return expression is evaluated",
+    "d" : "They run at the start of the next call in that goroutine",
+    "correct" : "B",
+    "explanation" : "Deferred calls execute at function exit, which is why a defer can still modify a named return value. A is the trap that reads defer as an early-exit hint rather than a stack of cleanup steps.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "Which Go types support the == operator?",
+    "a" : "Every type supports ==, including slices, maps and functions",
+    "b" : "Only numeric types; structs need an equality helper",
+    "c" : "Strings, numbers, arrays, structs and pointers, not slices",
+    "d" : "Interfaces only, since their dynamic type drives equality",
+    "correct" : "C",
+    "explanation" : "Comparable types exclude slice, map and function types, so comparing them is a compile error rather than a runtime surprise. A is the trap: struct equality works only when every field is comparable.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "For a nil slice declared as var s []int, which statement is true?",
+    "a" : "append on it panics because there is no array yet",
+    "b" : "Reading s[0] yields 0 instead of panicking",
+    "c" : "It cannot be passed where a []int is expected",
+    "d" : "len(s) is 0 and appending to it works normally",
+    "correct" : "D",
+    "explanation" : "A nil slice is a valid empty view, so append allocates on first use and len reports zero. B is the trap imported from nil maps, where a missing read returns a zero value instead of panicking.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "In Go, what happens when the main goroutine returns while other goroutines are still running?",
+    "a" : "The process exits and the others are abandoned",
+    "b" : "The runtime waits for every goroutine to finish",
+    "c" : "It panics, naming the goroutine still runnable",
+    "d" : "The scheduler blocks main until the queue drains",
+    "correct" : "A",
+    "explanation" : "The program ends when main returns, so background work needs explicit synchronization such as a WaitGroup. B is the persistent misconception that the runtime tracks goroutines as children.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "What is the idiomatic way to test whether a wrapped error matches a sentinel such as ErrNotFound?",
+    "a" : "err == ErrNotFound, since wrapping preserves identity",
+    "b" : "errors.Is(err, ErrNotFound), which walks the chain",
+    "c" : "errors.As(err, ErrNotFound), which returns a bool",
+    "d" : "strings.Contains(err.Error(), \"not found\")",
+    "correct" : "B",
+    "explanation" : "errors.Is unwraps repeatedly and compares each layer to the sentinel, which survives fmt.Errorf wrapping. C is the trap: errors.As takes a pointer to a target type, not a value, and A only matches the outermost error.",
+    "difficulty" : "EASY"
+  },
+  {
+    "text" : "In what order does range over a Go map visit keys?",
+    "a" : "Insertion order, because maps keep it internally",
+    "b" : "Sorted by key unless the map is ordered, which none are",
+    "c" : "A randomised order, even between two ranges of one map",
+    "d" : "Whatever order the keys hash into, fixed once the map is built",
+    "correct" : "C",
+    "explanation" : "The runtime randomises the starting bucket on every range so code cannot depend on order. D is the plausible trap: bucket layout does exist, but the random start offset makes it unobservable.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "With users a slice of struct values, why does calling a pointer-receiver mutating method on the loop variable in for _, u := range users leave the slice unchanged?",
+    "a" : "Pointer-receiver methods cannot be called on range variables",
+    "b" : "range copies the entire slice before the loop begins",
+    "c" : "The method runs on a value returned by an implicit getter",
+    "d" : "The range variable is a copy of the element, not its slot",
+    "correct" : "D",
+    "explanation" : "Each iteration assigns the element to a fresh variable, so the method mutates that copy; index the slice or store pointers instead. B is the trap, since range never copies the backing array, only the element.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "On a toolchain before Go 1.22, what do the goroutines in for i := 0; i < 3; i++ { go func() { print(i) }() } usually print once they all run after the loop?",
+    "a" : "333, because one shared variable is captured",
+    "b" : "012, because each closure copies the index",
+    "c" : "000, because the goroutines run before the loop body",
+    "d" : "Nothing: capturing the loop variable fails to compile",
+    "correct" : "A",
+    "explanation" : "Pre-1.22 for loops use a single per-loop variable, so every closure reads the final value, while Go 1.22 gave each iteration its own. B is the trap that is now true for new code, and the unsynchronised read is still a race.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "Which ordering rule makes a sync.WaitGroup correct around a fan-out of goroutines?",
+    "a" : "Add may run inside the goroutine if Done is deferred there",
+    "b" : "Add must finish before any goroutine can reach Wait",
+    "c" : "Wait raises the counter itself, so Add is optional",
+    "d" : "A counter driven negative is quietly clamped at zero",
+    "correct" : "B",
+    "explanation" : "If Add races with Wait, the counter can briefly read zero and let the parent continue early. D is the trap: a negative WaitGroup counter panics rather than clamping.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "Who should call close on a channel with one producing goroutine and several consumers?",
+    "a" : "Each consumer, once it has read the value it wanted",
+    "b" : "No one: an unreferenced channel is closed when collected",
+    "c" : "The last consumer, after every receiver has finished",
+    "d" : "The producer, once it is certain no further sends remain",
+    "correct" : "D",
+    "explanation" : "Closing is the sender's job exactly once, because a later send or a second close panics. C is the trap that reverses ownership and works only until the consumers disagree.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "What happens when you send on a closed channel, and when you receive from one?",
+    "a" : "Both operations panic immediately",
+    "b" : "Both return the zero value with no indication",
+    "c" : "The send panics; the receive gives zero with ok false",
+    "d" : "The send blocks; the receive panics on the closed channel",
+    "correct" : "C",
+    "explanation" : "A closed channel still drains and then reports absence through the two-value receive form, while any send into it is a programming error. A is the trap that conflates the two directions.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "What is the consequence of calling context.WithTimeout and discarding the returned cancel function?",
+    "a" : "The timer and child context stay reachable until it fires",
+    "b" : "Nothing at all: cancellation is automatic when the scope ends",
+    "c" : "The timeout silently stops applying to that call",
+    "d" : "The parent panics when it is later cancelled",
+    "correct" : "A",
+    "explanation" : "Cancellation does not unwind with the stack, so dropping cancel leaks the derived context until the deadline passes, which is what vet's lostcancel check reports. B is the familiar defer-cancellation misconception.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "Two goroutines access the same map concurrently and one of them writes. What does Go guarantee?",
+    "a" : "Map access is serialised internally, so single writes are atomic",
+    "b" : "Nothing: the runtime may abort with a fatal error, not a panic",
+    "c" : "Only the reader sees stale entries, and never a crash",
+    "d" : "Each goroutine gets a private copy of the map on first use",
+    "correct" : "B",
+    "explanation" : "Concurrent map use is unsynchronised memory mutation, and the runtime's detector throws a fatal error rather than a recoverable panic. A is the trap that assumes an internal lock, so guard maps with a Mutex or use sync.Map.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "A function ends with var p *MyError and returns p while p is nil, with the result declared as error. What does the caller's if err != nil see?",
+    "a" : "nil, because the pointer stored inside is nil",
+    "b" : "A compile error: concrete pointers cannot become errors",
+    "c" : "A non-nil error: the interface still records a type",
+    "d" : "A panic while comparing the interface against nil",
+    "correct" : "C",
+    "explanation" : "An interface value is nil only when both its type and data words are nil, so a typed nil produces a non-nil error whose method calls may then panic. A is the classic trap behind false failures on successful calls.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "A handler calls io.ReadAll on r.Body with no limit applied. What is the concrete risk?",
+    "a" : "Only the first chunk of a chunked body is ever returned",
+    "b" : "The call blocks until the client sends a trailer",
+    "c" : "The body is read twice, doubling the work per request",
+    "d" : "A hostile client picks how large an allocation you make",
+    "correct" : "D",
+    "explanation" : "ReadAll loops to end of stream, so an unbounded body becomes an unbounded buffer; guard it with http.MaxBytesReader or a limit reader. A is the trap that imagines ReadAll returns partial data when it in fact reads everything.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "A Go handler has already called w.Write and then discovers the operation failed. What can it do about the status code?",
+    "a" : "Nothing: the first Write already sent the status",
+    "b" : "Call WriteHeader again so the status line is replaced",
+    "c" : "Panic and let recovery middleware change the status to 500",
+    "d" : "Set a header that overrides the status already sent",
+    "correct" : "A",
+    "explanation" : "The response writer commits on the first byte, so later status changes are logged as superfluous and ignored. C is the trap: a recovery handler cannot rewrite a header that has already gone out.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "Which statement about untyped constants in Go is correct?",
+    "a" : "A constant can be reassigned inside the package init function",
+    "b" : "An untyped constant adopts the contextual type, if it fits",
+    "c" : "Constants occupy memory at runtime like ordinary variables",
+    "d" : "An untyped numeric constant always has the type int",
+    "correct" : "B",
+    "explanation" : "Untyped constants carry arbitrary precision and convert to the contextual type if the value fits, which is how a constant can be used as both int8 and float64. D is the trap: a default type appears only when nothing else decides.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "How does encoding/json treat struct fields whose names start with a lower-case letter?",
+    "a" : "It marshals them with a lower-case key and ignores them on input",
+    "b" : "A tag of json:\"-\" is needed to keep them out of the output",
+    "c" : "They are invisible to both the encoder and the decoder",
+    "d" : "Reflection fills them whenever the incoming key matches exactly",
+    "correct" : "C",
+    "explanation" : "Only exported fields participate in JSON, which is the usual reason a field arrives empty rather than a decoder bug. B is the trap: the minus tag concerns exported fields that you want excluded.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "What is the lifetime of a call registered with defer inside the body of a long-running loop?",
+    "a" : "It runs at the end of the iteration that registered it",
+    "b" : "The compiler hoists it out of the loop for you",
+    "c" : "Only the last registration survives until the function returns",
+    "d" : "It waits for the enclosing function to return",
+    "correct" : "D",
+    "explanation" : "Deferred calls accumulate for the whole function, so per-iteration cleanup belongs in a helper or an explicit close. A is the trap that makes descriptor leaks look impossible in reviewed code.",
+    "difficulty" : "MEDIUM"
+  },
+  {
+    "text" : "s has length five and capacity eight. What does t := s[:0], followed by appends into t, change?",
+    "a" : "Nothing in s, since a zero-length slice detaches the array",
+    "b" : "The leading elements of s, because t writes the same array",
+    "c" : "The length of s, because the two headers share that field",
+    "d" : "Nothing until an append reallocates and copies the data",
+    "correct" : "B",
+    "explanation" : "Reslicing to zero keeps the pointer and capacity, so appends overwrite the original elements while s's own length stays five. C is the trap: headers are copied, and no length field is shared.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "In Go, why does var b byte = 300 fail to compile while c := 300 compiles happily?",
+    "a" : "byte is an alias, so 300 needs an explicit cast in a var",
+    "b" : "The compiler widens 300 into int8 for the second form",
+    "c" : "300 fits int by default, but overflows the byte type",
+    "d" : "Both fail; the literal has to be written as a rune",
+    "correct" : "C",
+    "explanation" : "An untyped constant in short variable declaration takes its default type, here int, while an explicit target type range-checks the value at compile time. B is the trap: overflow of a constant is an error, never a silent truncation.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "A Go method has a value receiver on a struct that embeds sync.Mutex by value. What does go vet report, and why?",
+    "a" : "It flags the copy: each call locks a different mutex",
+    "b" : "Nothing: embedding promotes the mutex into a shared pointer",
+    "c" : "It flags the receiver, since mutexes need atomic access",
+    "d" : "Nothing: a value receiver cannot touch embedded fields at all",
+    "correct" : "A",
+    "explanation" : "Passing the struct by value duplicates the mutex word for word, so mutual exclusion silently disappears, which is a vet copylocks error. B is the trap: there is no hidden pointer, only a value that got copied.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "A select statement finds two cases ready at the same instant: a receive from ch and a receive from a ticker channel. Which runs?",
+    "a" : "The ch case, because cases are evaluated in written order",
+    "b" : "Whichever the runtime picks; the other case stays ready",
+    "c" : "The ticker case, because timer channels always win priority",
+    "d" : "Neither: a select with two ready cases panics",
+    "correct" : "B",
+    "explanation" : "Ready cases are picked pseudo-randomly so a fast channel cannot starve a slow one, and an unread tick remains buffered for the next pass. A is the trap borrowed from switch semantics, which select deliberately avoids.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "In Go, what is true of the slice produced by make([]int, 3, 6)?",
+    "a" : "Three readable zeros, with three slots left for append",
+    "b" : "Six elements exist, the last three visible only via append",
+    "c" : "Its capacity becomes three as soon as you index it",
+    "d" : "Appending always reallocates, since length and capacity differ",
+    "correct" : "A",
+    "explanation" : "Length is the visible window and capacity the storage behind it, so three zeros exist and three more slots await. D is the trap: appends up to capacity write in place, which is precisely the aliasing hazard.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "Two Go packages need each other's types. Which mechanism is allowed for breaking the cycle?",
+    "a" : "Mark one package internal so the compiler permits the edge",
+    "b" : "Import the second package with a dot import to defer resolution",
+    "c" : "Move the shared use into init, since runtime order is permitted",
+    "d" : "Extract the shared types into a third package both may import",
+    "correct" : "D",
+    "explanation" : "Import cycles are always compile errors, and the fix is a common dependency package, interfaces defined by the consumer, or moving code. A is the trap: internal restricts who may import, it never unlocks a cycle.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "What does the runtime do when a goroutine calls runtime.Goexit from inside a select?",
+    "a" : "It aborts the whole process with a fatal error",
+    "b" : "It parks the goroutine until its parent calls Wait",
+    "c" : "It skips deferred calls, exactly like os.Exit does",
+    "d" : "It runs the defers, then ends that one goroutine",
+    "correct" : "D",
+    "explanation" : "Goexit unwinds defers for the calling goroutine, which is how t.Fatal stops a test goroutine while cleanup still runs. C is the trap: os.Exit terminates the process without any defer, and neither one panics.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "In Go, what does a type assertion against an interface value that is nil do?",
+    "a" : "A panic unless the comma-ok form is used, which says false",
+    "b" : "It returns the zero value of the asserted type",
+    "c" : "It compiles only when the asserted type is a struct",
+    "d" : "It walks the error chain with Unwrap until an interface matches",
+    "correct" : "A",
+    "explanation" : "A nil interface has no dynamic type, so the comma-ok form is false and the plain form panics. B is the trap drawn from map lookups, where a missing key yields a zero value instead.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "A handler's ctx is cancelled while it blocks on an unbuffered send to ch, whose only receiver is a loop that never reads ctx. What happens?",
+    "a" : "The runtime discards the value and the send returns immediately",
+    "b" : "Cancellation closes ch, so the send panics and is recovered",
+    "c" : "The send never completes, so the goroutine leaks anyway",
+    "d" : "The receiver is forced to take the value before stopping",
+    "correct" : "C",
+    "explanation" : "Contexts only carry a signal; nothing about cancellation unblocks a channel operation, so both goroutines stay parked and the leak survives. B is the dangerous misconception that cancellation propagates through channels automatically.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "A type Counter declares Inc with a pointer receiver. When can a Counter value, not a pointer, call Inc?",
+    "a" : "Nowhere: pointer methods are never reachable from values",
+    "b" : "Only when the value is addressable, such as a variable",
+    "c" : "Anywhere, since the compiler silently takes the address for you",
+    "d" : "Only inside the package that declares the type",
+    "correct" : "B",
+    "explanation" : "The automatic address-of works only for addressable values, so a map element or a struct field behind a value returned from a function will not compile. C is the trap, and A overcorrects it in the other direction.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "In Go, what does the receiver get from a send on a channel whose element type is a struct?",
+    "a" : "A reference to the sender's variable, so writes are shared",
+    "b" : "A pointer the runtime allocates on the receiver's stack",
+    "c" : "The value, except for fields holding slices, which are copied",
+    "d" : "A copy of the struct, including every field's contents",
+    "correct" : "D",
+    "explanation" : "A send assigns like any other copy, duplicating the struct, though slice and map fields still point at shared underlying arrays. A is the trap that makes a channel look like a pointer mailbox.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "What makes a fmt.Printf verb-and-argument mismatch invisible to the compiler but visible to go vet?",
+    "a" : "The compiler rejects it, since format strings are typed",
+    "b" : "vet rewrites the call to insert the missing argument",
+    "c" : "vet checks only calls whose arguments are constant strings",
+    "d" : "Printf takes any values, so only vet knows the verb count",
+    "correct" : "D",
+    "explanation" : "Variadic interface parameters type-check for anything, and vet's printf analyzer is what pairs verbs with arguments. A is the trap that assumes the language understands format strings at all.",
+    "difficulty" : "HARD"
+  },
+  {
+    "text" : "A package-level variable is read by many goroutines with no lock and no atomic operation. What must be true for that to be safe?",
+    "a" : "Each reader must still perform an atomic load to see any value",
+    "b" : "The goroutines must all run on the same logical processor",
+    "c" : "It must be fully written before any of them start",
+    "d" : "The variable must be declared in the same file as main",
+    "correct" : "C",
+    "explanation" : "Immutable-after-startup data needs no protection, because the happens-before edge established before the goroutines were created already publishes it. A is the trap that treats every shared read as needing atomics.",
+    "difficulty" : "HARD"
+  } ]
+}

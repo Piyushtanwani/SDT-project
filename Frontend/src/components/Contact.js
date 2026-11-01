@@ -41,7 +41,7 @@ export const Contact = () => {
 
   return (
     <div id="webcrumbs">
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-950 dark:to-indigo-950">
+    <div className="min-h-screen">
         {/* Success Animation */}
         {isSubmitted && (
           <div className="fixed inset-0 bg-black bg-opacity-30 dark:bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm transition-all">
@@ -94,7 +94,7 @@ export const Contact = () => {
                     type="text"
                     id="contact-name"
                     name="Name"
-                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="Your Name"
                   />
                 </div>
@@ -108,7 +108,7 @@ export const Contact = () => {
                     type="email"
                     id="contact-email"
                     name="Email"
-                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="your@email.com"
                   />
                 </div>
@@ -122,7 +122,7 @@ export const Contact = () => {
                     type="text"
                     id="contact-subject"
                     name="Query"
-                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="How can we help?"
                   />
                 </div>
@@ -135,7 +135,7 @@ export const Contact = () => {
                     required
                     id="contact-message"
                     name="Message"
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 h-32 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="min-h-[44px] w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-all duration-200 h-32 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="Your message here..."
                   />
                 </div>
@@ -143,7 +143,7 @@ export const Contact = () => {
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="w-full bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white px-6 py-3 rounded-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="w-full bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-700 dark:hover:bg-indigo-800 text-white px-6 py-3 rounded-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {isSending ? "Sending..." : "Send message"}
                 </button>
@@ -165,8 +165,8 @@ export const Contact = () => {
 
                 <div className="space-y-4">
                   <div className="flex items-center space-x-4 group">
-                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors duration-200">
-                      <span className="material-symbols-outlined text-blue-600 dark:text-blue-400" aria-hidden="true">
+                    <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/30 transition-colors duration-200">
+                      <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400" aria-hidden="true">
                         location_on
                       </span>
                     </div>
@@ -177,8 +177,8 @@ export const Contact = () => {
                   </div>
 
                   <div className="flex items-center space-x-4 group">
-                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-800/30 transition-colors duration-200">
-                      <span className="material-symbols-outlined text-purple-600 dark:text-purple-400" aria-hidden="true">
+                    <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-500/15 rounded-full flex items-center justify-center group-hover:bg-indigo-200 dark:group-hover:bg-indigo-500/25 transition-colors duration-200">
+                      <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-300" aria-hidden="true">
                         mail
                       </span>
                     </div>
@@ -208,14 +208,14 @@ export const Contact = () => {
                   <div className="flex space-x-4">
                     <a
                       href="/socialmedia"
-                      className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                       aria-label="Facebook (coming soon)"
                     >
                       <FontAwesomeIcon icon={faFacebookF} className="text-gray-600 dark:text-gray-400" />
                     </a>
                     <a
                       href="/socialmedia"
-                      className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                       aria-label="X (coming soon)"
                     >
                       <FontAwesomeIcon icon={faXTwitter} className="text-gray-600 dark:text-gray-400" />
@@ -225,7 +225,7 @@ export const Contact = () => {
                       rel="noreferrer"
                       target="_blank"
                       aria-label="Bite Codes on LinkedIn (opens in a new tab)"
-                      className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       <FontAwesomeIcon icon={faLinkedin} className="text-gray-600 dark:text-gray-400" />
                     </a>
@@ -234,7 +234,7 @@ export const Contact = () => {
                       rel="noreferrer"
                       target="_blank"
                       aria-label="Bite Codes on Instagram (opens in a new tab)"
-                      className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
+                      className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                     >
                       <FontAwesomeIcon icon={faInstagram} className="text-gray-600 dark:text-gray-400" />
                     </a>

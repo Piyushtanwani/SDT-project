@@ -193,10 +193,10 @@ export const UserAttempts = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6 }}
-      className="w-full min-h-screen flex flex-col items-center bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 p-4 md:p-10"
+      className="w-full min-h-screen flex flex-col items-center p-4 md:p-10"
     >
-      <div className="w-full max-w-6xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg shadow-2xl rounded-2xl p-6 md:p-10">
-        <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 bg-clip-text text-transparent mb-8 text-center">
+      <div className="w-full max-w-6xl bg-white dark:bg-gray-900 shadow-xl rounded-3xl p-6 md:p-10 ring-1 ring-gray-200/70 dark:ring-white/10">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-8 text-center">
           My Exam History
         </h1>
 
@@ -206,7 +206,7 @@ export const UserAttempts = () => {
             id="courseFilter"
             value={selectedCourse}
             onChange={(e) => setSelectedCourse(e.target.value)}
-            className="w-full md:w-72 px-4 py-3 border-2 border-purple-100 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-xl focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-700 focus:border-purple-500 dark:focus:border-purple-400 transition-all cursor-pointer"
+            className="w-full md:w-72 px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer"
           >
             <option value="all">All Courses</option>
             {courses.map((course) => (
@@ -226,7 +226,7 @@ export const UserAttempts = () => {
             <p className="text-rose-700 dark:text-rose-300 text-lg">{loadError}</p>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+              className="mt-4 min-h-[44px] px-5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
             >
               Retry
             </button>
@@ -235,7 +235,7 @@ export const UserAttempts = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center p-8 rounded-xl bg-purple-50/50 dark:bg-purple-900/20"
+            className="text-center p-8 rounded-xl bg-gray-50 dark:bg-gray-800/60"
           >
             <p className="text-gray-600 dark:text-gray-300 text-lg">
               {selectedCourse === "all"
@@ -251,10 +251,9 @@ export const UserAttempts = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.4 }}
-                whileHover={{ scale: 1.02 }}
-                className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl p-6 flex flex-col transition-all duration-300"
+                whileHover={{ y: -3 }}
+                className="group relative bg-white dark:bg-gray-900 rounded-2xl shadow-md ring-1 ring-gray-200/70 dark:ring-white/10 p-6 flex flex-col transition-all duration-300"
               >
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-indigo-900/30 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity duration-300" />
                 <div className="relative z-10">
                   <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
                     {getCourseName(attempt.courseId)}
@@ -289,7 +288,7 @@ export const UserAttempts = () => {
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => handlePayment(attempt)}
-                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-700 dark:to-blue-700 text-white py-2.5 rounded-xl text-sm font-medium shadow-md hover:shadow-lg transition-all"
+                        className="min-h-[44px] w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium shadow-md hover:shadow-lg transition-all"
                       >
                         Get Certificate - ₹{CERTIFICATE_FEE_INR}
                       </motion.button>

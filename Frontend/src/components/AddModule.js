@@ -118,7 +118,7 @@ const AddModule = () => {
   const submitDisabled = submitting || coursesLoading || courses.length === 0;
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
+    <div className="flex min-h-screen overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8">
         <motion.div
@@ -128,12 +128,12 @@ const AddModule = () => {
           className="max-w-3xl mx-auto w-full"
         >
           {/* Header */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-6 sm:mb-8">
             Add Module
-          </h2>
+          </h1>
 
           {/* Main Content */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 ring-1 ring-gray-200/50 dark:ring-gray-700/50">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg p-4 sm:p-6 md:p-8 ring-1 ring-gray-200/70 dark:ring-white/10">
             {error && (
               <div
                 role="alert"
@@ -152,7 +152,7 @@ const AddModule = () => {
                 <div className="relative">
                   <motion.select
                     id="module-course"
-                    className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 appearance-none shadow-glow shadow-glow-hover disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300 appearance-none shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                     value={selectedCourse}
                     onChange={(e) => setSelectedCourse(e.target.value)}
                     required
@@ -232,7 +232,7 @@ const AddModule = () => {
                   id="module-title"
                   type="text"
                   placeholder="e.g. Getting started"
-                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300 shadow-sm hover:shadow-md"
                   value={moduleTitle}
                   onChange={(e) => setModuleTitle(e.target.value)}
                   required
@@ -252,7 +252,7 @@ const AddModule = () => {
                     <motion.input
                       id={`module-content-${index}`}
                       type="text"
-                      className="w-full px-4 py-3 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
+                      className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300 shadow-sm hover:shadow-md"
                       value={item.text}
                       onChange={(e) => handleContentChange(e, index)}
                       required
@@ -266,10 +266,10 @@ const AddModule = () => {
                     <label htmlFor={`module-image-${index}`} className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                       Content Image <span className="font-normal text-gray-600 dark:text-gray-300">(optional)</span>
                     </label>
-                    <div className="relative focus-within:ring-2 focus-within:ring-blue-500 rounded-lg">
+                    <div className="relative focus-within:ring-2 focus-within:ring-indigo-500 rounded-lg">
                       <motion.label
                         htmlFor={`module-image-${index}`}
-                        className="flex items-center justify-center w-full px-4 py-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200/50 dark:border-blue-700/50 rounded-lg text-blue-700 dark:text-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-800/30 cursor-pointer transition-all duration-300 shadow-glow shadow-glow-hover"
+                        className="flex items-center justify-center w-full px-4 py-3 bg-indigo-50/50 dark:bg-indigo-900/20 border border-indigo-200/50 dark:border-indigo-700/50 rounded-lg text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/50 dark:hover:bg-indigo-800/30 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
@@ -310,7 +310,7 @@ const AddModule = () => {
               <motion.button
                 type="button"
                 onClick={() => setContent([...content, { text: "", imageUrl: "" }])}
-                className="flex items-center bg-gradient-to-r from-green-700 to-green-800 text-white px-4 py-2.5 rounded-lg font-medium shadow-glow shadow-glow-hover transition-all duration-300"
+                className="min-h-[44px] flex items-center bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-300"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -322,7 +322,7 @@ const AddModule = () => {
               <motion.button
                 type="submit"
                 disabled={submitDisabled}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-700 text-white py-3 rounded-lg font-medium shadow-glow shadow-glow-hover transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 whileHover={submitDisabled ? undefined : { scale: 1.05 }}
                 whileTap={submitDisabled ? undefined : { scale: 0.95 }}
               >
@@ -339,7 +339,7 @@ const AddModule = () => {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="fixed top-10 right-4 sm:right-10 bg-green-700 dark:bg-green-800 backdrop-blur-sm text-white p-4 rounded-lg shadow-lg flex items-center shadow-glow-green"
+              className="fixed top-10 right-4 sm:right-10 bg-green-700 dark:bg-green-800 text-white p-4 rounded-lg shadow-lg flex items-center"
               role="status"
             >
               <CheckCircle size={20} className="mr-2" />
@@ -349,30 +349,6 @@ const AddModule = () => {
         </AnimatePresence>
       </div>
 
-      {/* Embedded Styles */}
-      <style>{`
-        .shadow-glow {
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-        .shadow-glow-hover:hover {
-          box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
-        }
-        .shadow-glow-green {
-          box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
-        }
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

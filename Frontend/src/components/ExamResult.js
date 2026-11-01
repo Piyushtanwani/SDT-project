@@ -40,12 +40,13 @@ export const ExamResult = () => {
 
   if (error) {
     return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 flex justify-center items-center p-4">
+      <div className="w-full min-h-screen flex justify-center items-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-10 text-center">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Result unavailable</h1>
           <p className="mt-3 text-gray-600 dark:text-gray-400">{error}</p>
           <button
-            className="mt-6 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            type="button"
+            className="mt-6 min-h-[44px] bg-indigo-600 text-white px-6 rounded-lg hover:bg-indigo-700 transition-colors"
             onClick={() => navigate("/attempts")}
           >
             Go to My Exam History
@@ -57,7 +58,7 @@ export const ExamResult = () => {
 
   if (!result) {
     return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="w-full min-h-screen flex items-center justify-center">
         <div className="w-full max-w-md bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-4"></div>
@@ -72,7 +73,7 @@ export const ExamResult = () => {
   const { score, passed } = result;
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-green-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 flex justify-center items-center p-4">
+    <div className="w-full min-h-screen flex justify-center items-center p-4">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-10 text-center">
         <h1 className={`text-3xl font-bold ${passed ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
           {passed ? "Congratulations, you passed!" : "Not this time"}
@@ -87,14 +88,16 @@ export const ExamResult = () => {
         </p>
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
           <button
-            className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            type="button"
+            className="min-h-[44px] bg-indigo-600 text-white px-6 rounded-lg hover:bg-indigo-700 transition-colors"
             onClick={() => navigate("/attempts")}
           >
             Go to My Exam History
           </button>
           {passed && (
             <button
-              className="bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-gray-600 px-6 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors"
+              type="button"
+              className="min-h-[44px] bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-gray-600 px-6 rounded-lg hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors"
               onClick={() => navigate("/certificates")}
             >
               View Certificates

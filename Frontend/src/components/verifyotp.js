@@ -80,22 +80,12 @@ export const VerifyOtp = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 p-4 relative overflow-hidden">
-      {[...Array(5)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute bg-gradient-to-r from-blue-400/30 to-purple-300/30 dark:from-blue-900/30 dark:to-purple-900/30 w-64 h-64 rounded-full blur-[100px]"
-          initial={{ scale: 0, rotate: Math.random() * 360 }}
-          animate={{ scale: [0, 1, 0], x: [0, Math.random() * 400 - 200, 0], y: [0, Math.random() * 400 - 200, 0] }}
-          transition={{ duration: 15 + Math.random() * 10, repeat: Infinity, ease: "easeInOut" }}
-        />
-      ))}
-
+    <div className="min-h-screen flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="relative w-full max-w-md bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/30 rounded-2xl shadow-2xl overflow-hidden border border-indigo-100 dark:border-gray-600 p-8"
+        className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden ring-1 ring-gray-200/70 dark:ring-white/10 p-8"
       >
         <h1 className="text-3xl font-bold text-center text-indigo-600 dark:text-indigo-400 mb-6">Verify OTP</h1>
         <p id="otpHelp" className="text-center text-sm text-gray-600 dark:text-gray-300 mb-4">
@@ -124,7 +114,7 @@ export const VerifyOtp = () => {
             whileTap={verifying ? undefined : { scale: 0.98 }}
             type="submit"
             disabled={verifying || otp.length !== 6}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {verifying ? "Verifying…" : "Verify OTP"}
           </motion.button>
@@ -145,9 +135,10 @@ export const VerifyOtp = () => {
         <div className="mt-4 text-center text-gray-600 dark:text-gray-300">
           Didn't receive the code?{" "}
           <button
+            type="button"
             onClick={handleResendOtp}
             disabled={isResending}
-            className="text-indigo-600 dark:text-indigo-400 underline disabled:opacity-60"
+            className="inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 underline disabled:opacity-60"
           >
             {isResending ? "Resending…" : "Resend a new 6-digit code"}
           </button>
@@ -165,7 +156,11 @@ export const VerifyOtp = () => {
         )}
 
         <div className="mt-2 text-center text-gray-600 dark:text-gray-400">
-          <button onClick={() => navigate("/register")} className="text-indigo-600 dark:text-indigo-400 underline">
+          <button
+            type="button"
+            onClick={() => navigate("/register")}
+            className="inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 underline"
+          >
             Go back
           </button>
         </div>

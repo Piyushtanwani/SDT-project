@@ -174,7 +174,7 @@ public class AssistantService {
 
     private String examRules() {
         return "Exam rules\n"
-                + "• Each exam draws a random set of questions from the course bank (up to 50).\n"
+                + "• Each exam draws " + ExamDrawService.QUESTIONS_PER_EXAM + " questions from the course bank, so a retake gives you a different set.\n"
                 + "• The timer is 40 minutes; the attempt auto-submits when time runs out.\n"
                 + "• Unanswered questions are recorded as option E and count as incorrect.\n"
                 + "• Questions are multiple choice (A–D); each has exactly one correct answer.\n"

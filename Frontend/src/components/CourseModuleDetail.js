@@ -132,13 +132,14 @@ const CourseModuleDetail = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 dark:from-indigo-700 dark:via-purple-700 dark:to-blue-700 text-white py-4 sticky top-0 z-10 shadow-lg">
+      <header className="bg-indigo-600 dark:bg-indigo-700 text-white py-4 sticky top-0 z-10 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-center">
           <button
+            type="button"
             onClick={() => navigate(`/course/${courseId}/modules`)}
-            className="flex items-center hover:text-white hover:bg-white/10 px-3 py-1 rounded-lg transition-colors"
+            className="flex min-h-[44px] items-center hover:text-white hover:bg-white/10 px-3 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
             <span className="text-sm sm:text-base font-medium">Back to Course</span>
@@ -186,13 +187,13 @@ const CourseModuleDetail = () => {
               <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
                 <button
                   onClick={() => setReloadKey((key) => key + 1)}
-                  className="px-5 py-2.5 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-800 transition"
+                  className="min-h-[44px] px-5 py-2.5 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-800 transition"
                 >
                   Try Again
                 </button>
                 <button
                   onClick={() => navigate(`/course/${courseId}/modules`)}
-                  className="px-5 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  className="min-h-[44px] px-5 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                 >
                   Back to Course
                 </button>
@@ -208,10 +209,10 @@ const CourseModuleDetail = () => {
             >
               {/* Module Title */}
               <div className="text-center">
-                <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 dark:from-indigo-500 dark:via-purple-500 dark:to-blue-500 bg-clip-text text-transparent">
+                <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
                   {module.moduleTitle}
                 </h1>
-                <div className="mt-3 inline-flex items-center px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 text-indigo-700 dark:text-indigo-300">
+                <div className="mt-3 inline-flex items-center px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
                   <BookOpen className="w-4 h-4 mr-2" />
                   <span className="text-sm font-medium">Module {moduleNumber}</span>
                 </div>
@@ -221,12 +222,12 @@ const CourseModuleDetail = () => {
               <div className="max-w-xl mx-auto">
                 <div className="h-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-500 dark:from-indigo-600 dark:via-purple-600 dark:to-blue-600 rounded-full"
+                    className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
                 <div className="flex justify-between mt-2 text-xs text-indigo-600 dark:text-indigo-400">
-                  <span>Module 1</span>
+                  <span>Start</span>
                   <span>Module {moduleNumber}/{totalModules}</span>
                   <span>Complete</span>
                 </div>
@@ -244,20 +245,14 @@ const CourseModuleDetail = () => {
                         index % 3 === 0
                           ? "bg-indigo-500 dark:bg-indigo-600"
                           : index % 3 === 1
-                          ? "bg-purple-500 dark:bg-purple-600"
-                          : "bg-blue-500 dark:bg-blue-600"
+                          ? "bg-indigo-300 dark:bg-indigo-500"
+                          : "bg-indigo-200 dark:bg-indigo-400"
                       }`}
                     ></div>
                     <div className="p-6">
                       <div className="flex items-start gap-4 mb-4">
                         <div
-                          className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg ${
-                            index % 3 === 0
-                              ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
-                              : index % 3 === 1
-                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                          }`}
+                          className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300"
                         >
                           <span className="text-2xl">{getContentIcon(index)}</span>
                         </div>
@@ -282,7 +277,7 @@ const CourseModuleDetail = () => {
                         <div className="mt-6">
                           <button
                             onClick={() => showImage(index)}
-                            className="inline-flex items-center px-4 py-2 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm hover:shadow-md hover:bg-indigo-700 dark:hover:bg-indigo-800"
+                            className="min-h-[44px] inline-flex items-center px-4 py-2 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm hover:shadow-md hover:bg-indigo-700 dark:hover:bg-indigo-800"
                           >
                             <Image className="w-4 h-4 mr-2" />
                             View Practical Example
@@ -302,7 +297,7 @@ const CourseModuleDetail = () => {
                       {contentItems.slice(imageItems.length).map((item, index) => (
                         <div
                           key={index}
-                          className="flex rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 p-4"
+                          className="flex rounded-xl bg-indigo-50 dark:bg-indigo-500/10 p-4"
                         >
                           <div className="flex-shrink-0 mr-4">
                             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-medium bg-indigo-600 dark:bg-indigo-700">
@@ -329,7 +324,7 @@ const CourseModuleDetail = () => {
                       {contentItems.map((item, index) => (
                         <div
                           key={index}
-                          className="flex rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 p-4 hover:shadow-md transition-shadow"
+                          className="flex rounded-xl bg-indigo-50 dark:bg-indigo-500/10 p-4 hover:shadow-md transition-shadow"
                         >
                           <div className="flex-shrink-0 mr-4">
                             <div
@@ -337,8 +332,8 @@ const CourseModuleDetail = () => {
                                 index % 3 === 0
                                   ? "bg-indigo-600 dark:bg-indigo-700"
                                   : index % 3 === 1
-                                  ? "bg-purple-600 dark:bg-purple-700"
-                                  : "bg-blue-600 dark:bg-blue-700"
+                                  ? "bg-indigo-600 dark:bg-indigo-700"
+                                  : "bg-indigo-600 dark:bg-indigo-700"
                               }`}
                             >
                               {index + 1}
@@ -371,7 +366,7 @@ const CourseModuleDetail = () => {
                 {parseInt(moduleNumber) < totalModules ? (
                   <button
                     onClick={() => handleNavigation("next")}
-                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 dark:from-indigo-700 dark:via-purple-700 dark:to-blue-700 hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700 dark:hover:from-indigo-800 dark:hover:via-purple-800 dark:hover:to-blue-800 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
+                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md hover:shadow-lg transition-colors"
                   >
                     <span className="flex items-center">
                       Continue to Next Module
@@ -381,7 +376,7 @@ const CourseModuleDetail = () => {
                 ) : (
                   <button
                     onClick={handleTakeExam}
-                    className="px-6 py-3 bg-gradient-to-r from-emerald-700 to-blue-600 dark:from-emerald-700 dark:to-blue-700 hover:from-emerald-800 hover:to-blue-700 dark:hover:from-emerald-800 dark:hover:to-blue-800 text-white rounded-lg shadow-md hover:shadow-lg transition-all flex items-center"
+                    className="px-6 py-3 bg-green-700 hover:bg-green-800 text-white rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center"
                   >
                     <Award className="w-5 h-5 mr-2" />
                     Take Final Exam
@@ -447,22 +442,6 @@ const CourseModuleDetail = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

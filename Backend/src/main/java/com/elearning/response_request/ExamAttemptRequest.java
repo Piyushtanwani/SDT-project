@@ -6,6 +6,7 @@ public class ExamAttemptRequest {
     private Long userId;
     private Long courseId;
     private Map<Long, String> answers;
+    private String drawToken;
 
     public Long getUserId() {
         return userId;
@@ -29,5 +30,13 @@ public class ExamAttemptRequest {
 
     public void setAnswers(Map<Long, String> answers) {
         this.answers = answers;
+    }
+
+    public String getDrawToken() {
+        return drawToken;
+    }
+
+    public void setDrawToken(String drawToken) {
+        this.drawToken = drawToken;
     }
 }

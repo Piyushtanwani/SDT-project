@@ -105,7 +105,7 @@ const AdminUserPanel = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 overflow-hidden">
+    <div className="flex min-h-screen overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8">
         <motion.div
@@ -115,12 +115,12 @@ const AdminUserPanel = () => {
           className="max-w-7xl mx-auto w-full"
         >
           {/* Header */}
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-500 mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-6 sm:mb-8">
             Manage Users
-          </h2>
+          </h1>
 
           {/* Main Content */}
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-2xl shadow-xl p-4 sm:p-6 md:p-8 ring-1 ring-gray-200/50 dark:ring-gray-700/50">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-lg p-4 sm:p-6 md:p-8 ring-1 ring-gray-200/70 dark:ring-white/10">
             {/* Search Bar */}
             <div className="mb-6">
               <div className="relative">
@@ -130,7 +130,7 @@ const AdminUserPanel = () => {
                   aria-label="Search by username or email"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-3 pl-10 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-300 shadow-glow shadow-glow-hover"
+                  className="w-full px-4 py-3 pl-10 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all duration-300 shadow-sm hover:shadow-md"
                   whileHover={{ scale: 1.02 }}
                   whileFocus={{ scale: 1.02 }}
                 />
@@ -153,9 +153,9 @@ const AdminUserPanel = () => {
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-                  className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full"
+                  className="w-16 h-16 border-4 border-indigo-200 dark:border-indigo-800 border-t-indigo-600 dark:border-t-indigo-400 rounded-full"
                 ></motion.div>
-                <p className="mt-4 text-blue-600 dark:text-blue-400 font-medium" role="status">
+                <p className="mt-4 text-indigo-600 dark:text-indigo-400 font-medium" role="status">
                   Loading users…
                 </p>
               </div>
@@ -183,7 +183,7 @@ const AdminUserPanel = () => {
                 <p className="text-red-800 dark:text-red-300">{loadError}</p>
                 <motion.button
                   onClick={fetchUsers}
-                  className="mt-4 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300"
+                  className="min-h-[44px] mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -200,17 +200,17 @@ const AdminUserPanel = () => {
                 {filteredUsers.map((user, index) => (
                   <motion.div
                     key={user.id}
-                    className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-glow transition-all duration-300 overflow-hidden relative"
+                    className="bg-white dark:bg-gray-900 rounded-2xl shadow-md ring-1 ring-gray-200/70 dark:ring-white/10 overflow-hidden relative"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    whileHover={{ y: -5, scale: 1.02 }}
+                    whileHover={{ y: -4 }}
                   >
                     <div
                       className={`h-2 ${
                         index % 3 === 0
-                          ? "bg-blue-500 dark:bg-blue-600"
+                          ? "bg-indigo-200 dark:bg-indigo-400"
                           : index % 3 === 1
-                          ? "bg-purple-500 dark:bg-purple-600"
+                          ? "bg-indigo-300 dark:bg-indigo-500"
                           : "bg-indigo-500 dark:bg-indigo-600"
                       }`}
                     ></div>
@@ -242,13 +242,13 @@ const AdminUserPanel = () => {
                             onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                             placeholder="Name"
                             aria-label="Display name"
-                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            className="min-h-[44px] w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           />
                           <select
                             value={editForm.role}
                             onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                             aria-label="Role"
-                            className="w-full px-3 py-2 bg-white/90 dark:bg-gray-800/90 border border-gray-200/50 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            className="min-h-[44px] w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           >
                             <option value="" className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">Select Role</option>
                             <option value="USER" className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100">Community Member</option>
@@ -259,7 +259,7 @@ const AdminUserPanel = () => {
                               type="checkbox"
                               checked={editForm.enabled}
                               onChange={(e) => setEditForm({ ...editForm, enabled: e.target.checked })}
-                              className="h-4 w-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                              className="h-4 w-4 text-indigo-600 focus:ring-2 focus:ring-indigo-500 border-gray-300 dark:border-gray-600 rounded"
                             />
                             Enabled
                           </label>
@@ -267,7 +267,7 @@ const AdminUserPanel = () => {
                             <motion.button
                               onClick={() => handleSave(user.id)}
                               disabled={pendingUserId === user.id}
-                              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-700 text-white px-3 py-2 rounded-lg shadow-glow shadow-glow-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                               whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
                               whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
@@ -277,7 +277,7 @@ const AdminUserPanel = () => {
                             <motion.button
                               onClick={() => setEditingUser(null)}
                               disabled={pendingUserId === user.id}
-                              className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 dark:hover:text-white transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="min-h-[44px] flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 dark:hover:text-white transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                               whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
                               whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
@@ -323,7 +323,7 @@ const AdminUserPanel = () => {
                               onClick={() => handleEdit(user)}
                               disabled={pendingUserId === user.id}
                               aria-label={`Edit ${user.name || user.username || "user"}`}
-                              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-700 text-white px-3 py-2 rounded-lg shadow-glow shadow-glow-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white px-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                               whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
                               whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
@@ -334,7 +334,7 @@ const AdminUserPanel = () => {
                               onClick={() => handleDelete(user)}
                               disabled={pendingUserId === user.id}
                               aria-label={`Delete ${user.name || user.username || "user"}`}
-                              className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-3 py-2 rounded-lg shadow-glow-red hover:shadow-glow-red-hover transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                              className="flex-1 min-h-[44px] bg-red-600 hover:bg-red-700 text-white px-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                               whileHover={pendingUserId === user.id ? undefined : { scale: 1.05 }}
                               whileTap={pendingUserId === user.id ? undefined : { scale: 0.95 }}
                             >
@@ -345,7 +345,7 @@ const AdminUserPanel = () => {
                         </div>
                       )}
                     </div>
-                    <div className="absolute inset-0 pointer-events-none rounded-xl border border-transparent hover:border-blue-400/30 transition-all duration-300" />
+                    <div className="absolute inset-0 pointer-events-none rounded-xl border border-transparent hover:border-indigo-400/30 transition-all duration-300" />
                   </motion.div>
                 ))}
               </motion.div>
@@ -377,7 +377,7 @@ const AdminUserPanel = () => {
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="mt-4 px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                    className="min-h-[44px] mt-4 px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                   >
                     Clear search
                   </button>
@@ -388,33 +388,6 @@ const AdminUserPanel = () => {
         </motion.div>
       </div>
 
-      {/* Embedded Styles */}
-      <style>{`
-        .shadow-glow {
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-        .shadow-glow-hover:hover {
-          box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
-        }
-        .shadow-glow-red {
-          box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-        }
-        .shadow-glow-red-hover:hover {
-          box-shadow: 0 0 15px rgba(239, 68, 68, 0.7);
-        }
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

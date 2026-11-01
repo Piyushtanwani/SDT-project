@@ -35,14 +35,14 @@ export const CertificateQr = () => {
   }, [credentialId, apiUrl]);
 
   return (
-    <div className="w-full min-h-screen flex justify-center items-center bg-gradient-to-br from-blue-100 to-purple-200 dark:from-gray-950 dark:to-indigo-950 p-6">
+    <div className="w-full min-h-screen flex justify-center items-center p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 md:p-10 w-full max-w-lg transition-all duration-300 hover:shadow-2xl border border-blue-100 dark:border-gray-700"
+        className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl p-8 md:p-10 w-full max-w-lg transition-all duration-300 hover:shadow-2xl border border-indigo-100 dark:border-gray-700"
       >
         <div className="text-center mb-6">
-          <FiAward className="w-14 h-14 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+          <FiAward className="w-14 h-14 text-indigo-600 dark:text-indigo-400 mx-auto mb-3" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Credential Verification</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm md:text-base">
             Validate the authenticity of this certificate.
@@ -57,16 +57,16 @@ export const CertificateQr = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-blue-50 to-purple-100 dark:from-gray-900 dark:to-indigo-900/30 p-6 rounded-xl border border-blue-200 dark:border-gray-600 shadow-md"
+            className="bg-white dark:bg-gray-900 p-6 rounded-2xl ring-1 ring-gray-200/70 dark:ring-white/10 shadow-md"
           >
             <div className="text-center space-y-4">
-              <h2 className="text-3xl font-serif font-bold text-blue-800 dark:text-blue-300">{certificate.holderName}</h2>
+              <h2 className="text-3xl font-serif font-bold text-indigo-800 dark:text-indigo-300">{certificate.holderName}</h2>
               <p className="text-gray-700 dark:text-gray-300 text-lg">has successfully completed</p>
 
               <div className="bg-white dark:bg-gray-700 p-4 rounded-lg shadow-inner">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{certificate.courseName}</h3>
                 <div className="flex justify-center items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">{certificate.score}%</span>
+                  <span className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">{certificate.score}%</span>
                   <span className="text-gray-600 dark:text-gray-400 text-sm">Final Score</span>
                 </div>
               </div>
@@ -102,14 +102,14 @@ export const CertificateQr = () => {
                 <strong>Verify at:</strong>
                 <a
                   href={`${window.location.origin}/credential-verify`}
-                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                  className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
                 >
                   {window.location.host}/credential-verify
                 </a>
               </span>
               <span className="block sm:inline text-center sm:text-right mt-2 sm:mt-0">
                 <strong>Powered by:</strong>
-                <span className="text-purple-600 dark:text-purple-400 font-semibold"> Learn Without Limits</span>
+                <span className="text-indigo-600 dark:text-indigo-300 font-semibold"> Learn Without Limits</span>
               </span>
             </div>
           </motion.div>
@@ -126,7 +126,7 @@ export const CertificateQr = () => {
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+              className="mt-4 min-h-[44px] px-5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
             >
               Try again
             </button>

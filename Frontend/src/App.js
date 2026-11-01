@@ -1,6 +1,7 @@
+import { MotionConfig } from "framer-motion";
 import { Link, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import "./App.css";
-import { AddCourse } from "./components/AddCourse";
+import AddCoursePage from "./components/AddCourse";
 import AddModule from "./components/AddModule";
 import { AdminCoursePanel } from "./components/AdminCoursesPanel";
 import AdminPanel from "./components/AdminPanel";
@@ -50,7 +51,7 @@ const NotFound = () => (
     </p>
     <Link
       to="/courses"
-      className="rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+      className="inline-flex min-h-[44px] items-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
     >
       Browse courses
     </Link>
@@ -60,7 +61,9 @@ const NotFound = () => (
 function App() {
   return (
     <ErrorBoundary>
-      <Router>
+      {/* framer-motion runs transform animations even when the OS asks not to; this makes the whole tree honour it. */}
+      <MotionConfig reducedMotion="user">
+        <Router>
         <div className="App">
           <ScrollToTop />
           {/* Keyboard users land on the navigation on every page; this jumps past it. */}
@@ -71,7 +74,7 @@ function App() {
             Skip to main content
           </a>
           <Navbar />
-          <main id="main-content" tabIndex={-1}>
+          <main id="main-content" className="app-canvas" tabIndex={-1}>
             <Routes>
             <Route path="/register" element={<Register />} />
             <Route path="/verify-otp" element={<VerifyOtp />} />
@@ -104,7 +107,7 @@ function App() {
               <Route path="/admincourses" element={<AdminCoursePanel />} />
               <Route path="/admin/*" element={<AdminPanel />} />
               <Route path="/admin/skills" element={<AdminSkillPanel />} />
-              <Route path="/admin/add-course" element={<AddCourse />} />
+              <Route path="/admin/add-course" element={<AddCoursePage />} />
               <Route path="/course/add-module" element={<AddModule />} />
               <Route path="/course/modules" element={<ModuleList />} />
               <Route path="/admin/users" element={<AdminUserPanel />} />
@@ -133,7 +136,8 @@ function App() {
           </main>
           <Footer />
         </div>
-      </Router>
+        </Router>
+      </MotionConfig>
     </ErrorBoundary>
   );
 }

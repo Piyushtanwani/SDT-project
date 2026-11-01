@@ -1,0 +1,458 @@
+{
+  "name" : "Python",
+  "description" : "Readable Python with correct object semantics, generators, environment isolation and the GIL in mind.",
+  "duration" : "5 weeks",
+  "rating" : 4.7,
+  "modules" : [ {
+    "title" : "Core Semantics",
+    "content" : [ "Python is dynamically typed but strongly typed: names are bound to objects, and objects carry their own type. Mutable objects such as lists and dictionaries can change in place, while tuples and strings cannot. Assignment therefore never copies a value, it only binds another name to the same object, which is why aliasing surprises appear so often. Passing a list to a function that appends to it changes what the caller sees, because both names resolve to one object. Copy semantics live in explicit calls such as slicing, list(x) or copy.deepcopy, never in the equals sign used for assignment.", "Default arguments are evaluated once at function definition, so a mutable default such as b=[] is shared by every call that omits the argument. Use None as the sentinel and create the object inside the function. The problem is not limited to lists: any mutable default, a dict, a set, an instance of your own class, accumulates state across calls and leaks it between supposedly independent invocations. The mechanism is that the default object is stored in the function's __defaults__ when the def statement runs and is reused after that. Reading a default is harmless, mutating it silently changes what later callers receive.", "Sequence slicing returns a new object: nums[1:4] selects indexes 1, 2 and 3 with the stop index excluded. The result is a shallow copy, so a slice of a list of lists still shares the inner lists with the original and a mutation through one is visible through the other. Slice assignment is a different operation, because it mutates the target in place and accepts any iterable whose length need not match the span it replaces, letting you grow or shrink a list in one statement. Extended slices add a step argument: nums[::2] strides forward, nums[::-1] reverses, and negative indexes count back from the end.", "Every value is an object with an identity, a type and a reference count, and CPython reclaims memory when that count falls to zero. Names live in namespaces, which are plain dictionaries mapping identifiers to objects: locals() inside a function body, the module's __dict__ at top level. Because every lookup is a dict hit, creating a variable is cheap, but a long chain of global and attribute lookups is measurable inside a hot loop, which is why caching the lookup in a local matters. The same object can be referenced by many names at once, and nothing guarantees that two equal values share one identity. That gap between equality and identity is the whole story behind the distinction between is and ==.", "A class specifies its own behavior through protocol methods the interpreter calls on your behalf, and operators and builtins pick those methods up automatically. len(x) becomes x.__len__(), x[i] becomes x.__getitem__(i), and a + b becomes a.__add__(b) with a fallback to b.__radd__(a) when the left operand declines to handle it. You rarely call these directly, but knowing them explains why a class with only __getitem__ is still iterable through the legacy sequence protocol, and why defining __eq__ without __hash__ makes instances unhashable, because Python sets __hash__ to None whenever you override equality. This is also why mutable containers refuse to be hashable: a value used as a dict key must not change while it is stored.", "Truthiness uses __bool__ when a class defines it and otherwise falls back to __len__, so empty containers, zero, 0.0 and None are all falsey while an object with neither method is truey by default. That default bites when a function signals no results with [] and the caller writes if rows: while the real intent was if rows is not None:, silently treating an empty page as a failure. None and an empty list carry different information, and collapsing them loses it. Chained comparisons are also easy to misread: a < b < c is one test that evaluates b once, whereas writing (a < b) and (b < c) evaluates b twice and only works if the operand has no side effects.", "Integers have unbounded precision, so a factorial or a large exponent never overflows silently; floats do not, because IEEE-754 binary fractions cannot represent values such as 0.1 exactly. The familiar failure where 0.1 + 0.2 is not 0.3 is a representation artifact of binary floating point, not a Python defect, and it means testing floats with == is almost always wrong. Compare with math.isclose, use decimal.Decimal with an explicit context for money, or keep integers scaled by a power of ten when the arithmetic can stay exact. The builtin round() rounds halves to the nearest even number, so round(0.5) gives 0 while round(1.5) gives 2, which surprises anyone expecting round-half-up." ]
+  }, {
+    "title" : "Concurrency and Packaging",
+    "content" : [ "CPython serializes bytecode execution with the Global Interpreter Lock. Threads still help I/O-bound work because the lock is released during blocking calls, but CPU-bound parallelism needs processes. The lock protects interpreter internals and reference counting, so a pure Python loop does not speed up with extra threads, and contention plus switch overhead can make it slower. It does not make your own data structures thread safe either, because a compound operation such as test-then-update can still interleave at a bytecode boundary. C extensions may release the lock around long work, and Python 3.13 added an experimental free-threaded build, but portable code should assume one thread runs Python bytecode at a time.", "Generators produce values lazily with yield, keeping one frame of state between iterations and avoiding materializing large collections in memory. Calling a generator function returns a generator object immediately and executes none of its body until the first next(), and that deferral is why an infinite generator is legal and why a side effect written inside one silently never runs if nothing iterates it. Generator expressions such as (n * n for n in data) behave the same way and can be handed straight to sum(), any() or tuple() to produce a result without an intermediate list. Chaining them through itertools keeps memory proportional to one item no matter how large the source is.", "Each project should own a virtual environment (venv or conda) so dependency versions stay reproducible and isolated from the system interpreter. A venv is a thin layout over the base interpreter plus its own site-packages directory, its own pip and its own entry-point scripts, so creating one costs almost nothing and deleting it is safe. You activate it by putting its bin directory at the front of PATH, or you skip activation and invoke its interpreter by path, which is what CI runners and editor tooling generally do. Pin exact versions in a lockfile or a pinned requirements.txt, and keep pyproject.toml as the single source of metadata so a build never depends on whichever environment happened to be installed first.", "Pick the concurrency model that matches the bottleneck: threads for blocking I/O against libraries with no async equivalent, asyncio for thousands of cooperative tasks on one thread, and processes for CPU-bound work that must escape the GIL. The threading module gives you OS threads with locks, events and queues, but shared mutable state is only safe when every compound access is protected. asyncio schedules coroutines on a single event loop, so data races largely disappear, yet any blocking call inside a coroutine stalls every other task on that loop. The rule behind most production incidents is simple: never mix a synchronous blocking call with an async function.", "An event loop drives coroutines by awaiting them, and a coroutine that is never awaited produces a RuntimeWarning because its body never executes, which is the classic bug behind a missing await. Each await hands control back to the loop, so the moments when shared state can change are exactly the await points, and code between two of them runs without interruption. Because the loop is single threaded, CPU-heavy work has to go through loop.run_in_executor or a process pool or the entire loop starves. asyncio.gather and TaskGroup fan out concurrent work, but an exception raised inside a bare create_task is held in the task and reported only when someone reads its result, so keep references and let a task group propagate failures.", "Statements that look atomic are not. x += 1 performs a read, an addition and a write, so two threads can both observe the old value and one increment is lost unless a lock guards the whole update. Even list and dict operations that CPython happens to make safe under the GIL are implementation details you should not depend on across interpreters, because PyPy and the free-threaded build do not preserve the same accident. Prefer explicitly atomic APIs: queue.Queue for producer and consumer handoff, threading.Lock around critical sections, and per-thread state instead of shared state wherever the algorithm allows it. A lock held only around half a transaction protects nothing.", "PYTHONPATH and the current working directory decide how the interpreter finds modules, and sys.path is rebuilt at startup from the script directory, then the environment, then installed packages, which is why an import works from one folder and fails from another. A local file named email.py or random.py shadows the standard library on that path and produces baffling AttributeErrors deep inside unrelated imports. Regular packages use __init__.py to control what is imported eagerly, while namespace packages let several directories contribute to one package without it. Build and publish with an isolated tool such as python -m build so a stale wheel or an accidental local module never ships inside your distribution." ]
+  }, {
+    "title" : "Data Structures, Iterators and Comprehensions",
+    "content" : [ "A list is a dynamic array of pointers, so indexing is O(1), append is amortized O(1) because capacity grows in chunks, and insert(0, x) is O(n) since every element shifts right. deque from collections inverts that trade, giving O(1) work at both ends which is what a real queue or a sliding window needs, while random access in the middle becomes O(n) and makes it the wrong choice as a general list. A dict is a hash table that has preserved insertion order since 3.7, so it offers O(1) average lookup but no positional access at all. A set is the same table without values, built for membership tests and set algebra, and moving a membership test out of a list and into a set is the single most common performance fix in Python code.", "An iterable exposes __iter__ and hands back a fresh iterator each time; an iterator exposes __next__ and signals exhaustion by raising StopIteration. Iterators are one-shot and are their own iterable, which is exactly why a list can be looped over repeatedly while map(), a filter() or a generator cannot be replayed. The for statement is nothing more than a loop that calls iter() once and then next() until StopIteration arrives. That split between container and cursor is what makes itertools composable lazily and what lets you write a class that pages results out of a database without ever holding the full set in memory.", "A list comprehension builds its whole result eagerly and is typically faster than the equivalent append loop because the loop runs in C, but the entire list exists in memory at once, so a comprehension over a huge file can exhaust the process. A generator expression defers the work, uses almost no memory, and can only be walked once because it is an iterator rather than a container. In Python 3 the comprehension's loop variable stays scoped inside the comprehension and does not leak into the enclosing scope, unlike the old generator-based workaround. Choose by whether you need to iterate twice, slice, or ask for len, and by how large the source really is.", "Python 3.9 added the dict merge operators, so {**a, **b} became a | b with the right operand winning on collisions and a |= b mutating the left one in place. dict.setdefault inserts a default only when the key is missing, but it evaluates its second argument on every single call, so setdefault(key, []) constructs a throwaway list each time even when the key is already present; collections.defaultdict avoids that because its factory is invoked only on a miss. .get(key, default) returns a fallback without storing it, which quietly differs from setdefault. When a missing key is a bug rather than a case to paper over, index with brackets and let the KeyError tell you.", "Changing the size of a collection while iterating it produces skipped items or a RuntimeError about the dictionary changing size, because the cursor tracks positions in a table your insert has rehashed. The safe patterns are iterating over a copy, building a new collection, or filtering into a fresh object with a comprehension. Shallow copies share nested objects, so copy.copy of a list of lists still aliases the inner lists and only copy.deepcopy recurses; deepcopy also relies on the pickle protocol, so it can fail outright on unpicklable members such as open file handles or locks. A hand-written copy of a small structure is often both faster and clearer than either.", "Sorting with key= is stable, so equal elements keep their original relative order, which is what lets you sort by several fields by running passes from the least significant to the most significant, since each pass preserves the previous ordering. The key function is evaluated once per element and the results are cached, which is why key= beats a comparison function that gets called again and again during the merge. heapq maintains a binary heap with O(log n) push and pop, the right structure for a top-k or priority queue, and nsmallest and nlargest pick a reasonable algorithm for you. Note that heapq orders tuples field by field, so a tie on the first field falls through to the second.", "Dict and set comprehensions build mappings and membership tables with the same syntax as list comprehensions, and an enumerate over a range is how you index a dictionary when the keys are derived. The comprehension form is usually faster than a loop that inserts one key at a time because the mapping's constructor is applied to a prepared sequence. Counter from collections is the specialized tool for counting, supporting most_common, arithmetic between counters, and subtraction that silently drops zero and negative totals. When a comprehension grows past one condition and one transform, a plain loop is more readable and no slower." ]
+  }, {
+    "title" : "Functions, Decorators and Context Managers",
+    "content" : [ "Names resolve by scope at call time rather than by where the function text appears: Local, then Enclosing function scopes, then the module Global namespace, then Builtins. A function defined inside another closes over the outer variable by reference, not by value, so closures created inside a loop all read the loop variable's final value unless you bind it as a default argument. Assigning to a name anywhere in a body makes that name local for the entire function, which is the real cause of the UnboundLocalError you get when you read a global on the line before the assignment that shadows it. Declare nonlocal to write an enclosing variable and global to write the module-level one.", "Parameters bind positionally first and then by keyword, and a bare * in the signature forces every parameter after it to be passed by name. That keyword-only marker is the humane fix for boolean flags that callers keep passing positionally, because def load(rows, *, strict=False) rejects load(rows, True) immediately instead of silently selecting the wrong mode. A bare / marks the preceding parameters as positional-only, which is how the standard library keeps argument names free for reuse inside the body. **kwargs collects unexpected keywords into a dict, so a misspelled keyword argument sails through your function unnoticed unless you inspect the keys yourself.", "A decorator is a function that takes a callable and returns a replacement, and it runs once at def time, so whatever cost the wrapper adds is paid on every later call. functools.wraps copies __name__, __doc__ and __qualname__ from the wrapped function, and without it your logs, tracebacks and introspection tools report the wrapper rather than the function you wrote. A decorator that takes arguments is three layers deep: the outer call captures the arguments and returns the actual decorator, which is why @retry(times=3) needs parentheses while @retry does not. Stacked decorators wrap bottom-up, so the one written closest to the def is the innermost wrapper and the first to execute on each call.", "A context manager defines the setup and teardown wrapped by a with block, and __exit__ returning a truthy value suppresses the exception that was passed to it, so a helper written to log and return True quietly eats errors you forgot it swallowed. If __enter__ raises, __exit__ is never called, and if __enter__ succeeds, __exit__ always runs, whether the body returned normally, raised, or broke out of a loop. contextlib.contextmanager expresses the same protocol as a generator: code before the yield is the enter step, code after it is the exit step, and wrapping the yield in try/finally lets the body's exception be thrown into the frame so you can catch it or re-raise it.", "Raise the narrowest exception that describes the failure and catch only what you can actually handle, because a bare except: also catches KeyboardInterrupt, SystemExit and GeneratorExit, turning Ctrl-C into an ignored keystroke; except Exception: is the minimum acceptable form. The context chain is not decoration: raising inside a handler keeps the original traceback as __context__, while raising the same error outside the handler loses it, so re-enter your try block rather than re-raising from a finally. Write raise NewError from original when one failure causes another, and use from None when the internal error is only noise. Test-then-act checks and try/except differ in cost depending on how often the exceptional path fires, so a lookup that usually succeeds belongs in a try.", "A lambda is a single expression with no statements, so it belongs in a key= callback or a tiny predicate, never in logic you will later need to document or set a breakpoint in. functools.partial binds arguments into a reusable callable and produces a useful repr, which is generally better than a lambda that wraps one call. Functions carry writable attributes, so a counter or cache hung on the function object is legal, though a closure or a small class is usually easier to test. Late binding is the trap in both forms: a lambda created inside a loop that references the loop variable resolves to the final value for every one of them." ]
+  }, {
+    "title" : "Typing, Testing and Tooling",
+    "content" : [ "Type hints are read by external checkers and ignored by the runtime, so def f(x: int) -> str happily accepts a string argument unless mypy or pyright fails it in CI. Annotations are evaluated when the signature executes, which is why a forward reference to a class defined later needs quotes or the from __future__ import annotations import that turns every annotation into a lazily evaluated string. Annotating a local variable changes nothing at runtime and only documents intent. Typing earns its keep at module boundaries and in code many people reuse; over-annotating private helpers adds noise without adding safety. typing.Any opts a value out of checking entirely, while object permits any value but allows only object's own methods, and that difference is where a lot of accidental unsafety hides.", "Configure the checker once in pyproject.toml and enable strict mode for new code, because partial checking quietly keeps the bugs that matter. Protocol gives you structural subtyping, so anything with a read method satisfies a Readable without inheriting from it, which is the cleanest way to type a duck-typed interface. Literal, Optional and the X | Y union syntax let you express narrow contracts, and a frozen dataclass with slots gives you a value object with cheap equality and no mutable surprise. Runtime enforcement libraries exist, but they redo for free what static checking already proves and they cost time on hot paths, so validate untrusted input at the boundary instead of annotating everywhere.", "pytest finds test_*.py files and plain assert statements, and it rewrites those asserts so a failure prints both compared values, which is why assertEqual variants are rarely needed. Fixtures are dependency injection with an explicit scope, and a fixture requested twice within one test yields one instance, but module- or session-scoped fixtures shared across tests produce order-dependent flakes the moment a test mutates them. Use tmp_path, monkeypatch and caplog rather than reaching for global state, and parametrize one test over many inputs instead of copy-pasting bodies. Test IDs come from the parameter values, so keep them short and meaningful when a failure report is what a colleague reads.", "A mock records calls and returns whatever you configure, but MagicMock is auto-attributing: accessing any attribute you never set returns another mock instead of raising AttributeError, so a typo in the name your code consults silently yields a truthy stand-in. Pass autospec=True or use create_autospec to bind a mock to the real object's interface so wrong calls fail loudly, and use configure_mock on an instance you already have. Patch where the name is looked up rather than where it is defined: if a module ran from other import helper, the attribute lives in that module's namespace, so the target string names that module. assert_called_once_with also locks in argument order, which sometimes breaks tests that only care that the call happened.", "A modern Python project configures itself in pyproject.toml, where the build backend, the dependencies and the settings for ruff, black, mypy and pytest all live, so a contributor's editor and the CI gate agree. ruff handles linting and formatting in one fast tool, and formatting on save removes the review churn that used to consume pull requests. Pin dependencies in a lockfile, install from that lock in CI, and run every tool through the project environment so a globally installed package never hides a missing declaration. Type checks and tests belong in the same gate as the formatter, otherwise the checks that are cheap to skip are exactly the ones that get skipped.", "A dataclass generates __init__, __repr__ and field-based __eq__ from the annotated fields, so two instances holding the same data are equal with == while remaining distinct objects under is. Pass frozen=True for an immutable, hashable value object and slots=True to drop the per-instance __dict__, which matters when you create millions of them. A mutable default written as field = [] is rejected when the class is built, and field(default_factory=list) is the correct escape because the factory runs per instance. __post_init__ executes after the generated constructor and is where you derive fields or assert invariants, although it is skipped entirely if an instance is created without calling __init__.", "Coverage and profiling answer different questions, so treat them as separate steps. Coverage tells you which lines no test executed, which is a weak signal for correctness because an executed line is not necessarily a verified one, and branch coverage is the setting worth turning on. cProfile points at the functions that accumulate the most time, and a line-level profiler only helps once you know where to look. Before optimizing, check whether the shape is wrong: a membership test against a list inside a loop, repeated string concatenation, or rebuilding a dict per iteration usually costs more than any micro-optimization you could make inside them." ]
+  }, {
+    "title" : "Python on the Server: WSGI, ASGI and ORMs",
+    "content" : [ "WSGI is a synchronous contract: the server calls your application(environ, start_response) once per request, you pass status and headers to start_response and return an iterable of byte strings, and one worker handles one request at a time. That simplicity is also the ceiling, because a request waiting on a database pins its worker for the whole wait, so throughput comes from adding processes or threads rather than from framework cleverness. environ is a plain dict of headers, path and server details with keys uppercased and prefixed, and the specification requires native strings on input and bytes on output. gunicorn or uWSGI sits in front of it and manages the worker pool.", "ASGI keeps roughly the same request shape but hands the server an async callable, so one process can multiplex many in-flight connections on a single event loop and can serve websockets and long-lived streams that WSGI handles badly. The price is a stricter rule: any blocking call inside an async view stops the loop for every other request, so a synchronous database driver or a time.sleep becomes a site-wide slowdown. Uvicorn runs an ASGI application, and a purely synchronous framework can still be served through a thread-pool shim. Choose ASGI when you genuinely have concurrency, because for ordinary request-response CRUD the extra discipline buys nothing.", "A WSGI server often forks worker processes, so module-level state is per worker and a cache you warmed in one process is invisible to the next; anything shared has to live in Redis or the database. Code that opens database connections at import time, before a fork, leaves the children sharing one socket and interleaving responses, so connections belong in a per-worker post-fork hook. Reverse proxies terminate TLS and send X-Forwarded-Proto and X-Forwarded-For, and the framework only honors them through middleware you enable; without it redirect URLs come out as plain http and every client IP reads as the proxy's own address.", "An ORM turns rows into objects and builds SQL from expressions, which removes boilerplate without removing the database: one query for a parent list plus one lazy query per child relationship is an N+1, and it is the usual reason a page gets slower linearly with its own row count. Fix it by declaring the eager loading strategy upfront, whether that is a joined load or a select-in load, and verify by logging emitted SQL for a page you believe is efficient. The parts of an ORM that actually earn their keep are the connection pool, transaction handling and the parameter escaping that keeps injection out of your query builder.", "A Session is an identity map plus a unit of work: loaded objects are tracked, changes are detected in memory, and a flush emits the collected statements when the transaction commits or just before a query that needs them visible. That tracking explains how assigning to an attribute of a loaded object persists with no explicit save, and why a long-lived session keeps growing until you commit, rollback or expunge. A detached instance raises when a lazy relationship is touched after the session closes, so eager-load whatever the response still needs while the session is open. Async frameworks add one more constraint: every ORM call must be awaited, and a synchronous driver on that path blocks the loop for everyone else.", "Schema changes are versioned migrations so production, staging and a new hire's laptop converge on one declared state. Editing a migration other people have already applied is how histories diverge, so add a new revision rather than rewriting the old one. Migrations are also where locking matters, because an ALTER TABLE can block readers on a busy table and a data backfill bundled into a schema change can blow the deploy timeout; split them and run the backfill in batches. Query builders and bound parameters handle escaping for you, but interpolating user input into a raw statement is a SQL injection waiting for a scanner, and correctness usually depends on an index that matches both the WHERE clause and the ORDER BY.", "Response serialization and content negotiation are the layer where encoding bugs appear, and the common one is double encoding: returning a json.dumps string from a framework view that also serializes its return value produces a JSON string containing JSON, which the client cannot parse. Streaming responses require the framework and the server to agree on chunking, and buffering defeats streaming. Compression should happen at the proxy. Etags and conditional requests need cache-control headers on any GET whose response depends on state the URL does not carry, otherwise stale data is served after a mutation, which is exactly the class of bug that shows up in production but never in local tests where caches are off." ]
+  } ],
+  "questions" : [ {
+    "text" : "A function is declared as def add(item, bucket=[]). Calls that omit bucket show unexpected shared state. Why?",
+    "a" : "A fresh list is created for every call",
+    "b" : "Python raises a SyntaxError at definition time",
+    "c" : "The argument is automatically copied",
+    "d" : "The same list object is reused across calls",
+    "correct" : "D",
+    "explanation" : "Default expressions are evaluated once when the def statement executes, so the same mutable list is reused unless a new one is created inside the body.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement best describes the GIL in CPython?",
+    "a" : "Threads run bytecode in parallel on multiple cores whenever the GIL is free",
+    "b" : "Threads suit I/O-bound work but do not give CPU parallelism in CPython",
+    "c" : "The GIL removes the need for locks in all cases",
+    "d" : "The GIL only applies to asyncio",
+    "correct" : "B",
+    "explanation" : "Only one thread executes Python bytecode at a time. Blocking I/O releases the GIL, which is why threaded network or file work still scales.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the difference between is and == in Python?",
+    "a" : "They are always interchangeable",
+    "b" : "is compares values; == compares identity",
+    "c" : "is compares identity; == compares values",
+    "d" : "Both compare identity when run with -O",
+    "correct" : "C",
+    "explanation" : "is asks whether two names reference the same object; == delegates to __eq__ and usually compares value.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which objects can be used as dictionary keys?",
+    "a" : "Any object, including lists",
+    "b" : "Hashable objects only",
+    "c" : "Strings only",
+    "d" : "Integers only",
+    "correct" : "B",
+    "explanation" : "Keys must implement __hash__ and stable equality. Lists are mutable and therefore unhashable, while tuples of hashable values are valid keys.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does a with open(...) as f: block guarantee?",
+    "a" : "The file is closed when the block exits, even on exceptions",
+    "b" : "The file is loaded entirely into memory before the block starts",
+    "c" : "The file is locked against other processes",
+    "d" : "Writes are flushed only at interpreter exit",
+    "correct" : "A",
+    "explanation" : "The context manager calls __exit__, which closes the file on both normal and exceptional exits.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is the first argument of a method decorated with @classmethod?",
+    "a" : "The instance",
+    "b" : "The class itself",
+    "c" : "Nothing; it is an alias for @staticmethod",
+    "d" : "A copy of the module",
+    "correct" : "B",
+    "explanation" : "classmethod receives cls, which makes it useful for alternative constructors that must respect subclassing.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement about generators is correct?",
+    "a" : "They materialize every value before the first iteration",
+    "b" : "They cannot be used inside for loops",
+    "c" : "They yield values lazily and retain their state between iterations",
+    "d" : "They are always faster than list comprehensions",
+    "correct" : "C",
+    "explanation" : "A generator pauses at each yield and resumes with its local state intact, so memory use stays proportional to the current value rather than the whole sequence.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How does Python resolve an attribute when a class inherits from several bases?",
+    "a" : "Depth-first, left-to-right, without merging",
+    "b" : "Right-to-left breadth-first",
+    "c" : "Alphabetical order of class names",
+    "d" : "C3 linearization",
+    "correct" : "D",
+    "explanation" : "Python builds the method resolution order with C3 linearization, which keeps local precedence and the monotonicity of every base's order.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why create a virtual environment for each project?",
+    "a" : "It isolates project dependencies in a dedicated environment",
+    "b" : "It compiles Python to native machine code for faster execution",
+    "c" : "It installs packages globally by default",
+    "d" : "It replaces pip with a package registry",
+    "correct" : "A",
+    "explanation" : "A venv owns its own site-packages directory, so upgrades in one project cannot break another. Interpreter speed is unchanged.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does nums[1:4] return for nums = [10, 20, 30, 40, 50]?",
+    "a" : "[20, 30, 40]",
+    "b" : "[10, 20, 30]",
+    "c" : "[20, 30, 40, 50]",
+    "d" : "[10, 20, 30, 40]",
+    "correct" : "A",
+    "explanation" : "Slicing includes the start index and excludes the stop index, producing elements at positions 1, 2 and 3.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In CPython, what ends up bound to x after x = [1, 2].append(3)?",
+    "a" : "None, because append changes the list in place",
+    "b" : "[1, 2, 3], because append returns the extended list",
+    "c" : "3, because append returns the value it added",
+    "d" : "[1, 2], because append works on a temporary copy",
+    "correct" : "A",
+    "explanation" : "list.append mutates its receiver and returns None, so the chained assignment captures None. Expecting [1, 2, 3] assumes a builder-style API that lists do not offer.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "For a dict d holding a million entries, what is the average cost of the test if key in d?",
+    "a" : "Constant, since lookup hashes the key",
+    "b" : "Linear, because each stored key is compared",
+    "c" : "Logarithmic, because keys are kept sorted",
+    "d" : "Linear for string keys, constant for ints",
+    "correct" : "A",
+    "explanation" : "dict is a hash table, so membership testing hashes the key and probes rather than scanning, which is why it stays flat as the dict grows. The sorted-keys answer confuses dict with a balanced tree map.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In CPython, what does the expression [] == list() compare?",
+    "a" : "Only the lengths of the two lists",
+    "b" : "Identity of the two list objects",
+    "c" : "Element-wise equality via __eq__",
+    "d" : "The repr string of each object",
+    "correct" : "C",
+    "explanation" : "== on lists compares contents element by element, while is would compare object identity. The identity answer confuses == with is, which fails for freshly built containers.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which container gives O(1) append and pop at both the left and the right end?",
+    "a" : "list, because appending never shifts data",
+    "b" : "deque, because it chains fixed-size blocks",
+    "c" : "tuple, because it is immutable",
+    "d" : "set, because its element order is irrelevant",
+    "correct" : "B",
+    "explanation" : "deque supports constant-time work at both ends, which is what a queue or sliding window needs. list is O(n) at the left because insert(0, x) and pop(0) shift every remaining element.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does calling len(some_generator) do, given some_generator is a generator object?",
+    "a" : "It returns the count of values it will yield",
+    "b" : "It returns 0 until the generator is exhausted",
+    "c" : "TypeError, because generators lack __len__",
+    "d" : "It iterates the generator and returns the count",
+    "correct" : "C",
+    "explanation" : "A generator exposes no length protocol, since its size is unknown until consumed, so len raises TypeError. list(gen) materializes the values but also exhausts the generator.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does the expression '-'.join([1, 2, 3]) fail at runtime?",
+    "a" : "join expects the separator as a keyword",
+    "b" : "join needs a tuple rather than a list",
+    "c" : "join requires an iterable of strings",
+    "d" : "join works only on literal lists",
+    "correct" : "C",
+    "explanation" : "str.join concatenates its items verbatim, so every element must already be a string; map(str, xs) or a comprehension fixes it. Container type is irrelevant, a tuple works just as well.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "An async view is invoked as result = fetch(url) with no await. What happens?",
+    "a" : "The loop awaits the coroutine at the next checkpoint",
+    "b" : "The call raises a SyntaxError at import time",
+    "c" : "The coroutine runs eagerly and returns its value",
+    "d" : "A coroutine object is built but nothing executes",
+    "correct" : "D",
+    "explanation" : "Calling a coroutine function only constructs a coroutine object; the body runs when the loop drives it, and an abandoned one earns a RuntimeWarning. Believing the value arrives immediately is the usual missing-await confusion.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "With rows = [[1], [2]] and cp = rows.copy(), then cp[0].append(9), what does rows contain?",
+    "a" : "[[1, 9], [2]], since list.copy is shallow",
+    "b" : "[[1], [2]], since copy() clones nested lists",
+    "c" : "[[1, 9], [2]], but only for int contents",
+    "d" : "[[1], [9, 2]], since append shifts the outer list",
+    "correct" : "A",
+    "explanation" : "list.copy creates a new outer container holding the same inner objects, so mutating cp[0] shows through rows. Only copy.deepcopy recurses, and it depends on the pickle protocol.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Given a = {'x': 1, 'y': 2} and b = {'y': 3}, what is the value of the expression a | b?",
+    "a" : "{'x': 1, 'y': 2}, left side wins",
+    "b" : "{'x': 1, 'y': 3}, right side wins",
+    "c" : "{'x': 1, 'y': [2, 3]}, values merged",
+    "d" : "TypeError, because the key y overlaps",
+    "correct" : "B",
+    "explanation" : "The dict union operator added in 3.9 resolves colliding keys in favor of the right operand and returns a new dict, while |= mutates the left. Overlapping keys are ordinary, not an error.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the calling contract of a WSGI application callable?",
+    "a" : "app(request) returning a response object",
+    "b" : "app(environ, start_response) returning a body",
+    "c" : "app(loop, scope) awaiting a send callable",
+    "d" : "One instance created per connection at startup",
+    "correct" : "B",
+    "explanation" : "WSGI invokes the callable with the environ dict and start_response, and the return value must be an iterable of the response body. The request and response object form belongs to higher frameworks, not the interface itself.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "With a = [1, 2, 3] and b = [10, 20, 30, 40], how many pairs does list(zip(a, b)) produce?",
+    "a" : "3, stopping at the shorter input",
+    "b" : "4, padding the shorter input with None",
+    "c" : "5, one pair for every element present",
+    "d" : "4, which zip_longest also returns by default",
+    "correct" : "A",
+    "explanation" : "Plain zip truncates to the shortest iterable and drops the extra item silently. Padding to the longest requires itertools.zip_longest and an explicit fill value.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Given t = ([1], [2]), why does t[0].append(3) succeed while t[0] = [9] raises?",
+    "a" : "The nested list is copied when the tuple is built",
+    "b" : "Element bindings are fixed, objects are not",
+    "c" : "Immutability recurses, so nested lists are frozen too",
+    "d" : "Tuples allow item assignment but forbid insertion",
+    "correct" : "B",
+    "explanation" : "A tuple refuses to rebind t[0], yet the list object it references stays mutable. Assuming deep freezing mistakes tuple immutability for immutability of everything reachable.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A request handler written with async def calls requests.get(url) directly. What does that do to the ASGI server?",
+    "a" : "Nothing, the call is moved to a worker thread",
+    "b" : "It runs in parallel with other coroutines",
+    "c" : "It raises TypeError for mixing sync and async",
+    "d" : "It blocks the loop for all other requests",
+    "correct" : "D",
+    "explanation" : "A synchronous blocking call holds the single event loop, so all other tasks wait behind it; an HTTP client library or run_in_executor is the fix. Nothing migrates the call off the loop automatically.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In a function decorated with @contextmanager, which part runs when the with block exits normally?",
+    "a" : "Everything before the first yield",
+    "b" : "Everything after the yield, if in finally",
+    "c" : "Only the code inside a try/except around it",
+    "d" : "Nothing, exit requires an explicit send call",
+    "correct" : "B",
+    "explanation" : "The generator is resumed after the body finishes, so teardown code runs there and a finally block guarantees it even on exceptions. Code before the yield is setup, not teardown.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A cache dict d is updated per miss with d.setdefault(key, expensive_lookup(key)). When does expensive_lookup run?",
+    "a" : "Only when the key is missing",
+    "b" : "Only when the key is present",
+    "c" : "On every call, hit or miss",
+    "d" : "On every call that raises KeyError",
+    "correct" : "C",
+    "explanation" : "Arguments are evaluated before setdefault executes, so the default is computed each time whether or not it is stored. defaultdict defers work to a factory invoked only on misses, and get cannot insert.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the difference between d.get('k', default) and d.setdefault('k', default) for a plain dict d?",
+    "a" : "get inserts the default, setdefault does not",
+    "b" : "They differ only for missing keys",
+    "c" : "get returns a fallback, setdefault also stores it",
+    "d" : "setdefault raises KeyError when the key is absent",
+    "correct" : "C",
+    "explanation" : "setdefault writes the default into the dict on a miss and returns the stored value, while get just returns the fallback and leaves d unchanged. Their fallback behavior for present keys is identical.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In pytest, a fixture with scope='module' returns a mutable dict that one test updates. What is the risk?",
+    "a" : "The fixture is rebuilt for every test",
+    "b" : "Session scope is required for module data",
+    "c" : "pytest forbids mutable fixture return values",
+    "d" : "State leaks across tests in that module",
+    "correct" : "D",
+    "explanation" : "A module-scoped fixture is created once and reused, so a test that mutates it changes what later tests in the same module observe, producing order-dependent failures. Rebuilding per test would need function scope.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "n is a variable holding a large integer. What does n is n evaluate to in CPython?",
+    "a" : "False, since ints are boxed each use",
+    "b" : "True only for values under 256",
+    "c" : "True only for negative values",
+    "d" : "True, both names bind one object",
+    "correct" : "D",
+    "explanation" : "For the same name the lookup finds the identical object, so is holds regardless of magnitude. The 256 threshold belongs to the small-int cache created at startup, which is about when two separately computed equal ints share identity.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Given def load(rows, *, strict=False), what happens when a caller writes load(rows, True)?",
+    "a" : "strict receives True as usual",
+    "b" : "TypeError, because strict is keyword-only",
+    "c" : "The extra value is collected into **kwargs",
+    "d" : "strict defaults to False silently",
+    "correct" : "B",
+    "explanation" : "A bare star makes every following parameter keyword-only, so the second positional argument is rejected. There is no **kwargs in the signature to absorb it, and the default is not applied when an argument is supplied.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Reading a three-gigabyte log file line by line, which expression avoids materializing the whole file?",
+    "a" : "[process(l) for l in lines]",
+    "b" : "list(map(process, lines))",
+    "c" : "(process(l) for l in lines)",
+    "d" : "tuple(process(l) for l in lines)",
+    "correct" : "C",
+    "explanation" : "A generator expression computes each value only when consumed, so memory stays proportional to one result. The list and tuple forms build the entire sequence up front, and a map object only stays lazy until something consumes it.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A function body runs try: return 1 finally: return 2. What does a call return?",
+    "a" : "1, because try decided first",
+    "b" : "None, since returns conflict",
+    "c" : "A SyntaxError for two return statements",
+    "d" : "2, because the finally return wins",
+    "correct" : "D",
+    "explanation" : "finally completes before the pending return takes effect, and a return inside it replaces the value, also swallowing exceptions in progress. That is why cleanup blocks should not return.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A class Counter defines hits = [] at class level. Two instances append to Counter.hits. What is shared?",
+    "a" : "Nothing, each copy is separate",
+    "b" : "Only the length of the list",
+    "c" : "The class attribute dict itself",
+    "d" : "One list object shared by both",
+    "correct" : "D",
+    "explanation" : "hits lives on the class, and attribute lookup through an instance reaches the same mutable list, so both see each other's appends. An instance attribute is only created when you assign through self, which is why __init__ should build per-instance lists.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "def f(x: int) -> str: return str(x) is called as f('abc'). What happens under CPython?",
+    "a" : "It raises TypeError immediately",
+    "b" : "A SyntaxError is raised at import",
+    "c" : "x is converted to int first",
+    "d" : "It works, hints are not enforced",
+    "correct" : "D",
+    "explanation" : "The runtime stores annotations but does not check them, so a mismatched argument passes until a checker like mypy flags it in CI. No coercion or conversion is inserted anywhere.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement describes __hash__ for an instance of a class that defines __eq__ but not __hash__?",
+    "a" : "It is set to None, so unhashable",
+    "b" : "It is inherited from object unchanged",
+    "c" : "It falls back to the instance memory address",
+    "d" : "It is generated from __eq__ automatically",
+    "correct" : "A",
+    "explanation" : "Because a custom __eq__ makes two objects equal while their addresses differ, object's default hash would break the hash contract, so Python nulls __hash__ and dict keys raise TypeError. If you need hashing, you must define it yourself.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "With @dataclass(frozen=True, slots=True) and two instances holding identical field values, what is true?",
+    "a" : "They are equal by == but distinct under is",
+    "b" : "They are the same object, because of caching",
+    "c" : "Both == and is report identity only",
+    "d" : "Both are unhashable because fields compare",
+    "correct" : "A",
+    "explanation" : "The generated __eq__ compares field values while is still asks identity, so equal instances are separate objects. frozen also makes them hashable when the field values are, and slots merely drops the per-instance __dict__.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why does @retry(times=3) need parentheses when @log_calls next to a def does not?",
+    "a" : "Parentheses are optional for any decorator",
+    "b" : "An argument list creates the decorator itself",
+    "c" : "Decorators cannot take arguments directly",
+    "d" : "The innermost wrapper is skipped without them",
+    "correct" : "B",
+    "explanation" : "A decorator with arguments is a factory called first that returns the real decorator applied to the function, adding a third nesting layer. Without arguments the function object is passed straight in.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In a multithreaded CPython program, where can a lost update happen even though the GIL exists?",
+    "a" : "Only when threads touch objects on import",
+    "b" : "Only inside functions with default arguments",
+    "c" : "In a compound update such as counter += 1",
+    "d" : "Nowhere, single bytecode steps are atomic",
+    "correct" : "C",
+    "explanation" : "The GIL makes each bytecode step safe but += is a read, an add and a store, and the lock can be handed over between them. Relying on GIL accidents for compound correctness is a bug that other implementations expose.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "next(gen) is called after a generator has already been exhausted. How does a for loop see that signal?",
+    "a" : "GeneratorExit ends the loop silently",
+    "b" : "StopIteration, handled by for",
+    "c" : "ReturnValue, the marker for a bare return",
+    "d" : "IndexError, exactly as for a list",
+    "correct" : "B",
+    "explanation" : "Exhausted iterators raise StopIteration and the for protocol converts it into normal loop termination instead of surfacing it. PEP 479 additionally stops a StopIteration from leaking out of a generator's own frame.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two decorators are stacked as @cache above @log_calls on a function. Which wrapper runs first on each call?",
+    "a" : "The framework decides by decorator name",
+    "b" : "Whichever one was defined first",
+    "c" : "Neither, decorators apply at import only",
+    "d" : "The lower one, closest to the def",
+    "correct" : "D",
+    "explanation" : "Application is bottom-up, so log_calls wraps the function first and is the innermost layer, with cache wrapping the result. It is the outer wrapper that sees a call first and returns last.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In tests, module api imports helper from util. Where must you patch to replace helper inside api?",
+    "a" : "The function definition in util",
+    "b" : "The name bound in the api namespace",
+    "c" : "The original module's __dict__",
+    "d" : "Patching there is impossible at runtime",
+    "correct" : "B",
+    "explanation" : "from util import helper copies the reference into api, so code there looks up api.helper and patching util.helper leaves it untouched. Patch the module that reads the name, and autospec it so attribute typos still fail.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In a page view, a list of parents is loaded and then each parent's children collection is touched in a loop. What usually happens?",
+    "a" : "Nothing, relationship loading is free",
+    "b" : "All children load in one joined query",
+    "c" : "The ORM caches the entire table",
+    "d" : "An extra SELECT per parent row",
+    "correct" : "D",
+    "explanation" : "A lazy relationship emits its own query the first time it is accessed per instance, giving one parent query plus one child query per row. Declaring joined or selectin loading upfront collapses it, and only then can an index help.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A loop builds funcs = [lambda: i for i in range(3)]. What does calling all three return?",
+    "a" : "0, 1 and 2 in order",
+    "b" : "An error about the free variable i",
+    "c" : "2 for every one of them",
+    "d" : "None for every one of them",
+    "correct" : "C",
+    "explanation" : "Closures capture the variable, not its value at creation time, so every lambda reads i after the loop ended at 2. Binding the current value as a default argument, i=i, is the usual fix.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "With m = MagicMock() standing in for a client object, what does m.respones.status evaluate to?",
+    "a" : "0, the default numeric attribute",
+    "b" : "None, since the name is unset",
+    "c" : "A new auto-created child mock",
+    "d" : "AttributeError for the typo",
+    "correct" : "C",
+    "explanation" : "MagicMock fabricates any attribute you touch, so the misspelled respones yields a truthy child mock and the test can pass against nothing real. autospec binds a mock to the genuine interface so unknown attributes raise.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "With an ORM session, an object loaded earlier is modified and then a query runs before any commit. What typically happens first?",
+    "a" : "The session flushes pending changes",
+    "b" : "The transaction rolls back silently",
+    "c" : "Nothing until the session is closed",
+    "d" : "Pending writes are discarded by the query",
+    "correct" : "A",
+    "explanation" : "The session is an identity map that tracks attribute changes and emits them on autoflush so the query sees consistent data, with the commit finalizing the transaction. Only an explicit no_autoflush block defers that.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Inside a function that also reads a module-level variable attempts, adding the line attempts = 0 anywhere in the body causes what?",
+    "a" : "It shadows only for later lines",
+    "b" : "A SyntaxError for the reassignment",
+    "c" : "The global value is updated too",
+    "d" : "An UnboundLocalError on the read",
+    "correct" : "D",
+    "explanation" : "Any assignment makes the name local for the whole function body, so the earlier read finds an unbound local instead of the global. Use global or nonlocal deliberately, or pass the value in as a parameter.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A context manager's __exit__ returns True. What does that do to an exception raised inside its with block?",
+    "a" : "It re-raises unchanged",
+    "b" : "It converts it into a warning",
+    "c" : "It suppresses and discards it",
+    "d" : "It propagates after __exit__ returns",
+    "correct" : "C",
+    "explanation" : "A truthy return value tells the with machinery the exception was handled, so it never propagates and the failure disappears without a trace. Return False, or re-raise, unless suppressing is the documented purpose.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is a plain threading.Lock still required around the statement self.count += 1 under CPython's GIL?",
+    "a" : "The GIL frees between those steps",
+    "b" : "Because arithmetic is handled by C extensions",
+    "c" : "Because locks also make reads atomic",
+    "d" : "It is not required for in-place adds",
+    "correct" : "A",
+    "explanation" : "An augmented assignment loads, adds and stores as separate bytecodes and the scheduler may switch threads in between, so increments can be lost. The GIL protects the interpreter's internals, not your program's invariants.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In asyncio code, what happens to an exception raised inside a coroutine started with asyncio.create_task and never awaited?",
+    "a" : "The loop retries the task once",
+    "b" : "It cancels every other task",
+    "c" : "It reaches the parent coroutine",
+    "d" : "Stored until the result is read",
+    "correct" : "D",
+    "explanation" : "A task holds its exception and re-raises it only when result() or await retrieves it, and if the task is garbage collected unretrieved the loop merely logs it. An asyncio.TaskGroup propagates failures instead, which is why bare fire-and-forget tasks are dangerous.",
+    "difficulty" : "HARD"
+  } ]
+}

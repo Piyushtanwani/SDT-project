@@ -144,7 +144,7 @@ export const Navbar = () => {
           type="button"
           onClick={() => go("/")}
           aria-label="Learn Without Limits — home"
-          className={`flex flex-shrink-0 items-center gap-2.5 rounded-lg ${focusRing}`}
+          className={`flex min-h-[44px] flex-shrink-0 items-center gap-2.5 rounded-lg ${focusRing}`}
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-base font-extrabold text-white shadow-sm">
             L
@@ -163,7 +163,7 @@ export const Navbar = () => {
               end
               className={({ isActive }) =>
                 [
-                  "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  "rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
                   focusRing,
                   isActive
                     ? "bg-white text-indigo-700 shadow-sm dark:bg-gray-950 dark:text-white"
@@ -229,7 +229,7 @@ export const Navbar = () => {
                         key={path}
                         role="menuitem"
                         onClick={() => go(path)}
-                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        className={`flex w-full items-center gap-3 px-4 min-h-[44px] text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
                           admin
                             ? "font-medium text-indigo-600 dark:text-indigo-400"
                             : "text-gray-700 dark:text-gray-200"
@@ -244,7 +244,7 @@ export const Navbar = () => {
                     <button
                       role="menuitem"
                       onClick={handleLogout}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+                      className="min-h-[44px] flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
                     >
                       <LogOut size={18} />
                       Log out
@@ -257,7 +257,7 @@ export const Navbar = () => {
             <button
               type="button"
               onClick={() => go("/login")}
-              className={`hidden rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 lg:inline-flex ${focusRing}`}
+              className={`min-h-[44px] hidden rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 lg:inline-flex ${focusRing}`}
             >
               Login / Signup
             </button>

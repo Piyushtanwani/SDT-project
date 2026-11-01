@@ -1,0 +1,440 @@
+{
+  "name" : "Computer Networks",
+  "description" : "TCP, DNS, HTTP semantics, subnetting and the load-balancing vocabulary behind every web request.",
+  "duration" : "5 weeks",
+  "rating" : 4.6,
+  "modules" : [ {
+    "title" : "Transport and Naming",
+    "content" : [ "TCP opens a connection with SYN, SYN-ACK and ACK, then provides ordered, reliable delivery with flow control and congestion control. UDP sends datagrams with no delivery or ordering guarantee. That reliability is a budget rather than a promise: every segment is acknowledged with a cumulative sequence number, and a sender that misses an acknowledgement retransmits after a timer derived from a smoothed round-trip sample. When you compare a slow endpoint with a flaky one, the useful question is which layer retried, because the browser, the kernel and your client library each retry silently and each one doubles the latency the user perceives while hiding the underlying loss.", "DNS resolution usually starts at local caches, then delegates through a recursive resolver, the root servers, the TLD servers and the authoritative name servers. Only the recursive resolver walks the hierarchy on your behalf; authoritative servers answer with referrals and never with data for a zone they do not own. Every hop caches what it learned for the record's TTL, which is why a name change looks instant for one user and takes a full operational window for everyone else. Lowering a TTL hours before a cut-over and raising it afterwards is the standard way to keep a DNS change cheap and reversible.", "NAT rewrites private source addresses to a public address for outbound traffic and tracks the mapping so replies can be routed back. Because the transport port is part of the mapping, many internal hosts can share one public address, and each binding expires once traffic goes quiet. That expiry causes the classic symptom of a long-lived idle database or websocket connection dying silently while an immediately retried connection works perfectly. Keeping a session alive therefore means either an application-level heartbeat or an idle timeout on the NAT shorter than the one configured on the server.", "After a TCP connection closes, the side that sends the final ACK sits in TIME_WAIT for twice the maximum segment lifetime before that exact address and port pair may be reused. The wait lets delayed duplicates of the old connection drain out of the network and guarantees the peer's FIN was acknowledged. A server full of TIME_WAIT sockets is usually not leaking file descriptors; it is paying the normal cost of closing first, which is why making the client close, or reusing connections, fixes the port exhaustion you are staring at.", "A socket is identified by the four-tuple of source address, source port, destination address and destination port, so one server process can hold tens of thousands of connections on TCP port 443 as long as each peer uses a distinct ephemeral port. TCP also advertises a receive window describing how much buffer space remains for that connection. When an application reads slowly the window falls to zero, the sender enters persist-probe mode, and a healthy network looks congested while the real bottleneck is one slow consumer on the far side.", "Retransmission timing is measured, not guessed. Each acknowledged segment samples the round-trip time, the stack maintains a smoothed value plus a variance term, and it retransmits when the timer exceeds their sum. Samples taken from retransmitted data are discarded because the acknowledgement is ambiguous, and modern stacks clamp the initial timeout to roughly 200 milliseconds so a fresh connection on a lossy path does not degenerate into constant spurious retransmission. Configuring an RPC timeout below the path's real retransmission behaviour guarantees duplicated work exactly when the network is already degraded.", "UDP's missing guarantees are a design choice rather than a defect: with no connection state and no retransmission timer, a datagram goes out in a single round trip and can vanish silently, which suits voice, live video and game ticks where a late packet is worse than no packet. UDP checksums detect corruption but never cause a resend. When UDP carries reliable traffic, as QUIC does, loss detection, per-stream ordering and congestion control live in user space, so every tuning knob moves from the kernel into the library version you ship." ]
+  }, {
+    "title" : "HTTP and Edge Behaviour",
+    "content" : [ "HTTP is stateless, so applications carry identity in headers such as Authorization. Methods differ in semantics: GET is safe, PUT and DELETE are idempotent, POST generally is not. The protocol carries no session, so each request must re-prove who the caller is, and intermediates decide what is safe to retry purely from method and status. The practical consequence is that a proxy may resend a GET it never forwarded upstream, but will not resend a POST, because it cannot know whether the origin already executed the side effect.", "A CORS preflight is an OPTIONS request the browser sends before certain cross-origin requests to learn which methods and headers the server allows. The answer is cached for the period named by Access-Control-Max-Age, so a value of zero turns every interaction into an extra round trip before the real call. The trap in production is that CORS is enforced by the browser: the same request succeeds from curl or a server-to-server client and fails from the web app, which makes a correctly working API look intermittent.", "Routers forward by IP address at the network layer; layer-7 load balancers can route by path or header, while layer-4 balancers distribute TCP connections. A layer-4 balancer cannot see a URL, so it cannot send /api to one pool and /images to another; a layer-7 balancer can, but it terminates and re-originates connections, which changes timeouts, TLS handling and what your access logs record. Most complaints that the balancer is slow are really the extra handshake or an idle-timeout mismatch between client, balancer and origin.", "HTTP/1.1 keeps a TCP connection alive between requests but completes one response exchange at a time on that connection, so a slow request delays everything queued behind it on the same socket. Browsers dodge this by opening several parallel connections per origin, and pipelining was specified then abandoned because servers answered out of order and clients could not realign them. Head-of-line blocking here is client-side queueing, not packet loss, which is why one uncacheable asset can stall an entire page.", "HTTP/2 multiplexes many logical streams over one connection by splitting them into frames that interleave freely, so a large download no longer blocks a small request and compressed headers stop repeating boilerplate on every call. The catch is that every stream shares one TCP sequence space: a single lost packet pauses all streams until it is recovered, which is why HTTP/2 can feel worse than HTTP/1.1 on a lossy mobile link even though it removed the application-layer queue.", "HTTP/3 runs over QUIC, which moves reliability and per-stream ordering into a user-space transport carried by UDP. Losing a packet in one stream no longer stalls the others, connection migration survives an IP address change because a connection identifier rather than the four-tuple names the session, and the handshake folds in TLS so a secure session costs one round trip instead of two. The operational price is that firewalls, netflows and load balancers built on the assumption of TCP long connections still have to be taught to allow it.", "Caching correctness lives in Cache-Control rather than in file extensions. no-store forbids keeping a copy, no-cache permits storage but forces revalidation before reuse, and max-age states freshness in seconds so a shared CDN can hold an object longer than a browser does. A validator such as ETag lets an expired copy become a cheap 304 response with no body. The two classic incidents are an edge cache that normalises or ignores these headers and serves one user's private HTML to another, or ignores a purge and freezes an old build for hours.", "Status codes describe what happened, not what broke. 301 says the URI moved permanently and clients should update it, while 302 is temporary and must not be memorised as the new location; 401 means credentials were missing or invalid and repeats the challenge, 403 means the caller is known but this action is forbidden; 502 means an upstream produced something unusable and 504 means it never answered in time. A balancer that returns 503 when its own health check fails is telling the truth, while one that answers 502 for a timeout misleads your dashboard and sends the investigation to the wrong team." ]
+  }, {
+    "title" : "DNS Resolution and CDNs",
+    "content" : [ "A stub resolver on a laptop asks one question and waits for a complete answer, while the recursive resolver it asks walks the hierarchy with iterative queries, remembering referrals so the walk is expensive only the first time. Public resolvers are therefore enormous read-through caches, and their hit rate shapes perceived web speed far more than authoritative server performance does. When a domain stops resolving, the first thing to identify is which cache holds a stale answer, not whether the zone file is syntactically correct.", "Record types each answer a different question: A maps a name to IPv4, AAAA to IPv6, CNAME aliases one name to another and must not coexist with other data on the same label, NS names the servers authoritative for a zone, MX ranks mail exchangers, PTR inverts an address for reverse lookups, TXT carries free-form text and SRV names a service plus its port. Each type is cached independently, so deleting an A record while a CNAME chain survives yields a half-broken name that resolves differently depending on which record a resolver still holds.", "A TTL is an expiry, not a refresh interval: a cache may serve the record until then with no further contact, and an authoritative server is free to shorten what it hands out during a cut-over. The SOA minimum field bounds how long NXDOMAIN and empty answers are remembered, which is why a mistyped name keeps failing locally long after the zone was fixed. Treat TTL as your rollback budget, because once clients are holding an answer you cannot recall it.", "Anycast advertises one prefix from many sites and lets BGP steer each packet to the nearest advertising point, so a resolver or CDN node needs no client cooperation and a site failure simply withdraws the route. The hidden cost is that successive packets from one client can land on different instances, breaking anything keyed on source address or requiring session stickiness. Geo DNS instead returns different addresses per location and depends on where the querying resolver sits, which is frequently a datacenter rather than the browser.", "Because public resolvers are far from you, an authoritative server that geolocations by source address sees a caching farm rather than a household. EDNS Client Subnet lets a resolver forward a prefix of the client address, restoring geographic accuracy for CDN selection while leaking part of the network and reducing cache sharing, since answers now differ per prefix. The same lesson applies to any protocol carrying a client hint: the value must come from a hop you trust and must be stripped from anything a client supplies itself.", "A CDN is an HTTP cache behind an anycast front end. The edge terminates TLS, builds a cache key from method, host, path, query string and selected headers, then serves a stored object or fetches from the origin. A shield tier absorbs the first-request stampede, and stale-while-revalidate lets the edge serve yesterday's object while refreshing it in the background, so origin latency stops appearing in the critical path. Cache-key misconfiguration remains the usual reason users receive someone else's HTML or an asset that never updates.", "Classic DNS runs on UDP port 53 with a 512-byte answer limit unless EDNS0 negotiates a larger buffer, so truncated responses fall back to TCP, and zone transfers use TCP for the same reason. DNS over TLS on port 853 and DNS over HTTPS on 443 move queries into an encrypted channel, stopping on-path tampering while hiding resolution from the operator and breaking split-horizon views that answered differently by client address. A hosts file entry wins before any server is consulted, which silently disables CDN failover for that one name on that one machine." ]
+  }, {
+    "title" : "TCP Congestion, Buffering and Latency",
+    "content" : [ "A new TCP sender does not open the throttle at line rate. It starts with a small congestion window, commonly around ten segments, and increases it by roughly one segment for every segment acknowledged, so the window doubles each round trip. That is exponential growth despite the name, and it is what lets a flow reach hundreds of megabits per second within seconds. Growth stops at the first sign of congestion or when the window crosses the slow-start threshold, after which the sender switches to a linear ramp.", "Linear probing is the price of a shared queue: every sender raises its rate until the buffer at the bottleneck fills, and the resulting loss or delay tells all of them to back off. TCP Reno halves the window on loss, while fast recovery uses duplicate acknowledgements to retransmit before the retransmission timer expires, preserving far more throughput than a timeout-driven restart. A path that reorders packets produces duplicate acknowledgements without any loss, so the sender repeatedly halves a window that never needed halving.", "The chosen algorithm decides how aggressively a flow claims buffer space. CUBIC grows the window as a cubic function of elapsed time since the last cut, which fills large, fast networks quickly while keeping Reno-like behaviour near the operating point. BBR instead estimates bottleneck bandwidth and minimum round-trip time from the delivery pattern and probes around that estimate rather than aiming at loss, so it sustains throughput on shallow-buffered links. Mixed environments are where BBR looks either heroic or antisocial, depending entirely on the buffer and its competitors.", "Bytes in flight are capped by the smaller of the congestion window and the peer's advertised receive window, so a fast network can be throttled by a slow reader long before congestion enters the picture. Bandwidth-delay product states how much data a path can hold: a 100 megabit link with 100 milliseconds of round trip needs about 1.25 megabytes in flight just to fill the pipe. Long-fat paths therefore need window scaling, generous socket buffers and an application that reads promptly, because any one of those clamped turns a 100 megabit path into a trickle.", "Oversized router buffers absorb bursts instead of dropping them, so throughput-oriented TCP reports excellent numbers while interactive traffic sits behind hundreds of milliseconds of queue delay. Active queue management such as CoDel keeps the standing queue short by dropping or marking packets once delay exceeds a target, which restores latency and returns a usable congestion signal to senders. When ping times balloon only while traffic is flowing and speed tests still pass, the problem is a full buffer rather than a saturated link.", "The maximum transmission unit is the largest payload a link will carry, and the MSS is what TCP subtracts IP and TCP headers from, typically 1460 bytes on a 1500-byte Ethernet path. Path MTU discovery sends segments marked unfragmentable and shrinks the MSS when a router answers with ICMP type 3 code 4. Tunnel overhead makes this fragile: if a firewall blocks those ICMP errors, oversized packets vanish while small ones sail through, producing the familiar case where a login page loads instantly and the upload hangs forever.", "Nagle's algorithm coalesces small writes while earlier data remains unacknowledged, and delayed ACK holds an acknowledgement for up to 50 milliseconds hoping to piggyback it on outgoing data. Used together by a chatty request-response protocol, the sender waits for an ACK the receiver is withholding, and each exchange pays a stall that has nothing to do with the network. Disabling Nagle on the sending side breaks the interlock. Latency triage means separating propagation, queueing and stack timers, because only one of the three responds to buying more bandwidth." ]
+  }, {
+    "title" : "TLS, Certificates and Secure Transport",
+    "content" : [ "In TLS 1.2 the client sends a ClientHello listing supported versions and cipher suites, the server answers with a ServerHello, its certificate chain and key exchange parameters, the client supplies its own key material, and both sides exchange Finished messages that prove the handshake transcript was not altered. That full negotiation costs two round trips before the first application byte, which is why a cold connection across a 200 millisecond path feels dramatically slower than the warm one your benchmark measured.", "TLS 1.3 compresses the handshake to one round trip by having the client guess the key exchange group and include a key share in the ClientHello, and offers zero round trip data for returning clients that hold a resumption secret. The suite list shrinks to a handful of algorithms, all providing forward secrecy, and the server certificate travels encrypted under freshly derived keys. The practical downside for diagnosis is that the cleartext negotiation an operator used to grep in a packet capture no longer exists, so debugging shifts to application logs and exported key material.", "Cipher negotiation is an intersection filtered by server preference: the client offers an ordered list and the server selects from the overlap using its own policy, so a client offering only disabled suites receives a handshake alert rather than a graceful downgrade. ALPN occupies the same extension space and is how an HTTPS endpoint declares h2 or http/1.1, and a client that fails to negotiate it must fall back to HTTP/1.1. That single mechanism explains most cases where the server advertises HTTP/2 but every browser still speaks 1.1.", "A certificate binds a public key to a set of names, and clients match the requested hostname against the subject alternative names; the common name field was deprecated for that purpose, so an exact or wildcard SAN entry is what actually authorises a host. Issuers deliver a leaf plus intermediates while the client already trusts a root, so a chain missing an intermediate validates on a client that can fetch the gap and fails on one that cannot. When one browser rejects a certificate another accepts, an incomplete chain is the first thing to suspect.", "Because one IP address fronts many hostnames, the client states the intended name in the Server Name Indication extension inside the still-cleartext ClientHello, letting the server pick the right certificate and a load balancer pick the right pool. That name remains visible on the path, which is the motivation for encrypted client hello and encrypted DNS. A default-certificate fallback surfaces as a hostname mismatch error that looks like a bad certificate while the real fault is an old client that never sent SNI at all.", "Resumption skips a fresh key exchange: TLS 1.2 used session identifiers or tickets, and 1.3 issues pre-shared-key tickets that let a returning client finish in one round trip or send early data with the first flight, which a server must handle carefully because early data can be replayed. Mutual authentication adds a client certificate during the handshake and is how service meshes identify workloads without shared passwords. When TLS terminates at a balancer, that verified identity has to be forwarded in a header, and any origin trusting the header without trusting the balancer is simply broken.", "After the handshake, the record layer seals application bytes into protected chunks, and although payload contents are hidden, packet counts, sizes and timing still sketch the shape of the conversation. Terminating TLS at a proxy means the origin sees plaintext on a private network while the proxy owns certificates, timeouts and clock accuracy, so a minute of time drift turns a healthy service into expired-certificate errors for every client at once. Encryption also strips payload visibility from middleboxes, which is why observability has to move to logs, metrics and the HTTP layer rather than a wire tap." ]
+  }, {
+    "title" : "Subnets, Routing and Troubleshooting",
+    "content" : [ "A CIDR suffix counts the leading network bits, so /24 leaves eight host bits and /22 leaves ten, giving 1022 usable addresses once the network and broadcast addresses are removed. Prefix length is not cosmetic: a host that believes its subnet is longer than the router's will try to answer for addresses that live elsewhere, producing one-way connectivity that fails only for hosts outside its own narrow view of the world. Address plans are best built by counting hosts per tier, rounding up to a prefix, and leaving aggregate space spare, because renumbering is the project nobody finishes on time.", "Routers select the route with the longest matching prefix rather than the cheapest metric, so a /24 inside a summary /16 wins for those addresses while everything else follows the aggregate. A default route of 0.0.0.0/0 is merely the shortest match possible. Most accidental outages come from a more specific route appearing or vanishing: a VPN client that installs a default route, a leaked BGP prefix, or a container network that suddenly overlaps a corporate range and steals its traffic.", "A host reaches outside its subnet through a default gateway learned by DHCP or set by hand, and it finds that gateway at layer 2 through ARP on IPv4 or neighbour discovery on IPv6. Any address in the fe80::/10 range is link-local and meaningful only together with an interface, which is why IPv6 link URLs carry a zone identifier. When pinging the gateway fails on a link that is clearly up, check for a stale ARP entry and for two machines that both believe they own the same address.", "ICMP is not a debugging luxury but the network reporting itself: type 3 explains that a destination or protocol was unreachable, type 3 code 4 says a packet was too big for the next link, and type 11 says the hop counter expired, which is exactly what traceroute collects. A host that blocks all ICMP appears hardened while breaking path MTU discovery, so every tunnel misconfiguration turns into an unexplained timeout. A firewall that silently drops instead of rejecting also erases the difference between a closed port and a filtered one.", "Traceroute raises the TTL of successive probes and lists whichever routers answer with time-exceeded, so an asterisk means a router that deprioritises or ignores those replies rather than a broken link. Equal-cost paths make consecutive runs take different routes, which is why a hop table that jumps between providers can be entirely normal. The failure pattern worth memorising is progressive timeout: small packets reach the far end while larger ones die at a link with a smaller MTU whose ICMP error is blocked.", "Inbound connections need an explicit mapping because a NAT holds no entry for unsolicited traffic: port forwarding creates a static one, while real-time protocols discover the public address and mapped port through a server both peers can reach. A stateful firewall is not a NAT even though both track flows; it holds a permit entry because outbound traffic justified it and expires that entry on an idle timer. That timer is why a quiet SSH session over a long-lived NAT drops every few minutes while reconnecting takes a single attempt.", "Layered triage works because each layer fails in its own way: is an address configured, is a route present, is the neighbour resolved, does the peer answer, does the port accept, does the application respond. The output of ip route get 10.0.0.5 proves the routing decision without sending traffic, dig +trace example.com proves the delegation chain, and tcpdump -i eth0 port 443 and tcp shows whether a SYN arrived and whether anything answered it. Reading retransmission patterns in a capture separates a lossy path from a slow application far more reliably than any dashboard average." ]
+  } ],
+  "questions" : [ {
+    "text" : "Which sequence establishes a TCP connection?",
+    "a" : "SYN, ACK, FIN",
+    "b" : "ACK, SYN, RST",
+    "c" : "SYN, SYN-ACK, ACK",
+    "d" : "FIN, ACK, FIN-ACK",
+    "correct" : "C",
+    "explanation" : "Each side announces its initial sequence number; the third ACK confirms both directions are ready.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which statement contrasts TCP and UDP correctly?",
+    "a" : "UDP guarantees delivery",
+    "b" : "Both protocols always guarantee ordering and retransmit lost segments by default",
+    "c" : "UDP performs congestion control",
+    "d" : "TCP is connection-oriented and reliable; UDP is connectionless and unreliable",
+    "correct" : "D",
+    "explanation" : "TCP retransmits and orders; UDP leaves reliability to the application, which suits voice, games and DNS.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does HTTPS add to HTTP?",
+    "a" : "It runs HTTP over UDP",
+    "b" : "It only hides the URL",
+    "c" : "It encrypts HTTP with TLS and authenticates the server via certificates",
+    "d" : "It does not protect against man-in-the-middle attacks on public networks",
+    "correct" : "C",
+    "explanation" : "TLS provides confidentiality and integrity, and certificate validation binds the public key to the hostname.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How does a typical DNS lookup proceed on a cold cache?",
+    "a" : "The browser asks a root server before consulting any local cache or ISP cache",
+    "b" : "The recursive resolver queries root, then TLD, then authoritative servers",
+    "c" : "DNS always returns the same address",
+    "d" : "DNS only maps addresses to names",
+    "correct" : "B",
+    "explanation" : "The resolver follows referrals down the delegation chain and caches answers according to TTLs.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does NAT do for outbound traffic from a private network?",
+    "a" : "Assigns a public address to every device on the private network",
+    "b" : "Encrypts all traffic",
+    "c" : "Rewrites private source addresses to a public address",
+    "d" : "Replaces DNS",
+    "correct" : "C",
+    "explanation" : "The NAT device maintains a translation table so returning packets reach the correct internal host.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How many usable host addresses does an IPv4 /24 subnet provide?",
+    "a" : "254",
+    "b" : "256",
+    "c" : "255",
+    "d" : "128",
+    "correct" : "A",
+    "explanation" : "Eight host bits give 256 addresses; the network and broadcast addresses are reserved, leaving 254 usable.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A client receives HTTP 429. What does it mean?",
+    "a" : "The server crashed",
+    "b" : "The request was unauthorized",
+    "c" : "The resource moved permanently",
+    "d" : "The client exceeded a rate limit",
+    "correct" : "D",
+    "explanation" : "429 Too Many Requests usually pairs with Retry-After so clients can back off politely.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which HTTP methods are idempotent?",
+    "a" : "All methods are idempotent",
+    "b" : "GET is not idempotent",
+    "c" : "POST is idempotent by definition because it creates a resource",
+    "d" : "PUT and DELETE are idempotent; POST generally is not",
+    "correct" : "D",
+    "explanation" : "Repeating an idempotent request has the same effect as sending it once, which makes safe retries possible.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What triggers a CORS preflight request?",
+    "a" : "The server sends OPTIONS to the browser",
+    "b" : "Preflight is required for same-origin requests",
+    "c" : "The browser sends OPTIONS before certain cross-origin requests",
+    "d" : "CORS is enforced by the server rather than the browser",
+    "correct" : "C",
+    "explanation" : "Non-simple methods or headers trigger a preflight; the browser blocks the actual request if the response does not allow it.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "At which OSI layer do routers primarily forward packets?",
+    "a" : "Network layer (layer 3)",
+    "b" : "Data link layer (layer 2)",
+    "c" : "Transport layer (layer 4)",
+    "d" : "Application layer (layer 7)",
+    "correct" : "A",
+    "explanation" : "Routers inspect IP addresses and choose the next hop; switches operate on layer 2 and load balancers may use layer 4 or 7.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does the IPv4 header TTL field do?",
+    "a" : "It counts hops and the packet is discarded at zero",
+    "b" : "It sets how long a resolver may cache a DNS record",
+    "c" : "It bounds the lifetime of a TCP connection",
+    "d" : "It prioritises the packet ahead of others at each router",
+    "correct" : "A",
+    "explanation" : "Each router decrements the hop counter and drops the packet at zero, which is what lets traceroute work; the trap is confusing it with a DNS record's cache TTL.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does TCP fast-retransmit on duplicate acknowledgements instead of waiting for the retransmission timer?",
+    "a" : "Duplicate acknowledgements tell the sender to widen the congestion window further",
+    "b" : "They signal loss while later segments still arrive, so recovery beats a restart",
+    "c" : "They reset the round-trip estimator used for timeouts",
+    "d" : "They instruct the peer to shrink its advertised window",
+    "correct" : "B",
+    "explanation" : "Duplicate acks mean data past the gap got through, so the sender resends immediately and enters recovery; reading them as a flow-control signal confuses congestion control with the receive window.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which is the default port for HTTPS?",
+    "a" : "TCP 80",
+    "b" : "TCP 8080",
+    "c" : "TCP 443",
+    "d" : "TCP 9443",
+    "correct" : "C",
+    "explanation" : "443 is the reserved port for HTTP over TLS; 80 is plaintext HTTP and 8080 is a conventional proxy port, not the default.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "HTTP/2 removes application-layer head-of-line blocking yet still stalls all streams on one event. Which event?",
+    "a" : "A lost TCP segment that pauses every stream until it is recovered",
+    "b" : "A server that answers HTTP/2 streams strictly in their arrival order",
+    "c" : "A TLS record that carries frames for more than one stream",
+    "d" : "A browser that opens only six connections per origin",
+    "correct" : "A",
+    "explanation" : "Streams share one TCP sequence space, so retransmission blocks delivery for all of them; the six-connection limit is an HTTP/1.1 behaviour and is not what HTTP/2 fixed.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which single command shows the interface and gateway the kernel would use for a destination?",
+    "a" : "ss -tuln",
+    "b" : "ip route get 10.0.0.5",
+    "c" : "dig +trace example.com",
+    "d" : "arp -a",
+    "correct" : "B",
+    "explanation" : "It prints the selected route, device and source address without sending traffic. arp only lists learned neighbours, so it cannot prove which route was chosen.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does Access-Control-Max-Age control?",
+    "a" : "How long a browser may cache the response body itself",
+    "b" : "How long the CORS session remains valid on the server",
+    "c" : "How long the browser may reuse a preflight result",
+    "d" : "The timeout for the actual cross-origin request",
+    "correct" : "C",
+    "explanation" : "It bounds preflight caching only, so a zero value adds an OPTIONS round trip per request. Confusing it with max-age is the trap: response freshness is a different header.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A client reports a certificate hostname mismatch only through the corporate network and works from home. Most likely cause?",
+    "a" : "The proxy terminates TLS with a certificate lacking that name",
+    "b" : "The origin certificate expired while the client switched networks",
+    "c" : "The client is missing the intermediate certificate for the issuer",
+    "d" : "The browser does not support TLS 1.3 session resumption",
+    "correct" : "A",
+    "explanation" : "An intercepting proxy becomes the issuer for names it decrypts, so trust fails only where its root is installed. An expired origin certificate or incomplete chain would fail on both networks.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which DNS record type maps a name to an IPv4 address?",
+    "a" : "PTR",
+    "b" : "NS",
+    "c" : "CNAME",
+    "d" : "A",
+    "correct" : "D",
+    "explanation" : "A holds the IPv4 address; PTR is the reverse mapping and NS names authoritative servers. A CNAME only aliases names and still needs an A record at the end of the chain.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does lowering a record's TTL before a DNS cut-over help?",
+    "a" : "It makes the authoritative servers answer each query faster",
+    "b" : "It shortens how long caches keep serving the old answer",
+    "c" : "It stops resolvers from caching negative answers at all",
+    "d" : "It forces resolvers to fall back from UDP to TCP",
+    "correct" : "B",
+    "explanation" : "Cached entries survive until their TTL expires, so a short value limits the blast radius. Negative answers are bounded separately by the SOA minimum field.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A remote client saturates at 5 Mbps on a 1 Gbps path with 180 ms round-trip time. Which limit explains it best?",
+    "a" : "The 1500-byte MTU caps the usable MSS per segment",
+    "b" : "Delayed acknowledgements halve the window on every round trip",
+    "c" : "The window in flight is under the bandwidth-delay product",
+    "d" : "Congestion avoidance grows the window one segment per ACK",
+    "correct" : "C",
+    "explanation" : "Filling a long pipe requires bytes in flight near bandwidth times RTT, so a small receive or congestion window sets the ceiling. MTU and ACK pacing cost efficiency but cannot produce a hundredfold cap.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A load balancer answers HTTP 502. What does that indicate?",
+    "a" : "The upstream replied in a way the balancer could not use",
+    "b" : "The balancer itself hit its own rate limit for this client",
+    "c" : "The request body was larger than the buffer allowed",
+    "d" : "The balancer could not reach the upstream before its own timeout",
+    "correct" : "A",
+    "explanation" : "502 means an upstream responded but invalidly, whereas 504 means no answer in time. Mixing them up sends engineers to the app team for a timeout or to the network team for a bad response.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement about UDP is correct?",
+    "a" : "UDP retransmits a datagram when the application asks it to",
+    "b" : "UDP delivers datagrams with no ordering guarantee",
+    "c" : "UDP requires a handshake before the first datagram",
+    "d" : "UDP guarantees ordering but not delivery",
+    "correct" : "B",
+    "explanation" : "UDP is connectionless and unordered, leaving reliability to the application. Its checksum detects corruption but never triggers a resend, so a lost datagram is simply absent.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A server that closes its connections first shows thousands of TIME_WAIT sockets. Best conclusion?",
+    "a" : "The kernel is leaking file descriptors and needs more memory",
+    "b" : "Disabling keep-alive will drain the queue of waiting sockets faster",
+    "c" : "The peer is retransmitting FIN, so closing is not idempotent",
+    "d" : "The host closed first and waits out twice the segment lifetime",
+    "correct" : "D",
+    "explanation" : "TIME_WAIT belongs to whichever side sends the final ACK so delayed duplicates cannot be mistaken for a new connection. It consumes port space, not descriptors, so raising limits is the wrong lever.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "At which OSI layer does a switch forward frames by MAC address?",
+    "a" : "Data link layer (layer 2)",
+    "b" : "Physical layer (layer 1)",
+    "c" : "Network layer (layer 3)",
+    "d" : "Transport layer (layer 4)",
+    "correct" : "A",
+    "explanation" : "MAC learning and forwarding is layer 2; routers pick next hops by IP at layer 3, and layer 1 deals with signals rather than addresses.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "After a deploy, the CDN edge keeps serving stale HTML for one group of users only. Most likely cause?",
+    "a" : "The origin sent Content-Length for a body it later gzip-compressed",
+    "b" : "The cache key omitted a header the page actually varies on",
+    "c" : "The edge could not negotiate HTTP/2 with those clients",
+    "d" : "The origin certificate chain was missing an intermediate",
+    "correct" : "B",
+    "explanation" : "Stale content for a subset of clients is a cache-key or Vary problem, not a transport or certificate problem. Ignoring a header the response varies on is how one user's HTML reaches another.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why do Nagle's algorithm and delayed ACK together stall a request-response protocol?",
+    "a" : "Nagle buffers writes until the peer's receive window fills up",
+    "b" : "Delayed ACK discards segments the sender has to retransmit",
+    "c" : "Nagle waits for an ACK that delayed ACK is withholding",
+    "d" : "Both disable congestion control while the queue drains",
+    "correct" : "C",
+    "explanation" : "The sender holds a small write because earlier data is unacknowledged while the receiver withholds the acknowledgement hoping to piggyback. Assuming Nagle waits for window space confuses flow control with the timer interlock.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does an ICMP type 11 message report?",
+    "a" : "The destination port is closed on the target host",
+    "b" : "The destination address is unreachable from this router",
+    "c" : "The packet was too big for the next link and was dropped",
+    "d" : "The packet's hop counter reached zero before the target",
+    "correct" : "D",
+    "explanation" : "Time exceeded is generated when TTL hits zero, which is the reply traceroute gathers. Oversized packets produce type 3 code 4, and an unreachable destination is type 3, so the codes are not interchangeable.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which protocol maps an IPv4 address to a MAC address on the local link?",
+    "a" : "DNS",
+    "b" : "ARP",
+    "c" : "NDP",
+    "d" : "ICMP",
+    "correct" : "B",
+    "explanation" : "ARP asks which link address owns this IPv4 address. NDP is the IPv6 equivalent, and DNS resolves names rather than link-layer addresses.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "An internal app is reachable by IP but not by name, while public names resolve fine. What do you check first?",
+    "a" : "Which resolver the client queries and which view it serves",
+    "b" : "Whether the application listens on port 80, 443 or both at once",
+    "c" : "Whether the client MTU is smaller than the server MTU",
+    "d" : "Whether the origin has TLS 1.3 enabled for clients",
+    "correct" : "A",
+    "explanation" : "Split-horizon DNS answers internal names only from internal resolvers, so name-only failure points at the resolver. Port, MTU and TLS version cannot explain a failure confined to resolution.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the practical difference between a NAT and a stateful firewall?",
+    "a" : "Both rewrite source addresses, but only the firewall tracks state",
+    "b" : "A NAT translates addresses; a firewall permits flows by policy",
+    "c" : "A NAT keeps a connection table while a firewall only matches rules",
+    "d" : "A firewall rewrites the source address and a NAT only logs it",
+    "correct" : "B",
+    "explanation" : "Translation and permission are separate jobs that one device often performs. The trap is assuming an inbound drop means a missing NAT entry, when a policy can block a perfectly valid mapping.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which IPv4 block is reserved for private use by RFC 1918?",
+    "a" : "172.0.0.0/8",
+    "b" : "100.64.0.0/10",
+    "c" : "192.168.0.0/16",
+    "d" : "169.254.0.0/16",
+    "correct" : "C",
+    "explanation" : "RFC 1918 covers 10/8, 172.16/12 and 192.168/16; 172.0/8 is public space. 100.64/10 is carrier-grade NAT shared space and 169.254/16 is link-local auto-configuration.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Traceroute shows several silent hops yet the destination replies. What do the asterisks mean?",
+    "a" : "The path is broken and the destination could not reply",
+    "b" : "Those routers deprioritise or drop the time-exceeded replies",
+    "c" : "Those intermediate routers have run out of buffer space entirely",
+    "d" : "The destination is refusing every probe on TCP",
+    "correct" : "B",
+    "explanation" : "Many routers give TTL-expired replies the lowest priority, so silence is a policy choice. The destination's own reply already proves reachability, so asterisks alone do not imply a broken path.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "HTTP/3 works on a home network but fails on a corporate one that serves HTTP/2 happily. Likeliest cause?",
+    "a" : "The corporate network filters UDP port 443, which QUIC needs",
+    "b" : "The corporate proxy rejects the TLS 1.3 cipher suites offered",
+    "c" : "HTTP/3 requires IPv6 and the corporate network is IPv4 only",
+    "d" : "The browser cannot negotiate ALPN inside the QUIC handshake",
+    "correct" : "A",
+    "explanation" : "QUIC rides UDP 443 and many firewalls still drop it, leaving Alt-Svc hints as the only retry path. ALPN does exist over QUIC and HTTP/3 works fine on IPv4, so those explanations fail.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does an HTTP response with Vary: Accept-Encoding require of a cache?",
+    "a" : "Store one copy and always request gzip from the origin",
+    "b" : "Keep a separate stored entry per accepted encoding",
+    "c" : "Ignore that header when building the cache key",
+    "d" : "Recompress the body before storing the response",
+    "correct" : "B",
+    "explanation" : "Vary adds that request header to the cache key, so encodings cannot share one object. Dropping the header from the key is how a client receives gzip bytes it never advertised.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Two hosts ping each other successfully but cannot exchange large files over the same path. Which explanation fits?",
+    "a" : "The default gateway entry is missing on both hosts",
+    "b" : "The hosts are replying to ARP requests using stale entries",
+    "c" : "A path link has a smaller MTU and black-holes big packets",
+    "d" : "ICMP echo replies are rate limited by the target kernel",
+    "correct" : "C",
+    "explanation" : "Ping proves the small-packet path while a blocked PMTU error kills only oversized frames, commonly inside a tunnel. Blocked ICMP would break ping itself, and same-subnet traffic needs no gateway.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which status code says the origin has no current representation for the requested URI?",
+    "a" : "The server refused to authorise this caller",
+    "b" : "The resource moved permanently to a different host",
+    "c" : "The request body exceeded the server limit",
+    "d" : "The origin has no representation for that URI",
+    "correct" : "D",
+    "explanation" : "404 is the origin's own answer that the URI is unknown, unlike 502 or 503 where an intermediary is speaking. Reading it as a moved resource confuses it with 301 or 308.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A TLS 1.3 handshake succeeds yet the browser still uses HTTP/1.1. Which negotiation detail explains it?",
+    "a" : "The client offered ECDHE, which forbids stream multiplexing",
+    "b" : "ALPN did not advertise h2 in the handshake",
+    "c" : "The server certificate chain was missing an intermediate",
+    "d" : "Session resumption turned off stream prioritisation",
+    "correct" : "B",
+    "explanation" : "Protocol choice is made through the ALPN extension, so a client or terminating proxy that omits h2 leaves HTTP/1.1 as the only outcome. Cipher choice and chain completeness cannot change the protocol version.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A health check that only completes a TCP connect fails to detect which failure?",
+    "a" : "The backend host has become unreachable from the balancer",
+    "b" : "The backend process is not listening on the port",
+    "c" : "The backend answers every real request with an error",
+    "d" : "The balancer's own connection table is completely full",
+    "correct" : "C",
+    "explanation" : "A SYN-ACK proves the kernel accepts connections, not that the service works, so a stalled handler or 500 passes unnoticed. A dead listener is exactly what a TCP check does catch.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How do anycast DNS and Geo DNS differ during failover?",
+    "a" : "Anycast needs the client to cooperate while Geo DNS needs no help at all",
+    "b" : "Anycast moves packets by withdrawing a route; Geo DNS changes answers",
+    "c" : "Geo DNS failover is immediate because its records carry no TTL",
+    "d" : "Anycast cannot advertise one address from more than one site",
+    "correct" : "B",
+    "explanation" : "BGP reconvergence redirects anycast traffic, whereas a Geo DNS change only propagates as caches expire. Assuming Geo DNS is instant ignores the TTL that every resolver is still honoring.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "An idle SSH session through a corporate NAT drops every few minutes, yet reconnecting is instant. Why?",
+    "a" : "The server keepalive interval is shorter than the client's",
+    "b" : "The NAT fragments packets that exceed its own MTU",
+    "c" : "SSH renegotiated a weaker cipher and reset the session",
+    "d" : "The NAT expired the idle mapping for that flow",
+    "correct" : "D",
+    "explanation" : "Translation entries age out without traffic, so subsequent packets from the server have no mapping while a new outbound connection creates one immediately. A smaller MTU or cipher change would corrupt or reject the payload rather than silently remove the route.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A capture shows a client SYN repeated at about 1, 3, 7 and 15 seconds with no reply. What does that pattern indicate?",
+    "a" : "The client is retransmitting because nothing answered the SYN",
+    "b" : "The server is retransmitting SYN-ACK because the ACK was lost",
+    "c" : "The path is reordering segments and causing spurious recovery",
+    "d" : "The receive window closed and the sender is issuing probes",
+    "correct" : "A",
+    "explanation" : "Only the SYN is repeated, which means no SYN-ACK ever arrived; a lost final ACK would show SYN-ACK repetitions instead. Zero-window probing looks completely different, with acknowledgements present but no data flowing.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A client sends 15 requests to the same origin over one HTTP/1.1 keep-alive connection. What happens?",
+    "a" : "They share one stream and finish in parallel",
+    "b" : "The connection pipelines them out of order",
+    "c" : "The client opens fifteen separate connections for them",
+    "d" : "They are queued and answered one after another",
+    "correct" : "D",
+    "explanation" : "Keep-alive reuses the socket but HTTP/1.1 completes one exchange at a time on it, so later requests wait. Pipelining was specified but widely abandoned, and browsers cap parallel connections rather than opening one per request.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A host is 192.168.1.10/26 with default gateway 192.168.1.129 and reaches nothing off its subnet. Why?",
+    "a" : "The host treats the gateway as off-link and ARPs for it",
+    "b" : "The /26 prefix leaves too few usable host addresses here",
+    "c" : "The gateway address is not valid inside private space",
+    "d" : "The host and the gateway prefixes cannot overlap at all",
+    "correct" : "A",
+    "explanation" : "Under /26 the host sees only 192.168.1.0-63 as local, so 192.168.1.129 counts as off-link and it ARPs for the gateway directly instead of forwarding to it. The gateway address is a valid private host, so blaming the range or the prefix size is the trap.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A capture shows only the header bytes of a large response, then silence for seconds, then the remainder. What is the first thing to establish?",
+    "a" : "Whether a router is fragmenting the response payload",
+    "b" : "Whether the server stalled mid-write or the path stalled",
+    "c" : "Whether the client advertised a much smaller receive window",
+    "d" : "Whether the CDN recompressed the response body",
+    "correct" : "B",
+    "explanation" : "A gap after partial data can be an application stall, a zero window or loss, and each looks different in the same capture, so the gap must be attributed before tuning. Window size alone cannot explain silence in both directions.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A firewall lets DNS over TCP but silently drops UDP port 53. What does a resolver see?",
+    "a" : "Nothing unusual, since TCP is the default transport",
+    "b" : "Every signed zone fails validation at the resolver",
+    "c" : "Queries time out and are retried over TCP",
+    "d" : "Negative answers are replaced with SERVFAIL",
+    "correct" : "C",
+    "explanation" : "DNS sends UDP first and only reaches for TCP for truncation or transfers, so a silent UDP path surfaces as timeouts followed by slow TCP retries. Assuming TCP is the default is the trap that makes the latency look random.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "You suspect packet loss but ping reports 0% loss and speed tests pass. Which test best exposes standing queue delay?",
+    "a" : "Measure round-trip time while the link carries load",
+    "b" : "Compare the MTU configured on both ends of the path",
+    "c" : "Count retransmissions with netstat -s",
+    "d" : "Check the route table for a more specific prefix",
+    "correct" : "A",
+    "explanation" : "Bufferbloat shows up as inflated delay only under load, whereas loss stays rare because the buffer absorbs it. Retransmission counts and MTU checks look for other failure modes entirely.",
+    "difficulty" : "HARD"
+  } ]
+}

@@ -39,40 +39,19 @@ export const LoginSignup = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:to-indigo-950 flex items-center justify-center p-4">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(7)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute bg-gradient-to-r from-blue-400/30 to-purple-300/30 dark:from-blue-900/20 dark:to-purple-900/20 w-64 h-64 rounded-full blur-[100px]"
-            initial={{ scale: 0, rotate: Math.random() * 360 }}
-            animate={{
-              scale: [0, 1, 0],
-              x: [0, Math.random() * 400 - 200, 0],
-              y: [0, Math.random() * 400 - 200, 0],
-            }}
-            transition={{
-              duration: 15 + Math.random() * 10,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          />
-        ))}
-      </div>
-
+    <div className="min-h-screen flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="relative w-full max-w-md bg-gradient-to-br from-white to-indigo-50 dark:from-gray-900 dark:to-indigo-900/30 rounded-2xl shadow-2xl overflow-hidden border border-indigo-100 dark:border-indigo-800"
+        className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden ring-1 ring-gray-200/70 dark:ring-white/10"
       >
         <div className="px-8 py-12">
           <div className="mb-10 text-center">
             <motion.h1
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
-              className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-500 dark:from-indigo-500 dark:to-purple-400 bg-clip-text text-transparent mb-4"
+              className="text-4xl font-bold text-gray-900 dark:text-white mb-4"
             >
               Learn Without Limits
             </motion.h1>
@@ -91,7 +70,7 @@ export const LoginSignup = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
                 placeholder="your@email.com"
                 required
               />
@@ -109,7 +88,7 @@ export const LoginSignup = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
                   placeholder="Enter your password"
                   required
                 />
@@ -117,7 +96,7 @@ export const LoginSignup = () => {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                  className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                 >
                   {showPassword ? <FiEyeOff /> : <FiEye />}
                 </button>
@@ -129,7 +108,7 @@ export const LoginSignup = () => {
               whileTap={submitting ? undefined : { scale: 0.98 }}
               type="submit"
               disabled={submitting}
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting ? "Signing in…" : "Continue"}
             </motion.button>
@@ -166,8 +145,9 @@ export const LoginSignup = () => {
             <p className="text-gray-600 dark:text-gray-400">
               New here?{" "}
               <button
+                type="button"
                 onClick={() => navigate("/register")}
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium underline underline-offset-4 hover:underline-offset-2 transition-all"
+                className="inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium underline underline-offset-4 hover:underline-offset-2 transition-all"
               >
                 Create account
               </button>

@@ -237,7 +237,7 @@ export const ShowCertificates = () => {
       });
 
   return (
-    <div className="w-full bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 min-h-screen p-4 md:p-8">
+    <div className="w-full min-h-screen p-4 md:p-8">
       <motion.div
         className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-6 md:p-10 w-full max-w-5xl mx-auto"
         initial={{ opacity: 0, y: 20 }}
@@ -250,11 +250,11 @@ export const ShowCertificates = () => {
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            className="w-20 h-20 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-full flex items-center justify-center mb-4 shadow-lg"
+            className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mb-4 shadow-lg"
           >
             <FiAward className="text-white text-4xl" />
           </motion.div>
-          <h1 className="text-3xl md:text-4xl font-bold text-center text-gray-800 dark:text-gray-100 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-3xl md:text-4xl font-bold text-center text-gray-900 dark:text-white">
             Your Achievements
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2 text-center max-w-lg">
@@ -270,7 +270,7 @@ export const ShowCertificates = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 aria-pressed={activeCategory === "all"}
-                className={`px-4 py-2 rounded-full transition-all ${
+                className={`min-h-[44px] px-4 py-2 rounded-full transition-all ${
                   activeCategory === "all"
                     ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold shadow-md"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -286,7 +286,7 @@ export const ShowCertificates = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   aria-pressed={activeCategory === category.toLowerCase()}
-                  className={`px-4 py-2 rounded-full transition-all ${
+                  className={`min-h-[44px] px-4 py-2 rounded-full transition-all ${
                     activeCategory === category.toLowerCase()
                       ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold shadow-md"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -314,7 +314,7 @@ export const ShowCertificates = () => {
             <p className="text-rose-700 dark:text-rose-300 text-lg">{fetchError}</p>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="mt-4 px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+              className="mt-4 min-h-[44px] px-5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
             >
               Retry
             </button>
@@ -341,14 +341,14 @@ export const ShowCertificates = () => {
                           handleCertificateClick(certificate);
                         }
                       }}
-                      className={`bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/30 rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 ${
+                      className={`bg-white dark:bg-gray-900 rounded-xl shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 ${
                         selectedCertificate?.id === certificate.id ? "ring-2 ring-indigo-500 dark:ring-indigo-400" : ""
                       }`}
                       onClick={() => handleCertificateClick(certificate)}
-                      whileHover={{ y: -5 }}
+                      whileHover={{ y: -4 }}
                       layout
                     >
-                      <div className="h-2 bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700"></div>
+                      <div className="h-2 bg-indigo-500"></div>
                       <div className="p-6">
                         <div className="flex items-start gap-4">
                           <div className="flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg p-3 flex items-center justify-center">
@@ -398,8 +398,9 @@ export const ShowCertificates = () => {
               Pass a final exam with 80% or higher, then issue your certificate from My Exam History.
             </p>
             <button
+              type="button"
               onClick={() => navigate("/attempts")}
-              className="mt-5 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+              className="mt-5 min-h-[44px] bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
             >
               Go to My Exam History
             </button>
@@ -431,14 +432,14 @@ export const ShowCertificates = () => {
                   {/* Certificate Header */}
                   <div className="mb-6">
                     <div className="flex justify-center mb-3">
-                      <div className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 rounded-full flex items-center justify-center">
+                      <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
                         <FiAward className="text-white text-2xl" />
                       </div>
                     </div>
                     <h1 className="text-3xl md:text-4xl font-serif font-bold text-gray-900 dark:text-gray-100 mb-1">
                       Certificate of Achievement
                     </h1>
-                    <div className="w-24 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 mx-auto mb-3 rounded-full"></div>
+                    <div className="w-24 h-1 bg-indigo-500 mx-auto mb-3 rounded-full"></div>
                     <p className="text-gray-600 dark:text-gray-400 italic">This certifies that</p>
                   </div>
                   
@@ -527,7 +528,7 @@ export const ShowCertificates = () => {
               >
                 <button
                   onClick={handleDownloadPDF}
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white px-8 py-3 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 mx-auto"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center justify-center gap-2 mx-auto"
                   disabled={loadingDownload}
                 >
                   {loadingDownload ? (

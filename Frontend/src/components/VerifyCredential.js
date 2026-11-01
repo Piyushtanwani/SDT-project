@@ -72,7 +72,7 @@ export const VerifyCredential = () => {
   const sampleCredentialId = "BC7A3F91C2";
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center">
+    <div className="w-full min-h-screen flex flex-col items-center">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         {/* Hero Section */}
         <div className="flex justify-center">
@@ -88,7 +88,7 @@ export const VerifyCredential = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400"
+              className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white"
             >
               Digital Credential Verification
             </motion.h1>
@@ -183,7 +183,7 @@ export const VerifyCredential = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
-                  className="relative bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-900 p-6 md:p-8 rounded-xl border border-gray-200/50 dark:border-gray-800 mt-4 overflow-hidden"
+                  className="relative bg-[#FBF7EF] dark:bg-gray-900 p-6 md:p-8 rounded-2xl ring-1 ring-gray-200/70 dark:ring-white/10 mt-4 overflow-hidden"
                 >
                   <div className="absolute top-3 right-3 flex items-center gap-2 bg-white/80 dark:bg-gray-900/80 px-2 py-1 rounded-lg backdrop-blur-sm">
                     <span className="text-indigo-800 dark:text-indigo-400 text-xs md:text-sm font-medium">
@@ -193,7 +193,7 @@ export const VerifyCredential = () => {
                       type="button"
                       onClick={handleCopyId}
                       aria-label="Copy credential ID"
-                      className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
                     >
                       {copied ? (
                         <>
@@ -225,7 +225,7 @@ export const VerifyCredential = () => {
                         {certificate.courseName}
                       </h3>
                       <div className="flex justify-center items-baseline gap-2 mt-2">
-                        <span className="text-2xl md:text-4xl font-bold text-purple-600 dark:text-purple-400">
+                        <span className="text-2xl md:text-4xl font-bold text-indigo-600 dark:text-indigo-300">
                           {certificate.score}%
                         </span>
                         <span className="text-gray-500 dark:text-gray-400 text-sm md:text-base">Final Score</span>
@@ -261,7 +261,7 @@ export const VerifyCredential = () => {
                     </span>
                     <span className="block sm:inline text-center sm:text-right mt-2 sm:mt-0">
                       <strong>Powered by:</strong>
-                      <span className="text-purple-600 dark:text-purple-400 font-semibold ml-1">
+                      <span className="text-indigo-600 dark:text-indigo-300 font-semibold ml-1">
                         Learn Without Limits
                       </span>
                     </span>
@@ -309,7 +309,7 @@ export const VerifyCredential = () => {
             </div>
 
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow ring-1 ring-gray-200/50 dark:ring-gray-800">
-              <FiClock className="w-8 h-8 text-purple-600 dark:text-purple-400 mb-4" />
+              <FiClock className="w-8 h-8 text-indigo-600 dark:text-indigo-300 mb-4" />
               <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">No Expiry</h3>
               <p className="text-gray-600 dark:text-gray-400">
                 Issued certificates stay verifiable for the life of the course record
@@ -327,22 +327,6 @@ export const VerifyCredential = () => {
         </div>
       </div>
 
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

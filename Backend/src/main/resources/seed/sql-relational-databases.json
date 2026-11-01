@@ -1,0 +1,449 @@
+{
+  "name" : "SQL & Relational Databases",
+  "description" : "Joins, indexes, transactions and the query shapes that separate fast PostgreSQL and MySQL systems from slow ones.",
+  "duration" : "5 weeks",
+  "rating" : 4.9,
+  "modules" : [ {
+    "title" : "Query Semantics",
+    "content" : [ "A LEFT JOIN preserves every row from the left table and fills unmatched right-side columns with NULL, so COUNT(*) and COUNT(right_column) can disagree. With five orders and two missing customers the first returns 5 and the second returns 3, and a report writer who reads one number as the other loses the orphans silently. The same padding skews averages, because AVG(customers.rating) only sees rows that actually matched, so an order-level metric computed after a join is quietly a customer-level metric. Multiplication is the other half of the hazard: one customer with ten orders still contributes ten rows, and summing a total that lives on the order through that join counts it ten times. Decide the grain first, then count that grain's non-nullable key, and trust COUNT(*) only when the join provably cannot add rows.", "NULL is not a value but an unknown: comparisons with = return UNKNOWN, and aggregate functions such as COUNT(column) skip NULLs while COUNT(*) counts rows. That distinction is what makes a filter like WHERE discount = 0 drop rows whose discount is NULL even though a human would read them as zero, and why NOT (x = 5) excludes NULL x instead of collecting it. Two places remember that unknown is not false. A UNIQUE index in PostgreSQL, MySQL and SQLite allows many NULL rows, because no two unknowns are known to be equal, while SQL Server accepts only one. A CHECK constraint is satisfied by UNKNOWN, so CHECK (price > 0) lets a NULL price through unless the column also declares NOT NULL. Day to day, COALESCE supplies a substitute before arithmetic and NULLIF turns a sentinel such as an empty string back into NULL so aggregates ignore it.", "Grouping happens before HAVING. WHERE filters individual rows, GROUP BY collapses rows, and HAVING filters the resulting groups. That ordering explains the two errors people meet first: an aggregate inside WHERE, which fails because nothing has been aggregated yet, and a plain row predicate inside HAVING, which works but builds groups only to discard them. It also explains why a bare column beside GROUP BY is rejected unless it is a grouping key or wrapped in an aggregate, because after grouping each group is one row and a column holding several values in it has no defined value. Once groups are seen as rows, DISTINCT, GROUPING SETS and window functions are simply three ways of choosing how many rows the answer should have, which is why mixing two grains in one SELECT list is usually the last thing that breaks a dashboard query.", "SQL is written in one order and evaluated in another, and the gap causes most questions about why an alias cannot be used. The logical sequence runs FROM and JOIN, then WHERE, then GROUP BY, then HAVING, then the SELECT list, then DISTINCT, then ORDER BY, and LIMIT last. Because projection happens late, a WHERE clause cannot see an expression defined there, while ORDER BY generally can, since sorting works on the produced columns. The mismatch is a readability trap before it is a portability trap: an expression duplicated between SELECT and WHERE drifts the first time one copy is edited, and the durable fix is a common table expression that computes the label once so the outer query filters it like any real column. Engines layer local leniency on top of the standard, so a query that runs in one database and errors in another is usually relying on an extension.", "NOT IN is the clearest case of three-valued logic changing a result set instead of raising an error. A subquery that returns even one NULL makes customer_id NOT IN (SELECT customer_id FROM orders) evaluate to UNKNOWN for every candidate row, because a comparison with NULL is unknown and conjuncted unknowns never become TRUE, so a churn report written that way comes back empty the day somebody forgets to fill a column. NOT EXISTS asks a different question, whether no row satisfies this condition, and a NULL in the inner column simply fails the equality without poisoning the outer test, which makes the correlated anti-join the safer default. A long literal NOT IN list expands into a chain of comparisons, so it belongs in a join. The habit that keeps working is to never write NOT IN over a nullable column without an explicit IS NOT NULL inside the subquery.", "DISTINCT compares whole rows and, for that purpose, treats NULLs as equal to one another, so SELECT DISTINCT city FROM customers collapses the repeated cities and the several unknown ones into one row. It is not cheap decoration: the engine must hash or sort its input before it can emit one representative per group, which is why a redundant DISTINCT bolted onto a join that was supposed to be unique hides the real defect, an unenforced constraint. It also interacts awkwardly with ordering, because in a strict engine the ORDER BY expression has to be part of the deduplicated set, and adding a window function to the same query level makes every row distinct again so the keyword silently stops doing anything. The related trap is COUNT(DISTINCT sku) sitting beside SUM(quantity), which mixes two grains in one output row; when both grains are genuinely wanted, grouped subqueries say so more clearly than a keyword can.", "CASE is the standard way to branch inside an expression, and its two shapes are easy to confuse: a simple CASE compares one value against a list of constants, while a searched CASE evaluates complete boolean conditions in order and stops at the first that is TRUE. Either way it is an expression, so every branch must be a value and the result type is resolved across all of them, which is why mixing a text branch with a numeric one errors in PostgreSQL where another engine coerces it quietly. An omitted ELSE yields NULL, and that default shrinks a counting query the moment rows fall outside every WHEN. Two small functions carry most daily work: COALESCE returns its first non-NULL argument and wraps arithmetic safely, while NULLIF(a, b) gives NULL when the two are equal, the conventional way to stop a rate calculation failing over a zero denominator." ]
+  }, {
+    "title" : "Storage, Indexes and Transactions",
+    "content" : [ "A B-tree index accelerates equality and range lookups on the indexed prefix. A leading wildcard in LIKE '%term' leaves the prefix unknown, so a normal index cannot narrow the scan. The tree is ordered on the key tuple, so LIKE 'term%' fixes a left boundary and stops as soon as the prefix ends, while '%term' must weigh every entry and is answered by a scan or a trigram index instead. Range predicates keep the same asymmetry: an inequality bounds the walk, but nothing after it inherits an ordering guarantee. Depth is part of the cost too, since a few million rows is typically three levels, each a page the buffer cache must already hold. Treating an index as a promise rather than as one input to a cost estimate is how schemas collect indexes no query uses and every write pays for.", "The SQL standard defines SERIALIZABLE as the isolation level that prevents phantom reads; engines such as PostgreSQL implement stronger snapshot semantics at REPEATABLE READ as well. Naming the standard rather than the engine matters, because InnoDB reaches the same guarantees with locks rather than snapshots, so two writers touching one range block each other and a wait can surface as a deadlock in code that only reads. The ladder is worth knowing as behaviour rather than vocabulary: READ UNCOMMITTED may read work that later rolls back, READ COMMITTED re-reads a row and can see a different value or rows inserted since the transaction began, REPEATABLE READ pins one consistent view for the transaction, and SERIALIZABLE refuses interleavings no serial order could produce. An application reading one row per transaction never notices; a flow that reads a balance and then writes it is where seeing a value and holding a lock part company.", "Third normal form means every non-key column depends on the key, the whole key and nothing but the key, removing transitive dependencies that cause update anomalies. In an orders table carrying customer_name and customer_city keyed by order_id, the city really depends on the customer, so a move means updating every historical order, a customer with no orders cannot be stored at all, and one typo becomes a data-quality incident in a dozen rows. Lifting those columns into customers restores one row per fact and lets a foreign key insist that orders name a real customer. Normalization is a write optimisation: duplication disappears so updates land once, and the price is a join on the read path. The pragmatic order is model in 3NF, measure the queries that suffer, then denormalize one named column at a time with a documented refresh, because a cached total nothing recomputes is a report that will be wrong eventually.", "Tables live in fixed-size pages, and that layout decides what a query really reads. A sequential scan touches every page the table occupies, which is why filtering a small table without an index is often faster than an index lookup that adds random page visits, and why a table grown by repeated large updates can scan far more pages than its live row count suggests. Oversized rows are handled by overflow: PostgreSQL moves long variable-length attributes into side storage and keeps a pointer, so SELECT * on a text-heavy table costs more than the caller assumed, and InnoDB chooses between inline, paged and external storage for long columns under its row format. Physical layout is never really hidden from you. It appears as scan cost, as buffer cache hit ratio, and as the difference between a table that fits in memory and one that never will.", "InnoDB organises each table as a clustered index over the primary key, so rows sit in key order and a secondary index leaf stores the primary key rather than a row address; reading a column absent from that index costs a second descent. PostgreSQL differs in kind: the heap is roughly insertion-ordered and indexes point at physical tuple locations, so a table can correlate physically with a column until updates shuffle rows, after which the correlation that made a range scan cheap disappears. Those two models explain two familiar surprises. A wide composite primary key in MySQL inflates every secondary index because its value is duplicated into all of them, and a PostgreSQL index scan that turns random after a mass update needs a covering index, a narrower predicate, or rows rebuilt in the order the query wants. Neither engine rewards assuming the other one's storage model.", "Every index is a second copy of part of the table that must stay current, so write cost is a design input, not an afterthought. Inserting a random key into a B-tree splits pages and leaves the tree less compact than an append at the right edge, and updating an indexed column is a delete plus an insert in that structure, so a frequently rewritten column turns a narrow index into a maintenance tax. The corollary is that indexes should be created for named queries rather than for columns somebody might filter on someday, and both engines expose enough usage statistics to find the ones nobody reads. One exception deserves more attention than it gets: the referencing side of a foreign key. InnoDB creates an index for it when none exists, PostgreSQL does not, so a schema carried from one engine to the other can pay a full child-table scan for every parent delete.", "A transaction is the unit the engine makes atomic, and in most drivers that unit is a single statement unless you say otherwise. Autocommit means an INSERT is durable the instant it returns, so a script writing three related rows and dying after the second leaves the third unwritten with no error pointing at the pair. Beginning a transaction explicitly and closing it with COMMIT gives the invariant a name, and savepoints add a partial rollback without ending the whole unit, which is what a batch importer wants when one row in ten thousand is bad. Long transactions are not free in the other direction either: they hold locks, they delay cleanup of old row versions, and a page of application indecision becomes a queue of waiting sessions. The habit that prevents most of this is putting the transaction boundary exactly where the invariant is, not where the framework happens to flush." ]
+  }, {
+    "title" : "Joins, Aggregates and Window Functions",
+    "content" : [ "Engines choose a join strategy from the size and shape of the inputs, and the three workhorses behave very differently under load. A nested loop reads outer rows and probes the inner side once per row, ideal when the outer side is tiny and the inner indexed, hopeless at a million outer rows. A hash join builds a table on the smaller input and streams the larger through it, which is why an equi-join over two unordered sets finishes with no index at all, provided the build side fits in memory. A merge join needs both inputs ordered on the key and wins when an index provides that order or the comparison is a range rather than equality. MySQL relied on nested loops for years, adding hash joins only in recent 8.0 releases, while PostgreSQL costs all three and picks one. The plan tells you whether the missing piece is an index, more memory, or simply fewer rows.", "Relational joins multiply, and the grain of the answer is the grain of the rows that survive the multiplication. Joining orders to order_items produces one row per line item, so a query that sums the order total at that level counts the same total once per item and returns a figure nobody recognises. The fix is to aggregate at the correct grain in a subquery or a common table expression and join the aggregates rather than the details, because the duplication happens before any outer function sees it. The same mechanism hides in dimensions that reference one table twice, where an employee joined through two foreign keys fans into a product of the two sets. COUNT is read wrongly most often, since COUNT(*) after a fan-out counts pairs instead of entities. Writing the intended grain down before writing the SQL, then checking one sample order against it, prevents the whole class of bug.", "A LEFT JOIN's promise is broken by a WHERE clause that filters the right-hand table, because the NULL-padded rows fail the comparison and vanish, turning the outer join into an inner join. WHERE c.country = 'DE' keeps only matched German customers, so the report built to find customers with no orders excludes exactly the rows it was written for. Placement depends on what the predicate means: a condition in the ON clause restricts which rows may match before unmatched left rows are padded, so it still keeps the empty customers, while a condition on the preserved table belongs in WHERE because those rows always exist. If the intent really is to filter after padding, test the NULL explicitly with IS NULL or IS NOT NULL, because an outer join without a visible NULL test is almost always an inner join wearing a costume, and the next reader will assume the same.", "Joins are not limited to equality between two tables. A self join reads one table through two aliases to express a relation inside a single set, which is how an employee-to-manager hierarchy is answered in one row per employee, and how product pairs are enumerated once by insisting the left key is less than the right. Non-equi joins cover ranges and overlaps, so a reservation query joining on intersecting periods asks what no equality can state; engines answer with nested loops or merge joins, and PostgreSQL can push the same rule into an exclusion constraint at write time. LATERAL, and the APPLY forms some engines offer, invert the direction so a subquery in FROM may reference an item to its left and return several rows per left row; without it the standard forbids that reference. Correlated top-N-per-group problems read better as window functions, but a lateral join keeps the plan tight when the left side is already small.", "Under the standard, every selected column that is not inside an aggregate must be a grouping key, because after grouping a column that varies within the group has no defined value. MySQL's ONLY_FULL_GROUP_BY enforces exactly that, and the historical lax behaviour of returning an arbitrary value from such a column is the origin of the persistent myth that GROUP BY is a hint. Engines do relax the check where a value is provably constant, and both PostgreSQL and MySQL allow columns functionally dependent on a grouped primary key. GROUP BY itself treats NULLs as equal to one another, groups on whole expressions, and is not an ordering device, so the row order it produces means nothing without ORDER BY. For reporting shapes that used to need unions of grouped queries, GROUPING SETS lists several groupings at once and ROLLUP adds subtotals, with GROUPING() distinguishing a genuine missing value from a total row.", "Aggregates are functions over multisets with their own rules, and the two that bite are NULL handling and ordering. Most aggregates ignore NULL inputs, so AVG(price) is really the sum divided by the count of non-null values, and a column that is forty percent NULL averages over a population nobody chose unless COALESCE or a filter states the intent. COUNT(*) alone counts rows rather than values. Aggregates that care about order accept an ORDER BY inside the call, and the result is text, which MySQL's GROUP_CONCAT truncates at the group_concat_max_len session default of a thousand bytes without warning while PostgreSQL's STRING_AGG does not cap. FILTER (WHERE ...) attaches a condition to one aggregate in place, and SUM(CASE WHEN ...) is the portable equivalent where FILTER is unavailable. COUNT(DISTINCT x) is the expensive form, because deduplication happens before aggregation, and several distinct counts over different columns force separate work in the same pass.", "A window function computes over the rows related to the current row without collapsing them, so the output keeps one row per input row and gains a column, the whole difference from GROUP BY. Each part changes the answer. PARTITION BY divides the rows, ORDER BY inside OVER defines the ordering that ranking and framing depend on, and the frame, with ORDER BY, defaults from the partition start through the current row's peers. That default is why a running total looks wrong once two rows share a sort key: RANGE counts peers while ROWS does not, and a moving average over six rows needs its frame written out. Windows run after the WHERE and HAVING of their level, so filtering on a rank needs an outer query or a CTE. A window adds memory, not rows: over a huge partition the sort is the cost, and an index matching the partition and order keys removes it." ]
+  }, {
+    "title" : "Schema Design, Keys and Normalization",
+    "content" : [ "A primary key is a promise enforced three ways at once: unique, not null, and legal for a foreign key to point at. Candidate keys are the natural columns that could have made that promise, and choosing one such as an email address couples the schema to reality, so editing an address cascades through every referencing row; a surrogate integer or sequence-generated identifier keeps joins narrow and stable but means nothing outside the database. Width is not theoretical, because the key is duplicated into every secondary index and travels through every join, so a sixteen-byte random identifier inflates the working set and writes into index pages at random instead of at their growing edge. That locality argument is why time-ordered identifier variants exist. Whatever the type, declare it, never reuse it, and never let an application treat a primary key as a business fact that must hold forever.", "Normal forms are a sequence of eliminations, and each names a specific redundancy. First normal form forbids repeating groups and comma-separated lists inside a column, which is the rule that turns a tags column into a join table and makes an exact-tag lookup an indexed search instead of a substring scan. Second normal form removes columns depending on part of a composite key, third removes dependencies between non-key columns, and Boyce-Codd sharpens the point by treating any determinant that is not a superkey as suspect. Stopping there is judgment, not a finish line: a fifth join to keep an author's biography out of a book table is a cost every read pays, and reporting layers routinely keep a wide denormalized projection derived from normalized sources. The safe division of labour is to normalize the system of record, denormalize a derived copy that one named job rebuilds, and never let two tables claim to be the truth for the same column.", "Deciding whether a column may be NULL is deciding what absence means, and the two common answers are not interchangeable. NULL says unknown or not applicable, which fits a completed_at timestamp on a job that has not finished and does not fit a nickname the person simply never had. Storing an empty string instead looks tidy and then behaves differently everywhere: uniqueness treats the repeated empty string as a collision that NULL would have allowed, comparisons that ignore it silently exclude it, and aggregates count it as a value while skipping nulls. NOT NULL with a default is right when absence is really a state, and a separate boolean or status column is right when absence is a fact worth querying. The decision should be written per column, because a schema where half the optional columns use NULL and half use sentinels forces every reader to remember which is which.", "A schema the application alone protects is a schema whose weakest component is the data. PRIMARY KEY and FOREIGN KEY enforce identity and membership, and the referential action decides what happens when a parent leaves: RESTRICT refuses, SET NULL marks the orphan, and CASCADE deletes dependents, which is the option that turns one careless DELETE into a subtree. CHECK constraints keep invalid values out at write time, with the caveat that MySQL parsed but ignored them until 8.0.16, so a ported schema may carry rules that were never enforced. UNIQUE doubles as an index. PostgreSQL adds generated columns and exclusion constraints, which express rules like non-overlapping bookings declaratively instead of in a transaction that races itself. The argument for all of them over application validation is that a constraint holds for every writer, including the migration script, the analyst with a console, and the bug you have not shipped yet.", "Column types are behaviour, not formatting. Integer widths are range checks in every engine, so an identifier column that outgrows its width becomes an emergency migration, which is the main reason bigint is the default answer for anything that grows forever. Money needs exact NUMERIC or DECIMAL with an explicit scale, never FLOAT, because binary floating point cannot represent 0.1 and the error only shows up in a total someone audits. PostgreSQL distinguishes a timestamp that stores the literal you wrote from one that stores an absolute instant rendered per session, so a value written by a connection with another timezone silently shifts. A length limit on text is mostly documentation in PostgreSQL and a hard error or truncation in MySQL depending on the mode. JSON columns buy flexibility by giving up the constraints above, and are worth using for attributes nobody filters on rather than the ones everybody filters on.", "Many-to-many relationships become join tables, and the order of the columns in their composite primary key decides which direction the index serves: a key on (user_id, role_id) makes one user's roles a prefix walk while the reverse lookup needs its own mirrored index. Adding a period or a status column makes the relationship time-scoped, which is usually what current membership secretly means, and one current row per pair needs a partial unique index rather than a plain UNIQUE. Historical facts are a different shape: the price paid belongs on the order line, because the product's price column will have moved on and an invoice must stay reproducible years later. The alternative to both, an entity-attribute-value table, trades away the type and constraint systems for flexibility and then pivots in every query. Where attributes genuinely are sparse, a JSON column with an expression index keeps the keys and foreign keys in the relational part where they are enforceable.", "Schema changes are ordinary writes with unusual lock behaviour, and wrapping one in a transaction is often impossible. Adding a nullable column is metadata-only in current PostgreSQL and in MySQL 8 with the instant algorithm, while older versions rewrote the whole table for a non-null default and took an exclusive lock while doing so, stalling everything queued behind. The safe pattern is expand then contract: add the column nullable, backfill in batches, add the constraint, move the readers, and only later drop the old shape. A rename is the same problem seen as a deployment issue, because instances still running yesterday's code fail against tomorrow's schema, so migration and release cannot be one atomic act. Whatever the engine, rehearse the migration against a restored copy of production data, since a statement that took four seconds on your development table can hold a lock for the same four seconds at two in the afternoon." ]
+  }, {
+    "title" : "Query Plans and Index Tuning",
+    "content" : [ "A query plan is a guess about data nobody has looked at, and EXPLAIN ANALYZE is the tool that turns the guess into a measurement. The numbers worth comparing are estimated against actual rows per operator: an index scan estimated at one row that returns forty thousand is the signature of stale or misled statistics, and because estimates compound upward, one bad number at the bottom can make a nested loop look cheaper than a hash join by orders of magnitude. Buffers, where the engine reports them, separate cleverness from cost by showing disk reads against cached pages, distinguishing a query touching too much data from one whose data is not warm. Read the shape before the timings, since a sort, a hash aggregate or a rescanned inner relation each imply a specific remedy. Save the plan of anything you tune, since a plan that flips after the next statistics refresh explains why last month's fix stopped working.", "The optimizer sees your data as a handful of numbers refreshed by ANALYZE or autovacuum: a row estimate, a histogram of distribution, the most common values, and a count of nulls. A predicate's selectivity is interpolated from those, which is why a range over a column that changed since the last analyze can be wrong by a factor of a hundred, and why loading a partition and querying it at once should be followed by analyzing that partition. Single-column statistics assume independence, so filtering on city and postcode together is estimated as if the two were unrelated, and PostgreSQL's extended statistics objects add the multi-column and distinctness data that fixes it. MySQL keeps per-index cardinality sampled from a few pages, which explains an index suddenly falling out of favour and why analyzing the table is the standard remedy. The estimates are only as good as that assumption, and it is usually false in exactly the columns people filter on together.", "An index is a data structure with a cost and it pays only when it discards most of a table. In PostgreSQL a secondary index matching thirty percent of the rows means that fraction of the heap reached by random access, which a sequential scan wins comfortably; the same predicate can be rescued by a bitmap scan, which converts random tuple order back into sorted page order before reading. Cardinality is not selectivity either, because a two-valued column can still be highly selective for the rare value, and most-common-value statistics let the planner know that a cancelled status means one row in a million while active means nearly all of them. Small tables generate false findings constantly, since a planner correctly ignores an index on a forty-row lookup table. The argument is settled by rows eliminated per page read: an index you cannot show reduces the touched rows is an index every insert pays for as decoration.", "The column order in a composite index is a query-shape decision. Equality predicates belong first, because each pins the walk to one branch; a range after them still uses the index but ends the ordering guarantee for anything beyond, and a column no query filters on belongs last or not at all. Skipping the leading column defeats the structure, since an index on (tenant_id, created_at) cannot bound a range on created_at alone, the second key being sorted only inside each tenant. More subtle is that the predicate must compare the stored form: casting the column to a date or wrapping it in a function disables the B-tree, while a half-open interval on the bare column reads a range instead, and implicit conversions do the same silently when a text column meets a numeric literal. Where the expression genuinely is the query, an index on that expression or a generated stored column with a plain index restores the seek.", "B-trees are the default and not the only option, and choosing the wrong structure produces an index that exists and never gets used. PostgreSQL offers hash indexes for equality only, GIN for containment and text search over arrays, JSON and tsvectors, GiST for geometric and range work plus the exclusion constraints built on it, and BRIN, which stores minimum and maximum summaries per block range and costs almost nothing on append-only time data. The trade is that a GIN index is large and slow to update unless pending-list deferral absorbs writes, and BRIN is only as good as the correlation between physical position and value, so a backfilled table makes it useless. MySQL is narrower, with full-text and spatial structures instead of the general family, which is often the real reason a workload lands on the other engine. Trigram indexes are the practical answer to substring search, and they are still a second structure to size, maintain and occasionally rebuild.", "ORDER BY is where plans hide accidental full scans most often. Sorting needs every qualifying row, so a limit of twenty after an unindexed sort over ten million rows costs at best a top-N pass and at worst a spilled external sort, while an index on the same columns in the same order lets the engine walk and stop. That is why an index seems to disappear when an ORDER BY is added: the directions or the null ordering do not match, or the list mixes ascending and descending keys that one walk cannot serve. The memory budget for sorts is per operation in PostgreSQL rather than per session, so raising it globally converts a tuning change into an out-of-memory incident when many sessions sort at once. A deep offset is the quiet case, since skipping a hundred thousand rows still produces and discards them, and paging from the last seen value turns that linear cost back into a seek.", "The optimizer must also choose a join order, and the search space grows so fast that beyond a dozen relations it settles for a good-enough plan unless the query narrows the work. Outer joins constrain that choice everywhere, because the preserved side must be read before the optional one, and some engines long kept the order exactly as written, which is why reordering tables in a legacy query once changed its speed. The SQL itself carries easy wins that no index provides: an EXISTS subquery stops at the first matching row where a join may duplicate and force a deduplication afterwards, UNION ALL skips the eliminating pass that UNION pays for when the inputs are already disjoint, and a predicate written inside a derived table lets an index apply early instead of narrowing a wide result later. All of it is the principle the planner is also applying: remove rows at the earliest point that can afford it." ]
+  }, {
+    "title" : "Replication, Backups and Day-to-Day Operations",
+    "content" : [ "Physical replication copies blocks; logical replication copies rows. Streaming replication in PostgreSQL and binary-log replication in MySQL ship the change records to standbys that hold a byte-identical copy, which is fast, covers the whole cluster and demands matching versions on both sides. Logical replication decodes committed row changes and replays them, so publications and subscriptions in PostgreSQL, and row-based binary logging in MySQL, can feed a different major version, a chosen subset of tables, or a consumer that is not a database at all. The costs differ too: logical replication needs a replica identity such as a primary key to update or delete a row, carries more overhead per change, and its initial table copy is not one atomic snapshot across all tables. Schema changes are generally not carried along, so a migration stays a manual act on the far side, and the choice between the two is really a question about what the replica is for.", "Replication lag is a measurement, not a boolean, and most replica incidents are incidents about the gap between two clocks. A replica applies changes as fast as its replay path allows, so one bulk update becomes minutes of lag downstream, and every read routed to the follower in that window serves yesterday's inventory. PostgreSQL exposes a log position and MySQL a log file plus position, and comparing either with the primary's own value, or reading seconds behind, is what routing should key on. Asynchronous replication means the commit returned before a copy existed, while synchronous variants move that risk onto the writer instead. If a read must see the user's own write, the answers are reading from the primary for that flow, waiting for a recorded position where the engine supports it, or accepting staleness and saying so. None of that helps a replica that fell behind silently, which is why lag is an alert.", "A database backup is a restore you have rehearsed. The two primitives are logical dumps and physical copies: dump tools produce SQL or archive files that can be replayed into a different version or a single table, which makes them right for a subset and wrong for a hundred gigabytes, since restoring re-executes every insert. A physical base backup restores the whole cluster quickly but must be paired with continuously archived logs to reach any point after the copy; without archiving the restore stops at the last archived record and everything between then and the failure is gone. Point-in-time recovery is therefore a full backup, plus log archives, plus a target time or named restore point, and MySQL has the same shape with a log position. The verification step is restoring onto spare hardware on a schedule and comparing a count or checksum with production. A backup nobody has restored is only a hope that a directory is complete.", "Promoting a replica is the moment a replicated system reveals its consistency model. A manual promotion is safe only when the old primary is genuinely unreachable, because two writers accepting changes to the same rows produce a divergence no tool merges afterwards, which is why failover managers fence the former primary off, by cutting its path, demoting it through the provider API, or holding a lock in a consensus store. Automatic failover needs quorum, so the usual arrangement is a set of agents plus replicas deciding in seconds while the application keeps pointing at a name whose target moves. The uncomfortable question is how many acknowledged commits had not reached the replica at the moment of the crash: under async replication the answer is not zero, and the recovery options are losing those transactions or replaying them from the application's own record. When the old node returns as a replica, a schema change that landed only there breaks the pipeline.", "A server connection is not free. PostgreSQL gives each backend its own memory and snapshot, MySQL adds per-connection buffers for sorting and reading, and both pay setup cost on every open. Applications that open a connection per request spend their time in the connection layer, and those keeping five hundred connections per instance against a server configured for a hundred fail at the worst moment, during a spike or a retry storm. Poolers trade semantics for capacity: transaction pooling reuses one backend across clients between transactions, which suits most web applications, while session pooling preserves prepared statements, temporary objects and per-session settings at the price of pinning a real connection. The bug that survives every pool is a session idle inside an open transaction, holding locks and blocking cleanup while doing nothing at all. Timeouts and a pool ceiling are settings to choose on purpose: defaults that never complain are a queue waiting to happen.", "Deletes do not return space to the operating system, and that one fact explains most tickets about a growing data directory. PostgreSQL keeps superseded row versions until vacuum removes them, autovacuum fires on a change threshold, and reclaimed space becomes reusable inside the table rather than smaller on disk, so a table bloated by one enormous update stays large until a full rewrite takes an exclusive lock. The visibility information that makes index-only scans cheap comes from the same process, so a table never vacuumed can quietly lose a plan it used to have, and long transactions pin versions for the same reason. InnoDB does not need that cleanup for updates but suffers when its background purge falls behind, and its per-table files do not shrink without a rebuild. The operational pattern is identical: measure the buildup, tune the threshold for hot tables, and treat a very large delete as a scheduled batched change, not one statement at noon.", "Running a relational database day to day is mostly reading state rather than changing it. pg_stat_statements, or a slow query log, turns 'the app is slow' into a ranking by total time, which differs from the ranking by average time and is the one that finds the query actually costing the most. Lock contention is a chain: the locks view joined to activity says which session holds the wait and what it last ran. Disk questions are growth rate, log retention, and whether an archiving job that failed three weeks ago is quietly filling a volume. Unused indexes stay visible in the usage statistics, and dropping one is a free improvement in write latency. Then the human half: someone reviews a migration before it runs, a runbook says how to promote a replica and how to kill a runaway query, and one person owns the backup test nobody wants to schedule." ]
+  } ],
+  "questions" : [ {
+    "text" : "There are 5 orders, and 2 of them have no matching customer. What does COUNT(*) return for orders LEFT JOIN customers ON orders.customer_id = customers.id?",
+    "a" : "3",
+    "b" : "5",
+    "c" : "7",
+    "d" : "10",
+    "correct" : "B",
+    "explanation" : "A LEFT JOIN keeps all 5 orders; unmatched customer columns are NULL but the rows remain.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How do COUNT(email) and COUNT(*) differ when some emails are NULL?",
+    "a" : "They always return the same number",
+    "b" : "COUNT(*) ignores rows containing NULLs",
+    "c" : "COUNT(email) fails whenever a NULL is present in the column",
+    "d" : "COUNT(email) excludes NULLs while COUNT(*) counts every row",
+    "correct" : "D",
+    "explanation" : "Most aggregate functions ignore NULL inputs; COUNT(*) counts rows regardless of contents.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does WHERE name LIKE '%son' usually avoid a normal B-tree index?",
+    "a" : "It uses the index as efficiently as a prefix search because the pattern is short",
+    "b" : "It requires a hash index on every column",
+    "c" : "The query fails at parse time",
+    "d" : "The leftmost prefix is unknown, so the index cannot narrow the scan",
+    "correct" : "D",
+    "explanation" : "B-trees are ordered by prefix. A leading wildcard has no known prefix, leaving a sequential scan or a trigram/full-text index as options.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "According to the SQL standard, which isolation level prevents phantom reads?",
+    "a" : "READ UNCOMMITTED",
+    "b" : "READ COMMITTED",
+    "c" : "SERIALIZABLE",
+    "d" : "SNAPSHOT",
+    "correct" : "C",
+    "explanation" : "SERIALIZABLE makes concurrent transactions behave as if executed one at a time, which excludes phantoms.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement captures third normal form?",
+    "a" : "No duplicate rows are allowed anywhere in the table, including nullable columns",
+    "b" : "Every table must have a surrogate key",
+    "c" : "Every non-key column depends on the key, the whole key and nothing but the key",
+    "d" : "Every column must be indexed",
+    "correct" : "C",
+    "explanation" : "3NF removes transitive dependencies; 2NF removes partial dependencies on part of a composite key.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does HAVING do?",
+    "a" : "Filters groups after aggregation",
+    "b" : "Filters rows before grouping",
+    "c" : "Is an alias for WHERE",
+    "d" : "Can only be used with COUNT",
+    "correct" : "A",
+    "explanation" : "HAVING sees aggregated values such as SUM(amount) > 1000, which WHERE cannot evaluate.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does ON DELETE CASCADE on a foreign key do?",
+    "a" : "Defines what happens to child rows when the referenced parent row is deleted",
+    "b" : "Deletes the parent row whenever any new child row is inserted into the table",
+    "c" : "Applies only to updates",
+    "d" : "Is enforced only by MySQL",
+    "correct" : "A",
+    "explanation" : "Referential actions include CASCADE, RESTRICT, NO ACTION and SET NULL; CASCADE deletes dependent rows.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does EXPLAIN ANALYZE provide?",
+    "a" : "Only a cost estimate without executing the query",
+    "b" : "A permanent rewrite of the query plan",
+    "c" : "Executes the query and reports the actual plan with timings",
+    "d" : "Applies only to index-only scans",
+    "correct" : "C",
+    "explanation" : "Actual row counts and timings reveal misestimates and slow operators that plain EXPLAIN can only guess.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How do ROW_NUMBER and RANK differ for tied values?",
+    "a" : "Both always assign the same values to tied rows, including gaps in the sequence",
+    "b" : "RANK leaves gaps after ties; ROW_NUMBER assigns unique consecutive numbers",
+    "c" : "ROW_NUMBER leaves gaps after ties",
+    "d" : "RANK is not a window function",
+    "correct" : "B",
+    "explanation" : "With scores 100, 100, 90: RANK gives 1, 1, 3 while ROW_NUMBER gives 1, 2, 3.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which statement is a PostgreSQL upsert?",
+    "a" : "REPLACE INTO is the standard syntax",
+    "b" : "INSERT ... ON CONFLICT ... DO UPDATE",
+    "c" : "UPDATE ... RETURNING performs an upsert",
+    "d" : "PostgreSQL has no upsert support",
+    "correct" : "B",
+    "explanation" : "ON CONFLICT names the arbiter constraint or index and chooses DO NOTHING or DO UPDATE.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Under three-valued logic, what does a WHERE clause do with a row whose predicate evaluates to UNKNOWN?",
+    "a" : "It discards the row, since WHERE keeps only rows whose predicate is TRUE",
+    "b" : "It keeps the row, because UNKNOWN counts as a form of TRUE during filtering",
+    "c" : "It keeps the row and substitutes the column default for each NULL in it",
+    "d" : "The statement fails, because an unknown comparison cannot appear in a filter",
+    "correct" : "A",
+    "explanation" : "UNKNOWN is not TRUE, so the row drops out. The same rule explains why NOT (discount = 0) also excludes NULL discounts rather than collecting them.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "customers LEFT JOIN orders ON customers.id = orders.customer_id lists every customer. Which predicate keeps only those with no orders?",
+    "a" : "WHERE orders.id IS NOT NULL",
+    "b" : "WHERE COUNT(orders.id) = 0",
+    "c" : "WHERE orders.id IS NULL",
+    "d" : "WHERE orders.customer_id = NULL",
+    "correct" : "C",
+    "explanation" : "The join pads unmatched rows with NULL, so a NULL key is the anti-join test. COUNT in WHERE is illegal because aggregation has not happened yet, and equality with NULL is never TRUE.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "The subquery inside a NOT IN list returns one row whose value is NULL. What does the outer query return?",
+    "a" : "Every outer row except the ones whose own column is also NULL",
+    "b" : "An error, because an IN list may not contain a NULL",
+    "c" : "The rows whose column equals NULL, grouped at the end",
+    "d" : "No rows at all, since a comparison with NULL is never TRUE",
+    "correct" : "D",
+    "explanation" : "NOT IN becomes a chain of AND-ed inequalities, and one UNKNOWN makes the whole conjunction UNKNOWN. NOT EXISTS asks a different question and tolerates a NULL in the inner column.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the difference between COALESCE(x, 0) and NULLIF(x, 0)?",
+    "a" : "Both of them replace NULL with zero",
+    "b" : "COALESCE gives zero when x is NULL, NULLIF gives NULL when x is zero",
+    "c" : "COALESCE gives zero when x is zero, NULLIF gives NULL when x is NULL",
+    "d" : "They are two spellings of the same standard function",
+    "correct" : "B",
+    "explanation" : "COALESCE returns the first non-NULL argument; NULLIF returns NULL exactly when its two arguments are equal. The trap is reading the names as symmetric wrappers.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does SELECT region, SUM(sales) OVER (PARTITION BY region) AS total FROM stores WHERE total > 1000 fail?",
+    "a" : "Because WHERE runs before the window stage, so total has no meaning yet",
+    "b" : "Because a window function may not appear in a query level that also filters rows",
+    "c" : "Because SUM OVER requires a GROUP BY clause at the same level",
+    "d" : "It fails only in MySQL, which lacks window functions in earlier versions",
+    "correct" : "A",
+    "explanation" : "Windows are evaluated after WHERE, GROUP BY and HAVING, so filtering on one needs an outer query level or a CTE, plus QUALIFY only in engines that implement it.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which clause may legally reference a column alias defined in the SELECT list of the same query level?",
+    "a" : "WHERE, because aliases are resolved while parsing",
+    "b" : "GROUP BY, because grouping is evaluated before the SELECT list is projected",
+    "c" : "Nothing: no clause in any engine may see a SELECT alias",
+    "d" : "ORDER BY, because sorting runs after projection",
+    "correct" : "D",
+    "explanation" : "ORDER BY is the final logical step, so the alias is visible there in every mainstream engine. Assuming the same works in WHERE or GROUP BY relies on a dialect extension.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "An index exists on (status, created_at). Which query uses it best?",
+    "a" : "WHERE created_at > '2026-01-01' ORDER BY status",
+    "b" : "WHERE status LIKE '%open' ORDER BY created_at",
+    "c" : "WHERE status = 'open' ORDER BY created_at DESC",
+    "d" : "ORDER BY created_at with no filter at all",
+    "correct" : "C",
+    "explanation" : "Equality on the leading column fixes the branch and the second column supplies the order, which a backwards walk even satisfies for DESC. A filter that skips status cannot bound a range.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Two rows already hold NULL in a column that carries a UNIQUE index. What do PostgreSQL and MySQL do on a third NULL insert?",
+    "a" : "They accept it, since NULLs are not equal for uniqueness",
+    "b" : "They reject it, because a unique index treats every NULL as the same value",
+    "c" : "They replace the existing NULL row with the newly inserted one",
+    "d" : "They raise an error only when the column is also part of a primary key",
+    "correct" : "A",
+    "explanation" : "Standard SQL leaves unknowns distinct, so UNIQUE cannot express at most one current row; a partial unique index or a non-NULL discriminator does, and SQL Server is the exception allowing one NULL.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In InnoDB, how does reading a column that is not indexed differ between a secondary index and the primary key?",
+    "a" : "It is the same, because each index stores a full copy of the row",
+    "b" : "The secondary entry holds the primary key, needing a second lookup",
+    "c" : "A secondary index can only answer equality predicates on its own columns",
+    "d" : "The primary key must exist before any secondary index can be used at all",
+    "correct" : "B",
+    "explanation" : "InnoDB secondary leaves carry the clustered key, which is what a covering index avoids. PostgreSQL indexes instead store a pointer to a physical tuple location.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "With autocommit on, a script updates stock, then updates the ledger, and the process dies in between. What is the state?",
+    "a" : "Neither update survived, since the script never reached its end",
+    "b" : "Both survived, because the server buffers statements until the client exits",
+    "c" : "An undefined state, because a killed session never releases its row locks",
+    "d" : "Only the first survived, because each statement was its own transaction",
+    "correct" : "D",
+    "explanation" : "Autocommit closes a transaction at every statement, so the first write is already durable while the second is lost; an explicit BEGIN and COMMIT is the fix, not client-side error handling.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A child table's foreign key column is unindexed and parents are deleted often. Which engine supplies an index for that column?",
+    "a" : "InnoDB creates one if none exists; PostgreSQL does not",
+    "b" : "Both engines create it automatically along with the constraint",
+    "c" : "Neither engine is able to index a foreign key column at all",
+    "d" : "Only PostgreSQL, because InnoDB verifies constraints without indexes",
+    "correct" : "A",
+    "explanation" : "Without it, every parent delete scans the child table to verify referential integrity, which shows up as an unrelated query slowing down. The delete direction is a separate choice, made by the referential action.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A B-tree index exists on a text column. Can LIKE '_abc%' use it to bound the scan?",
+    "a" : "Yes, because the wildcard sits only at the start of the pattern",
+    "b" : "Yes, because a trailing wildcard is what makes a prefix search possible",
+    "c" : "No, one unknown leading character is enough to lose the usable prefix",
+    "d" : "No, because LIKE predicates can never be answered from an index at all",
+    "correct" : "C",
+    "explanation" : "Descent needs a known first character, so a single unknown at the front costs the seek even when the rest is literal. The other trap is concluding that LIKE never uses indexes.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two queries return provably disjoint row sets and are combined with UNION. What does writing UNION DISTINCT change?",
+    "a" : "It makes the combination faster by pre-sorting both inputs",
+    "b" : "Nothing, because plain UNION already eliminates duplicates",
+    "c" : "It converts the operation into UNION ALL in most engines",
+    "d" : "It forces both inputs to be materialized in a temporary table",
+    "correct" : "B",
+    "explanation" : "The bare UNION form is the eliminating one, so the explicit keyword is a synonym. The choice that actually costs a sort or hash pass is UNION versus UNION ALL.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "orders JOIN order_items ON orders.id = order_items.order_id yields one row per line item. What does COUNT(*) at that level report?",
+    "a" : "The number of orders, since the join keys on the order id",
+    "b" : "The number of distinct customers represented in the result",
+    "c" : "The number of orders divided by the average number of items",
+    "d" : "The number of line items, since orders repeat per item",
+    "correct" : "D",
+    "explanation" : "Join grain is the product of matched rows, so counting pairs is not counting orders, and SUM(orders.total) at that level is inflated the same way. Aggregate at the right grain first.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Two rows share the same created_at inside SUM(amount) OVER (ORDER BY created_at). What do they display?",
+    "a" : "The same total, since the default frame counts peers",
+    "b" : "Different totals, because the frame advances one physical row at a time",
+    "c" : "Correct totals only when ROWS is written out explicitly",
+    "d" : "An error, because the ordering key is not unique",
+    "correct" : "A",
+    "explanation" : "With ORDER BY present the default frame covers everything up to the current row's peers, and that frame counts tied values together. ROWS gives per-row totals and is the form people thought they wrote.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does LAG(amount) OVER (PARTITION BY account_id ORDER BY posted_at) return for the first row of a partition?",
+    "a" : "That row's own amount, since there is no earlier row to read",
+    "b" : "An error, because the expression reaches outside the partition",
+    "c" : "NULL, unless the optional default argument is supplied",
+    "d" : "Zero, because numeric windows coerce a missing row",
+    "correct" : "C",
+    "explanation" : "A window that finds nothing before the current row yields NULL, which is why LAG takes an explicit default. The usual bug is arithmetic on that NULL blanking a whole report column.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "MySQL's GROUP_CONCAT silently shortens its value for a large group. What causes that?",
+    "a" : "The group_concat_max_len limit, whose default is 1024 bytes",
+    "b" : "GROUP_CONCAT accepts numeric columns and drops text values silently",
+    "c" : "The column must be indexed before it can be concatenated at all",
+    "d" : "It cannot be combined with an ORDER BY inside the aggregate call",
+    "correct" : "A",
+    "explanation" : "The session-level cap truncates without warning, so raising it per session or building the list in the application is the fix; PostgreSQL's STRING_AGG has no equivalent ceiling.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A ten-million-row fact table joins an unindexed dimension on a natural key. Which change is the usual remedy in PostgreSQL?",
+    "a" : "Rewrite the join as a correlated subquery so the planner can merge it",
+    "b" : "Force a nested loop, because that strategy never needs extra memory",
+    "c" : "Add a LIMIT so the hash table stays small however many rows join",
+    "d" : "Index the dimension key, or give the hash join enough work_mem",
+    "correct" : "D",
+    "explanation" : "A hash join holds its build side, so too little work_mem spills to disk batches, while an index converts the plan to a nested loop that is only cheaper while the outer side stays small.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Scores 100, 100, 90 are ranked in descending order. What does DENSE_RANK assign?",
+    "a" : "1, 1, 3",
+    "b" : "1, 1, 2",
+    "c" : "1, 2, 3",
+    "d" : "1, 2, 2",
+    "correct" : "B",
+    "explanation" : "DENSE_RANK leaves no gap after a tie while RANK skips the consumed positions, so a filter such as rank <= 10 quietly returns more than ten rows when entries tie at the boundary.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which column type stores a money amount that must sum exactly?",
+    "a" : "FLOAT",
+    "b" : "DOUBLE PRECISION",
+    "c" : "NUMERIC(12, 2)",
+    "d" : "REAL",
+    "correct" : "C",
+    "explanation" : "Binary floating point cannot represent 0.1, so error accumulates across many rows; NUMERIC or DECIMAL with an explicit scale is exact but slower to aggregate.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In PostgreSQL, what distinguishes timestamp from timestamptz?",
+    "a" : "The first keeps the literal written, the second an instant rendered per session",
+    "b" : "They are synonyms, and only the client that renders the value differs",
+    "c" : "timestamp also stores the zone name of every value written to it",
+    "d" : "Only timestamptz may appear inside an ORDER BY expression",
+    "correct" : "A",
+    "explanation" : "A value without a zone is interpreted in whatever timezone the connection uses, so the same wall clock from two clients becomes two different instants. Both types sort equally well.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A join table has PRIMARY KEY (user_id, role_id). Which lookup does that index serve without anything else?",
+    "a" : "Find every user holding one role",
+    "b" : "Both directions, because an index can be walked backwards",
+    "c" : "Neither, because a primary key is a constraint and not an index",
+    "d" : "Find every role held by one user",
+    "correct" : "D",
+    "explanation" : "The key is sorted by user_id first, so the reverse query needs its own index on (role_id, user_id); walking one prefix backwards is not the same as seeking on a non-leading column.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A query groups by u.id and selects u.id, u.email and COUNT(o.id), and PostgreSQL accepts the ungrouped email. Why?",
+    "a" : "Because ungrouped columns are quietly replaced with NULL",
+    "b" : "Because GROUP BY is only advisory and the planner fills in a value",
+    "c" : "Because u.id is the primary key, so email is functionally dependent on it",
+    "d" : "Because email is indexed, which makes it safe to select without grouping",
+    "correct" : "C",
+    "explanation" : "A column that cannot vary within a group has a defined value, and a grouped primary key guarantees that. Legacy non-enforcing MySQL returned an arbitrary value instead of accepting the dependency.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which claim about CHECK constraints is correct?",
+    "a" : "A CHECK passes when its expression is TRUE or UNKNOWN, so NULL slips in",
+    "b" : "A CHECK rejects any NULL in the checked column even when the column allows NULL",
+    "c" : "MySQL has always parsed and enforced CHECK definitions",
+    "d" : "CHECK expressions may contain subqueries in standard SQL",
+    "correct" : "A",
+    "explanation" : "Constraint evaluation follows the same three-valued rule as WHERE, so CHECK (price > 0) needs a companion NOT NULL. MySQL parsed the syntax but only started enforcing it in 8.0.16.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is a random UUID a costlier primary key than a sequence in a B-tree table?",
+    "a" : "UUID values are only unique once an index enforces uniqueness across the table",
+    "b" : "Random keys split index pages instead of appending at the right edge",
+    "c" : "A UUID column cannot be referenced by a foreign key in either engine",
+    "d" : "Sequences are guaranteed gap-free, which random identifiers never are",
+    "correct" : "B",
+    "explanation" : "Locality dominates: appending keeps one hot page while randomness scatters writes and fragments the tree. The gap claim is the trap, since a rolled back transaction leaves gaps in a sequence too.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "On PostgreSQL 10, a NOT NULL column with a default is added to a 200-million-row table during peak traffic. What is the risk?",
+    "a" : "None, since every version records the default only in the catalog",
+    "b" : "The new column stays invisible until the next vacuum run finishes",
+    "c" : "The table rewrite holds an exclusive lock for the whole operation",
+    "d" : "The default is applied only to later inserts, leaving old rows blank",
+    "correct" : "C",
+    "explanation" : "A non-null default forced a full rewrite in older versions, and even modern fast paths still validate the constraint under an exclusive lock, so expand, backfill in batches, then constrain.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "EXPLAIN ANALYZE reports a million actual rows for an operator the planner estimated at ten. What is the first thing to suspect?",
+    "a" : "A corrupt index that must be rebuilt before anything else",
+    "b" : "That a generic plan from another session is being reused",
+    "c" : "That the table has more indexes than one query can use",
+    "d" : "Stale or misled statistics, especially correlated filter columns",
+    "correct" : "D",
+    "explanation" : "Estimates come from sampled statistics, so a wide estimate-to-actual gap is a statistics story: analyze the table, and where two columns move together add extended statistics rather than another index.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which PostgreSQL predicate on an indexed created_at column can seek on that index?",
+    "a" : "WHERE created_at::date = '2026-01-05'",
+    "b" : "WHERE to_char(created_at, 'YYYY-MM-DD') = '2026-01-05' AND created_at IS NOT NULL",
+    "c" : "WHERE created_at >= '2026-01-05' AND created_at < '2026-01-06'",
+    "d" : "WHERE date_trunc('day', created_at) = '2026-01-05'",
+    "correct" : "C",
+    "explanation" : "The index holds timestamps, not truncated forms, so any function around the column destroys the ordering a seek needs. The half-open interval selects the same rows on the bare column.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "An index on (tenant_id, created_at) meets a query that filters only on created_at. What is the honest expectation?",
+    "a" : "The leading column is unconstrained, so no useful range can be bounded",
+    "b" : "It behaves like a single-column index, since both columns are stored",
+    "c" : "It can never help in any engine, because the second column is unsorted",
+    "d" : "The planner rewrites the predicate into a hash join over timestamps",
+    "correct" : "A",
+    "explanation" : "The second key is ordered only inside each tenant, so the walk has no bounds. A skip scan may rescue a low-cardinality leading column, but an index starting with created_at is the dependable answer.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which index suits a PostgreSQL query that filters a jsonb column with meta @> '{\"region\": \"emea\"}'?",
+    "a" : "A B-tree index over the whole jsonb expression",
+    "b" : "A GIN index, or jsonb_path_ops when containment is all it needs",
+    "c" : "A BRIN index built on the column default value",
+    "d" : "A hash index on the JSON key name, since hash indexes handle keys",
+    "correct" : "B",
+    "explanation" : "Containment inspects many keys per row, which is what an inverted structure such as GIN exists for; B-tree and hash compare whole values, and path_ops gives up key-existence operators for a smaller index.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A query with ORDER BY scored_at and LIMIT 20 has a matching index yet the plan still sorts everything. Which explanation is plausible?",
+    "a" : "Sorts can never be satisfied from an index in any engine",
+    "b" : "LIMIT always disables index usage, so the sort is unavoidable",
+    "c" : "The index has to be rebuilt after every vacuum before a sort can use it",
+    "d" : "The sort directions do not match the index, or most rows qualify anyway",
+    "correct" : "D",
+    "explanation" : "Planners do use an index to avoid a sort when the ordering matches, so check mixed directions and null ordering, and whether the filter selects so much of the table that reading and sorting is cheaper.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A plan shows a sequential scan over a 40-row lookup table that has an index. What does that indicate?",
+    "a" : "A missing index, which should be created on the filter column",
+    "b" : "Nothing wrong, since a tiny table read in order is usually cheapest",
+    "c" : "Corruption in the table's storage that needs an offline rebuild",
+    "d" : "The index is unusable because the table has never been analyzed",
+    "correct" : "B",
+    "explanation" : "Cost is about rows and pages touched, and forty rows sit in a page or two, so an index adds random access plus write maintenance for nothing. The same scan over ten million rows is a finding.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which replication method can ship a chosen subset of tables to a consumer on a different major version?",
+    "a" : "Physical streaming replication, since it ships log records",
+    "b" : "Logical replication, since it replays decoded row changes",
+    "c" : "Block-level storage replication, since it copies whole pages",
+    "d" : "Restoring a full backup onto the other node, which is version-free",
+    "correct" : "B",
+    "explanation" : "Decoding to row events removes the dependency on physical layout, which is also what lets a non-database subscribe; DDL is generally not carried along, so schema changes stay manual.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A service commits to the primary and reads its own write from a replica a second later, seeing the old value. Least invasive fix?",
+    "a" : "Raise the replica session to a stronger transaction isolation level",
+    "b" : "Add an index so the replica applies incoming changes more quickly",
+    "c" : "Read from the primary for that flow, or wait for a known replication position",
+    "d" : "Turn on synchronous commit everywhere so replicas never fall behind",
+    "correct" : "C",
+    "explanation" : "This is replication lag rather than an isolation defect, since the replica has not replayed the commit yet; targeted routing or a position wait fixes it, while global synchronous commit taxes every writer.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A database keeps only weekly dump files and archives no logs. After a Thursday failure, what is the recovery point?",
+    "a" : "The minute of the failure, since logical dumps capture transactions",
+    "b" : "The last checkpoint before the crash, replayed from live log files",
+    "c" : "Somewhere in the past week, depending on how fast the dump restores",
+    "d" : "The previous week's dump, because nothing between dumps was archived",
+    "correct" : "D",
+    "explanation" : "Point-in-time recovery needs the archived logs between full backups, so without them the restore stops at the dump and the data-loss window equals the dump interval, not the backup duration.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which PostgreSQL setting bounds a session that sits idle with an open transaction?",
+    "a" : "statement_timeout, since any stall counts as statement execution",
+    "b" : "idle_in_transaction_session_timeout",
+    "c" : "lock_timeout, because an idle session is always a lock holder",
+    "d" : "max_standby_streaming_delay, which cancels replica queries instead",
+    "correct" : "B",
+    "explanation" : "That timeout terminates exactly the pattern of a transaction opened and then left waiting on application work; statement_timeout measures execution and never notices the gap between statements.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does PgBouncer's transaction pooling mode give up compared with a direct connection?",
+    "a" : "Session state such as prepared statements and advisory locks",
+    "b" : "The server's ability to terminate long-running queries",
+    "c" : "Compatibility with TCP connections from application servers",
+    "d" : "Nothing, because it replays all session state for each new client",
+    "correct" : "A",
+    "explanation" : "Between transactions the same backend may be handed to a different client, so anything bound to a session disappears. The tempting answer is that the pooler restores it, which is precisely the cost it avoids.",
+    "difficulty" : "EASY"
+  } ]
+}

@@ -81,40 +81,19 @@ export const Register = () => {
 
   return (
     <GoogleOAuthProvider clientId="373447199487-17q7ruiigmv5c612s0sjbdb65dmcpm5i.apps.googleusercontent.com">
-      <div className="min-h-screen bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:to-indigo-950 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden">
-          {[...Array(7)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute bg-gradient-to-r from-blue-400/30 to-purple-300/30 dark:from-blue-900/20 dark:to-purple-900/20 w-64 h-64 rounded-full blur-[100px]"
-              initial={{ scale: 0, rotate: Math.random() * 360 }}
-              animate={{
-                scale: [0, 1, 0],
-                x: [0, Math.random() * 400 - 200, 0],
-                y: [0, Math.random() * 400 - 200, 0],
-              }}
-              transition={{
-                duration: 15 + Math.random() * 10,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            />
-          ))}
-        </div>
-
+    <div className="min-h-screen flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="relative w-full max-w-md bg-gradient-to-br from-white to-indigo-50 dark:from-gray-900 dark:to-indigo-900/30 rounded-2xl shadow-2xl overflow-hidden border border-indigo-100 dark:border-indigo-800"
+          className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden ring-1 ring-gray-200/70 dark:ring-white/10"
         >
           <div className="px-8 py-12">
             <div className="mb-10 text-center">
               <motion.h1
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
-                className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-500 dark:from-indigo-500 dark:to-purple-400 bg-clip-text text-transparent mb-4"
+                className="text-4xl font-bold text-gray-900 dark:text-white mb-4"
               >
                 Join Our Community
               </motion.h1>
@@ -151,7 +130,7 @@ export const Register = () => {
                       aria-invalid={fieldError && fieldError.field === field ? true : undefined}
                       value={formData[field]}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
+                      className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-indigo-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent placeholder-gray-500 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 transition-all"
                       placeholder={`Enter your ${field.replace(/([A-Z])/g, " $1").toLowerCase().trim()}`}
                       required
                     />
@@ -166,7 +145,7 @@ export const Register = () => {
                         aria-label={
                           (field === "password" ? showPassword : showConfirmPassword) ? "Hide password" : "Show password"
                         }
-                        className="absolute right-4 top-4 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                        className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                       >
                         {field === "password" ? (
                           showPassword ? (
@@ -190,24 +169,23 @@ export const Register = () => {
                 </div>
               ))}
 
-              <div className="flex items-center text-sm">
+              <div className="flex min-h-[44px] items-center text-sm">
                 <input
                   type="checkbox"
                   id="terms"
                   checked={termsChecked}
                   onChange={handleTermsChange}
-                  className="h-5 w-5 text-indigo-600 dark:text-indigo-400 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-300"
+                  className="h-6 w-6 flex-shrink-0 text-indigo-600 dark:text-indigo-400 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-300"
                 />
-                <label htmlFor="terms" className="ml-3 text-gray-600 dark:text-gray-400">
-                  I agree to the{" "}
-                  <Link
-                    to="/terms"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-indigo-600 dark:text-indigo-400 font-medium underline underline-offset-2 hover:text-indigo-700 dark:hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                  >
-                    Terms &amp; Conditions
-                  </Link>
+                <label htmlFor="terms" className="ml-3 inline-flex min-h-[44px] cursor-pointer items-center text-gray-600 dark:text-gray-400">
+                  I agree to the
                 </label>
+                <Link
+                  to="/terms"
+                  className="ml-1 inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 font-medium underline underline-offset-2 hover:text-indigo-700 dark:hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  Terms &amp; Conditions
+                </Link>
               </div>
 
               <motion.button
@@ -215,7 +193,7 @@ export const Register = () => {
                 whileTap={submitting ? undefined : { scale: 0.98 }}
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-600 dark:to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-300/30 dark:hover:shadow-indigo-700/30 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {submitting ? "Creating account…" : "Create Account"}
               </motion.button>
@@ -252,18 +230,15 @@ export const Register = () => {
               <p className="text-gray-600 dark:text-gray-400">
                 Already have an account?{" "}
                 <button
+                  type="button"
                   onClick={() => navigate("/login")}
-                  className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium underline underline-offset-4 hover:underline-offset-2 transition-all"
+                  className="inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-medium underline underline-offset-4 hover:underline-offset-2 transition-all"
                 >
                   Sign in
                 </button>
               </p>
             </div>
           </div>
-
-          {/* Decorative corner elements */}
-          <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-indigo-100 dark:border-indigo-800" />
-          <div className="absolute bottom-0 right-0 w-16 h-16 border-b-4 border-r-4 border-indigo-100 dark:border-indigo-800" />
         </motion.div>
 
         {/* Floating helper icon */}

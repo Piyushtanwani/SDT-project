@@ -1,0 +1,458 @@
+{
+  "name" : "Cybersecurity",
+  "description" : "Injection, broken access control, cryptography mistakes and the defensive habits that stop them.",
+  "duration" : "6 weeks",
+  "rating" : 4.8,
+  "modules" : [ {
+    "title" : "Web Application Attacks",
+    "content" : [ "SQL injection happens when untrusted input changes query structure. Parameterized queries keep code and data separate, while escaping is engine- and context-specific. The reason escaping keeps failing is that it depends on the connection charset, the database dialect and the quoting style in force, so a configuration change can quietly turn a previously safe call into a hole. Placeholders cannot parameterise structure either, which means table names, column names and sort directions taken from user input have to be matched against a fixed allow-list before they are interpolated at all. Second-order injection is the residue: cleaned-looking text is stored, then concatenated into a later statement somewhere else, which is why the discipline belongs at every query site and not only at the entry point.", "Cross-site scripting executes attacker-controlled script in a victim's browser. Output encoding by context and a strict Content Security Policy are the primary defenses. Teams get this wrong by treating the template as one context: HTML body escaping is not attribute escaping, and neither one is JavaScript or URL escaping, so a value dropped into an inline handler survives a body-level encoder intact. Stored, reflected and DOM variants share that root cause instead of needing three separate fixes, and sanitizers go astray when they are configured by listing what to remove rather than what is allowed. A nonce-based CSP is worth keeping even after encoding, because encoding is the control and CSP is the net that catches the one place a developer forgot it.", "Cross-site request forgery abuses ambient cookies to submit state-changing requests. SameSite cookies and per-request anti-CSRF tokens prevent it. Whether it actually works depends on details: the token must be unpredictable, bound to the session and compared on the server for every state-changing request, because a token rendered into a page but never checked is decoration. SameSite=Lax blocks a cross-site form POST yet still allows an attacker-linked top-level GET navigation, which matters the moment a developer used GET for a mutating endpoint. Requests authenticated by an Authorization header are largely immune because browsers do not attach that header cross-site, and Referer checks alone break behind proxies while quietly missing same-site subdomain confusion.", "Injection is one family, not one bug. Command injection appears when arguments are assembled into a shell string instead of passed as an argument vector, so shell metacharacters gain a second interpretation; NoSQL injection lets a JSON object with operators such as a not-equal comparator reshape a match document; template injection evaluates attacker input as code and is therefore closer to remote execution than to a formatting problem; LDAP and XPath injection follow the same rule of escaping structure characters. The fixes rhyme: keep the grammar and the data apart using an API that accepts values, allow-list anything that names a command, field or filter, and treat a parser error as a rejected request rather than a reason to try harder. A single shared validation layer makes these decisions once instead of per endpoint.", "Server-side request forgery turns your own application into a proxy that reaches places you cannot. When a URL is fetched on user instruction, an internal admin listener, a queue dashboard or a cloud metadata service becomes reachable from inside the perimeter, which is exactly the vantage an outside attacker lacked. Naive defenses fail in ordinary ways: matching the literal string localhost misses a hostname that resolves to a loopback address, redirects carry an approved address somewhere else, and unusual numeric forms parse to the same destination. The durable controls are to resolve the name once and connect to that verified address, allow-list destinations rather than block-list them, forbid redirects on user-supplied fetches, and make the fetch path deny by default.", "File handling has two classic failures. Path traversal happens when a supplied name is concatenated into a filesystem path, so canonicalising the result and then verifying it still sits under the intended base directory is the check that holds; decoding and normalisation order matter, because a value cleaned before it is decoded can re-form the escape. Uploads are subtler: the stored filename, the served content type and the execution policy all have to be decided by the server, using an extension allow-list, randomised names, storage outside any served root and responses that state the type instead of trusting the file. Serialization deserves the same care, since reconstructing objects from untrusted bytes invokes application logic on attacker-chosen types, which is why the class of accepted payloads must be enumerated deliberately rather than left open.", "Client-side assumptions leak into the server. Clickjacking gets an unframed page embedded inside a trusted-looking one so a victim's click lands elsewhere, which is prevented by declaring who may frame you rather than by a script that tries to break out. Open redirects look harmless until the URL is used in a phishing message or a login flow, where a familiar domain hands the victim to an attacker's page or carries a code along; the fix is to accept relative targets or match an enumerated list, never to compare a fragment of the destination. Headers such as no-sniffing, referrer policy and a tightened CSP buy defence in depth for the mistakes that survive everything else, and they are worth configuring centrally so no route forgets them.", "File upload and serving deserve one more caution: content that is later displayed inline is a script candidate even when it was uploaded as an image, which is why the response header should force download or state a benign type, and why SVG needs the same scrutiny as HTML because it can carry script." ]
+  }, {
+    "title" : "Identity, Crypto and Access",
+    "content" : [ "Passwords must be stored with a slow, salted password hash such as bcrypt, scrypt or Argon2, never with a fast general-purpose hash or plaintext. The work factor has to be tuned against the slowest machine in production so hashing stays inside the login budget, and the parameters used must be recorded beside each hash so old values can be upgraded on the next successful sign-in instead of lingering forever. Screening new passwords against lists of known-breached secrets catches the credential that hashing cannot un-leak, and length limits should be removed so a passphrase is not truncated before hashing. None of this defends an already-correct guessed password once it is typed at the form, which is why rate limiting, alerting and a second factor sit alongside the stored hash rather than replacing it.", "JWT verification must check the signature and expiry and must reject unexpected algorithms, including none. The payload is readable, so it must never contain secrets. Pinning the algorithm on the verifier instead of reading it from the header also removes the confusion class where an asymmetric public key is silently used as a symmetric secret, letting anyone mint an accepted token. Issuer and audience claims need checking too, otherwise a token legitimately issued for one service is replayed against another in the same estate, which is how a harmless internal SSO becomes a universal key. Since clean revocation is genuinely hard, short lifetimes with rotated refresh tokens are the accepted compromise, and every consumer must treat claims as untrusted input rather than as facts asserted by a colleague.", "Broken access control, such as changing an object id in a URL to read someone else's data, is consistently the top web risk; authorization must be enforced on the server for every object. The same root cause reappears as missing function-level control, where an ordinary user reaches an administrative endpoint, and as missing view-level control, where a list response carries fields the detail endpoint hides. Hiding a button is not authorization, because the route stays reachable for anyone who can guess the path, and checks placed only in gateway middleware miss the object identity that only the handler can see. A centralised policy decision plus tests that assert cross-tenant denial for each route are what stop the control regressing when the next feature is bolted on.", "Session handling decides how much a stolen value is worth. Cookie attributes each answer a different question: Secure keeps it off plaintext HTTP, HttpOnly keeps page scripts from reading it, and SameSite limits when it rides along to another origin, so confusing the three leaves a gap that looks closed. A session must be regenerated when the user authenticates, or a pre-login identifier handed to the victim continues to work as them. Logout has to invalidate server-side state, not merely discard the cookie, and re-authentication should guard sensitive changes such as an email or password edit. Session length is a trade of usability against the window a borrowed machine or a captured token gives an attacker, so it is a product decision written down rather than a default.", "Authentication answers who, authorization answers whether, and accounting answers what happened; collapsing them is where designs go wrong. Role-based control is readable and audits well, yet it struggles with rules such as a record only being editable by its owner while it is still a draft, which pushes teams toward attribute-based decisions that weigh user, resource and environment per request. Whatever the model, the decision belongs in one place with a deny-by-default posture, and every route must consult it rather than remembering to. Two operational leaks matter as much as the model: accounts left alive when someone leaves, and support or break-glass identities whose use nobody reviews, both of which become the quiet path back into a system that was otherwise correctly locked.", "A second factor is a statement about a different channel, not a harder password. App-generated codes and SMS are replayable by a page that relays the sign-in in real time, while an origin-bound public-key credential cannot be moved, which is why the phishing-resistant option is the one to require for administrators and anyone who can change billing. Factor loss is the failure that actually pages you, so recovery must be planned, bounded and time-limited rather than an alternate password kept in a drawer. Rate limiting, alerting on impossible travel and screening logins against breached credentials reduce automated guessing, and bot-proofing that blocks real users simply teaches them to route around it. MFA never compensates for a leaked password hash, only for a typed one.", "Key and secret hygiene is part of access control. A signing secret shared across environments means a staging read becomes a production forgery, so each realm needs its own material. Secrets embedded in a mobile or browser bundle are public facts, and a rotated key is only a fix if the exposed one is revoked rather than replaced in the next release. Verifiers must compare tokens without early exit, since byte-by-byte timing has leaked perfectly good designs. Identity that is also shared, such as one service account used by four systems, cannot be scoped, cannot be attributed in a log, and cannot be revoked without an outage; least privilege therefore starts with unique machine identities and ends with their expiry." ]
+  }, {
+    "title" : "Threat Modelling and Secure Design",
+    "content" : [ "A threat model is a structured guess about how this particular system gets hurt. Done before the schema is fixed, it names the assets, the entry points and the kinds of adversary worth expecting, then asks what each design decision exposes. Its value is that design flaws are visible there: an unauthenticated internal endpoint, a shared signing secret, an administrative action reachable by any signed-in user, a batch export built for one tenant but readable by all. A model written after release tends to list implementation bugs that a scanner already finds, and it arrives too late to change the architecture instead of padding it with compensating controls that never quite close the gap.", "STRIDE is a mnemonic for spoofing, tampering, repudiation, information disclosure, denial of service and elevation of privilege, and its practical use is the mapping to properties: authentication, integrity, non-repudiation, confidentiality, availability and authorization. Walking each flow with those six prompts makes forgotten threats surface, including the mundane ones such as an attacker simply registering an account and then using a legitimate feature. It is a completeness checklist rather than a probability engine: it under-covers social engineering and supply chain, says nothing about likelihood, and two reviewers will produce different lists, which is why the output has to be argued over in the room and not filed away as a score.", "A data flow diagram reduces a system to external entities, processes, data stores and the flows between them, and the artifact that earns its keep is the crossing line. A trust boundary is any point where control passes between principals holding different privileges, which may be a network zone, a browser and its server, a service and its queue, or one role calling another inside the same process. Because the boundary is about authority rather than cabling, traffic on a loopback interface is not automatically friendly when another tenant shares the host, and a management port bound to every interface behaves like a public service no matter what the firewall is told. Marking boundaries forces the question of who vouches for a caller after the crossing.", "The classic protection principles still explain most incidents. Complete mediation means every access to every object is checked, which is exactly what caching an authorization result at the edge forgets. Fail-safe defaults means a missing or failed check denies rather than allows. Economy of mechanism argues for one small verifiable gate instead of fifty scattered conditionals, and open design assumes the reader has your source and configuration already. Separation of privilege says no single input should decide a sensitive action, which is why a password plus a second factor plus a step-up is a design choice rather than friction, and why two keys are needed where one would do.", "Scoring threats is where modelling gets its bad reputation. Numeric averages such as DREAD feel rigorous but produce false precision: six engineers, six answer sets, one argued-about total, and a published vulnerability score does not describe your deployment either. The defensible use is coarse ordering, asking whether a threat is plausible against an adversary you actually expect and what the worst realistic outcome costs. A review that ranks by how widely the path is reachable, what privilege it gains and how hard abuse would be detected gives engineers something to act on, while a spreadsheet total competing with next quarter's roadmap reliably loses.", "Abuse or misuse stories state an attacker goal in the system's own language: someone who keeps access after leaving the company, a customer reading another tenant's export by editing a parameter, an operator using a legitimate support feature to escalate. They work because they use only existing features and so cannot be dismissed as malformed input, which makes them the most persuasive artifact to hand a product team. Compensating controls belong in the same conversation, since some findings are answered by reducing capability rather than blocking a path, for example a very short token lifetime where instant revocation is genuinely unavailable. A model that produces no decision, no owner and no date is decoration.", "The usual failure of threat modelling is that it happens once. A model is a snapshot of an architecture, and every change that adds a queue, an integration or a new role invalidates part of it, so the review has to be attached to change rather than to a calendar. Cheap triggers work well: a new trust boundary crossed, a new credential minted, a new object type exposed through an API, a data category that moved somewhere less protected. The assumptions worth auditing repeatedly are the ones nobody wrote down, above all the belief that anything inside the network is a colleague, and the related habit of treating an internal service as unattackable because no page links to it.", "Threat modelling is also where the security requirements get their rationale, so a finding should read as a property plus the reason it matters. That keeps the fix from being guessed and lets a later reviewer check whether the chosen control actually addresses the stated abuse path." ]
+  }, {
+    "title" : "Applied Cryptography and Key Management",
+    "content" : [ "For data crossing an untrusted channel, the default choice is an authenticated encryption mode such as AES-GCM or ChaCha20-Poly1305, which supplies confidentiality and integrity in one operation and refuses to hand plaintext back from tampered input. Legacy cipher-block chaining without a MAC is a different animal: ciphertext is malleable, repeated structure survives, and padding errors historically turned a server that complained loudly into a decryption oracle. Electronic codebook mode shows patterns outright, so a picture of a key is still recognisable. The honest fix when you inherit such code is not a hand-rolled ordering of verify-then-decrypt but a migration to an authenticated mode, re-encrypting stored data as it is read so the change is gradual and reversible.", "Four primitive families get confused constantly. Encryption reverses with a key. A cryptographic hash is a one-way fixed-length commitment whose security rests on collision and preimage resistance, which is precisely why fast general-purpose hashes make poor password stores. A message authentication code uses a shared key, so anyone who can verify can also forge, unlike a signature whose private half stays with one holder. Encoding such as base64 carries no key and no security property at all, only transport convenience, and a digest of an encoded value is the same digest as the original. A key derivation function sits between a password and a key, or between one secret and many subkeys, and its cost is chosen per use.", "Salts, peppers and derived subkeys answer different questions. A salt is stored, per user, and defeats precomputed tables plus the batching of one computation across many accounts; it does not slow an attacker who has the whole table and works one record at a time. A pepper is a secret held outside that record store, so its protection evaporates the moment application and database leak together, which is the common single-stack reality. HKDF expands one high-entropy secret into distinct keys per purpose so a session key and a storage key never coincide, but it is not a password-to-key function, because low-entropy input simply becomes a guessable output key. Reusing one derived key across environments has the same flaw as reuse across purposes.", "With a stream cipher or GCM, the nonce is the load-bearing part. Reusing one under the same key either replays the keystream, which turns two ciphertexts into a readable combination of the two plaintexts, or exposes the authentication subkey, letting an attacker forge messages that decrypt happily. Because the requirement is uniqueness rather than secrecy, random 96-bit nonces come with a hard ceiling on how many encryptions one key may cover, and a counter needs durable state across restarts, since a fresh process that resumes from zero silently repeats. The bug is rarely the cipher itself; it is the code path that resets state, retries, or shares a key across producers who never coordinated.", "Key management is a lifecycle rather than a configuration value. Keys should be generated inside a managed service or hardware module, used through an interface that never hands them out, and rotated on a schedule justified by blast radius. Envelope encryption keeps a master key in that service and wraps per-record data keys, so rotation means re-wrapping small keys instead of rewriting every row. Old versions must survive rotation, since ciphertext written yesterday still has to read today, and destruction needs a plan for copies that escaped into backups and logs. Algorithm agility decides how cheap your next migration is, which is why a format that names its algorithm rather than assuming one is worth the verbosity.", "Predictability is a bug class of its own. Reset tokens, session identifiers, API keys, invitation links and anti-CSRF values all need a cryptographically secure source, because an ordinary seeded generator lets an attacker extrapolate neighbours from a few samples. Anything compared as a secret also needs a constant-time comparison, since an early exit leaks a byte at a time to a patient caller with timing precision. A random identifier is only a secret if it was ever meant to be one: an unguessable object id still has to be authorized, because obscurity of names is not access control, and a value used as a log correlation key should never double as an authority to act.", "Cryptographic failures as a risk category are mostly misuse, not broken mathematics. Hashes with lost collision resistance must not back software signatures or content identity for untrusted uploads, though they remain adequate as corruption checks over data you wrote yourself. Placing a key next to the ciphertext it protects buys only delay. Negotiable suites and downgrade paths turn a strong default into a weak floor, and a protocol with no agreed way to say which algorithm is authoritative invites both. The fix is a vetted high-level library, no invented formats, no custom construction, and review that asks which assumption about the attacker's reach has quietly stopped being true." ]
+  }, {
+    "title" : "Hardening Networks, Endpoints and Cloud",
+    "content" : [ "Hardening assumes the perimeter has already been crossed. Layered controls mean an exposed service still meets a transport security requirement, an identity check, a scope check and an audit trail before it does anything damaging. Segmentation limits lateral movement by making every zone earn access explicitly, and the useful core of zero trust is simply the removal of the inference that network position implies legitimacy, so a laptop on the office VLAN earns no more automatic trust than the same one on a hotel screen. The assumption that survives most post-incident reviews is that an internal endpoint faces only internal callers, which is true until the first server-side fetch of a user-supplied address.", "Exposure reduction is the highest-yield change on most networks. Administrative interfaces, databases, queues, mesh dashboards and metric scrapers should not answer on a public address; they belong on a restricted network path reached through an authenticated, logged and time-boxed route rather than a permanent listening port. Inbound rules should name the source that legitimately calls them, and outbound rules should be an allow-list, since arbitrary egress lets a foothold phone home and reach internal services the attacker could not touch from outside. The same discipline applies to feature flags and debug endpoints, which are frequently left enabled in production because nobody owns removing them once the incident that added them is forgotten.", "Endpoint hardening is mostly boring repetition. Patching on a stated cadence matters more than any agent installed afterwards, because exploitation windows track how long a fix has been public. Local administrator rights are the crown jewel, so an ordinary working account should not hold them while the ability to elevate on request, with approval and logging, is what actually gets used. Full-disk encryption with a hardware-backed key protects a dormant device, not a live session, since a powered-on machine holds its keys in memory. Application allow-listing turns arbitrary binaries into a policy question, and a detection agent that records process starts, network peers and privilege changes is what makes later investigation possible rather than speculative.", "Cloud access rules are read from the resource outward, so a single permissive policy attached to one resource can undo a careful account-wide restriction. Roles for workloads should be written per workload with no human rights mixed in, since a workload identity is reachable by whatever runs inside that host or container. Sharing one credential across systems makes blast radius unbounded and attribution impossible, and the remedy is unique identities with narrow permissions plus short-lived credentials instead of long-lived static ones. Public bucket and public object settings are configuration drift rather than malice, which is why detection has to ask the question continuously and a boundary that denies public access should not depend on someone remembering to set it per resource.", "Configuration hygiene is the accumulation of defaults. A baseline image with unused services removed, sample pages gone, and directories that expose versions or debug information closed is easier to verify than a running system patched by hand, and rebuilding from it means drift is visible instead of archaeology. Checks worth automating include transport forced everywhere, credentials never appearing in a URL where they reach logs and browser history, defaults changed on appliances, and error messages that help an operator without describing internals to a stranger. A machine-readable baseline plus a scheduled comparison against running systems turns a compliance argument into a report with evidence behind it.", "Email is the identity perimeter most organisations forgot to configure. Sender policy records state which hosts may send for a domain, a per-message domain key signature proves the message was not altered in transit, and a policy record combines the two, declares what a receiver should do about failures and asks for reports so you learn about abuse while it is happening. None of it authenticates a human, so it protects your brand rather than your users, which is why the reply chain and a look at the actual sender address remain the habit. Blocking lookalike domains, publishing a no-send record for unused domains and requiring a phishing-resistant factor for administrators close the routes that get exploited most often.", "Integrations are hardening's blind spot. Third-party connections should carry the smallest scope that the feature truly needs, because a scope is the only technical limit on what a leaked token can do, and an approved broader one is a standing invitation. Webhooks need an authenticity check the receiver enforces, otherwise anyone who learns the URL is a source of truth. Long-lived static tokens for vendors should be bounded by expiry and by source restrictions where supported, and vendor accounts deserve the same joiner-mover-leaver discipline as staff, including an owner and a removal path. The common misconception is that approval by the business means the technical grant can stay generous forever.", "Backups and recovery are a hardening control too: copies reachable with write access from the production identity are part of the attack surface, so a tested restore from an offline copy and an isolated recovery environment are what turn an outage into a manageable incident rather than a second compromise. Hardening the identity layer matters as much as the network layer, meaning single sign-on everywhere so local passwords are not the front door, access decisions that weigh device posture rather than only the credential, and a break-glass account whose use alarms people immediately instead of a shared admin login kept quietly in a document." ]
+  }, {
+    "title" : "Detection, Logging and Incident Response",
+    "content" : [ "Decide what a detective control must answer before choosing what to log. Authentication attempts and outcomes with identity, method and source address; authorization denials, because a denial is evidence of probing rather than of failure; administrative and configuration changes; data exports and privilege grants. Each event needs a timestamp in a single reference zone, the actor, the action, the object and the outcome, plus an identifier that ties every line of one request together across services. Structured fields make that searchable, while a page of free text becomes a reading exercise at the worst possible moment, and the answer to a question nobody wrote down is never in the log.", "Secrets in logs are a second incident waiting to happen. Serialising an entire request captures cookies, bearer tokens and authorization headers; tracing payloads into storage brings passwords and identity documents along; a support export then hands the collection to someone without the original access path. The discipline is to allow-list what gets recorded instead of redacting after the fact, since a new field appears with every feature and defaults to being captured, and to treat anything shipped to a third-party analytics platform as readable by that vendor. Where a value must be visible partially, show a short fixed suffix, which identifies an item without reproducing its authority.", "Log integrity means the record is independent of the machine it describes. Sending events off-host promptly, storing them append-only or with an immutability guarantee, controlling who may read the collection and keeping the collector out of reach of general administrative access all remove the temptation to edit history. Time synchronisation is quietly load-bearing, because a host with a drifted clock scrambles ordering and makes an outage look like an intrusion or the reverse, and because cross-host correlation depends on clocks that agree. Retention is a policy rather than a storage accident: an incident often surfaces weeks later, while retaining everything forever creates a corpus whose own access control becomes the harder security problem.", "Detection is engineering, not a switch. Signatures match known-bad behaviour cheaply and miss anything novel; behavioural baselines catch oddity but drown teams in exceptions from ordinary change; a workable practice writes a rule only when the missing signal has been named, and tunes by understanding a false positive rather than suppressing it. A permissive allow-list is a bug disguised as noise reduction, since it hides the one event that matters. Mapping detections against a shared catalogue of attacker techniques turns a vague worry into a short list of missing telemetry, and every alert needs an owner, a written response path and a first line that names where the evidence lives.", "Correlation is where the story appears: a burst of denials against a single object, a new token minted by an unusual client, an export from an account that normally reads little, a login succeeding after many failures. None of those is visible in one event, so a detection depends on a shared identity, session or request identifier and on comparable clocks across sources. Logs describing only successful operations are the common design flaw, because the interesting half of an attack is the attempt, and an adversary who is already inside your telemetry can shape their steps around what you do not record.", "Response readiness is mostly preparation. NIST describes preparation, detection and analysis, containment, eradication and recovery, then post-incident work; other models split the middle into identification, containment, eradication, recovery and lessons. Either way the artifacts are the same: a written role list with deputies, out-of-band contact details, a decision and escalation path for executives, preserved evidence, and a view of legal and contractual duties that arrives before the press release does. A plan that has never been exercised has not been tested, since a tabletop reveals that the person who holds the encryption passphrase is on leave and that the runbook assumes a tool nobody installed.", "Containment trades speed of stopping against depth of understanding. Isolate rather than destroy, because volatile memory and disk hold the evidence that answers how far the intrusion reached; snapshot a host before rebuilding it, record what was changed and when, and preserve the chain of custody for anything that may later matter contractually. Containment scope is the hardest judgement: revoking one credential may be a cure or a warning to the attacker, and closing access a business depends on is a decision that needs an owner, not a reflex. Eradication fails most often by fixing the symptom, so persistence locations and reused credentials are what a re-intrusion test must challenge.", "Recovery is done when behaviour proves it, not when a ticket closes: a rebuilt host with rotated secrets, monitoring aimed specifically at what the intruder used, and a re-test of the path they entered. The review should trace the intrusion back to the controls that failed rather than to the person who clicked, and name what would have to exist for the same approach to be detected at the same stage next time. Measuring detection lag and recovery lag attaches a number to the finding, and every agreed action needs a tracked owner, because the second half of an incident report is the part nobody reads. That review has to be blameless as a technical requirement rather than a mood: if the person who spotted the odd behaviour first expects criticism, the timeline written in the report becomes the timeline that was safe to describe, and the detection gap stays open." ]
+  } ],
+  "questions" : [ {
+    "text" : "What is the most reliable defense against SQL injection?",
+    "a" : "Escaping quotes is sufficient in every database",
+    "b" : "Hiding the SQL in JavaScript helps",
+    "c" : "A WAF alone eliminates the risk",
+    "d" : "Parameterized queries that separate code from data",
+    "correct" : "D",
+    "explanation" : "Placeholders bind values after the statement is parsed, so input cannot alter query structure.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "How is cross-site scripting best mitigated?",
+    "a" : "XSS only affects the server",
+    "b" : "HTTPS prevents XSS",
+    "c" : "Output encoding plus a strict Content Security Policy",
+    "d" : "XSS cannot occur in React because JSX escapes all user input",
+    "correct" : "C",
+    "explanation" : "Encoding neutralizes context-specific dangerous characters; CSP limits script execution when encoding fails.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which controls defend state-changing requests against CSRF?",
+    "a" : "Stronger passwords",
+    "b" : "Because GET cannot have side effects, CSRF is impossible",
+    "c" : "HTTPS alone",
+    "d" : "SameSite cookies and anti-CSRF tokens",
+    "correct" : "D",
+    "explanation" : "SameSite keeps cookies off cross-site requests, and unpredictable tokens prove the request originated from the application.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How should passwords be stored?",
+    "a" : "bcrypt or Argon2 with a per-user salt and a tunable work factor",
+    "b" : "SHA-256 with no salt",
+    "c" : "MD5 for speed",
+    "d" : "Encrypted with a shared key so the application can decrypt them",
+    "correct" : "A",
+    "explanation" : "Slow, salted hashes make offline cracking expensive; encryption would allow the server to recover plaintext.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What must a server do before trusting a JWT it receives?",
+    "a" : "Decode the payload and trust the claims it advertises about scope",
+    "b" : "Accept whichever algorithm the token header names for flexibility",
+    "c" : "Verify the signature with a server-chosen algorithm and enforce expiry",
+    "d" : "Skip expiry checks because the token arrived over an encrypted channel",
+    "correct" : "C",
+    "explanation" : "The verifier must fix the algorithm itself and check time-based claims, since a client-named algorithm lets anyone mint an accepted token; d confuses transport security with token validity.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does least privilege mean?",
+    "a" : "Give every service admin rights to simplify operations",
+    "b" : "Share one credential across all services",
+    "c" : "Grant only the permissions required for the task",
+    "d" : "Disable audit logging",
+    "correct" : "C",
+    "explanation" : "Narrow permissions limit the blast radius of a compromised component or stolen credential.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is an IDOR vulnerability?",
+    "a" : "A bug prevented by obscuring identifiers",
+    "b" : "Change an id to read another user's data",
+    "c" : "A file upload bug only",
+    "d" : "A client-side rendering bug",
+    "correct" : "B",
+    "explanation" : "The server must check that the authenticated principal is allowed to access each specific object, not just that a user is logged in.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How does TLS protect against man-in-the-middle attacks?",
+    "a" : "HTTP is safe on public Wi-Fi",
+    "b" : "Self-signed certificates are trusted by default and prevent all MITM attacks",
+    "c" : "MITM requires physical access to the server",
+    "d" : "Certificate validation binds the server identity to the encrypted session",
+    "correct" : "D",
+    "explanation" : "Without certificate validation an attacker can present a forged certificate and decrypt or alter traffic.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How should third-party dependency risk be managed?",
+    "a" : "Pin versions, scan for advisories and patch known vulnerabilities",
+    "b" : "Ignore advisories to avoid churn",
+    "c" : "Vendor everything without updates so the build is fully reproducible",
+    "d" : "Only scan production servers",
+    "correct" : "A",
+    "explanation" : "Automated scanning plus a patch cadence keeps known vulnerabilities from lingering in transitive dependencies.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does multi-factor authentication add?",
+    "a" : "It replaces the need for strong passwords",
+    "b" : "A second factor so a stolen password alone is insufficient",
+    "c" : "It makes phishing impossible by verifying every login attempt",
+    "d" : "SMS codes are unbreakable",
+    "correct" : "B",
+    "explanation" : "Something you know plus something you have or are raises the cost of account takeover even when a password leaks.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is the primary value of threat modelling a system?",
+    "a" : "It surfaces design-level risks while the architecture can still change",
+    "b" : "It replaces the need for a penetration test before launch",
+    "c" : "It proves that the implementation contains no coding defects",
+    "d" : "It ranks the current vulnerabilities so the backlog can be sorted",
+    "correct" : "A",
+    "explanation" : "Modelling before the design is fixed reveals flaws such as an unauthenticated internal endpoint; b is the trap, since a model complements testing rather than substituting for it.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In STRIDE, which security property counters a spoofing threat?",
+    "a" : "Integrity, because any change made to stored data is detectable afterwards",
+    "b" : "Availability, because capacity absorbs an impostor's traffic",
+    "c" : "Authentication, since it binds each action to a verified identity",
+    "d" : "Non-repudiation, because logs make later denial impossible",
+    "correct" : "C",
+    "explanation" : "Spoofing an identity is answered by authentication; a is the trap, since integrity counters tampering rather than impersonation.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "In threat modelling, what is a trust boundary?",
+    "a" : "Any address range that the current firewall rules treat as internal",
+    "b" : "A point where control passes between principals holding different privileges",
+    "c" : "The outermost edge of the deployed region that users can reach",
+    "d" : "The place where the model stops because nothing remains to review",
+    "correct" : "B",
+    "explanation" : "Boundaries are about authority, not cabling; a is the common trap, since one firewall zone can still span very different privilege levels.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which log content best supports a later security investigation?",
+    "a" : "Every SQL statement the application executes, so no query is missing",
+    "b" : "Only warnings and errors, which keeps the volume affordable",
+    "c" : "The full request bodies of authenticated users, for accuracy",
+    "d" : "Login attempts and authorization denials with identity and source",
+    "correct" : "D",
+    "explanation" : "Authentication outcomes and denials name the actor and the decision that matters; a and c bury that signal and leak sensitive values into the log store.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which change most often breaks complete mediation in a mature service?",
+    "a" : "A cache or optimisation that checks permission once and reuses it",
+    "b" : "Moving the whole service behind a managed identity provider for sign-in",
+    "c" : "Encrypting traffic between the load balancer and the service",
+    "d" : "Splitting one monolith into services with their own databases",
+    "correct" : "A",
+    "explanation" : "Mediation means every access to every object is checked; b is the trap that assumes a strong gateway substitutes for per-object decisions.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does the fail-safe defaults principle require of a security check?",
+    "a" : "It should allow unknown traffic so that users are never blocked",
+    "b" : "A missing, failed or unconfigured decision must deny access",
+    "c" : "It should alert an operator and continue serving the request",
+    "d" : "It should mirror the decision already made by the closest client",
+    "correct" : "B",
+    "explanation" : "Default-deny means an error path cannot become an open door; a and c are the availability argument that turns a fault into a bypass.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does economy of mechanism get harder as a product matures?",
+    "a" : "Simple controls cannot be exercised by automated test suites",
+    "b" : "Simplicity only matters while the architecture is still on a whiteboard",
+    "c" : "Accreted features and one-off exceptions bury the single gate to review",
+    "d" : "Complex designs are usually stronger because they add more layers",
+    "correct" : "C",
+    "explanation" : "Every exception that skips the shared gate has to be rediscovered in review; d inverts the principle, since scattered checks are what regress.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does a correlation rule in a log platform add over a single log line?",
+    "a" : "It joins related events across a time window into one alert",
+    "b" : "It encrypts stored events so that only analysts can read them",
+    "c" : "It removes the need for synchronised clocks between the hosts",
+    "d" : "It assigns a fixed severity to each line as it arrives",
+    "correct" : "A",
+    "explanation" : "Correlation turns scattered events into a pattern, such as many denials against one object; b describes storage protection, not detection logic.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does a threat model written once at design time decay?",
+    "a" : "Threat intelligence changes faster than any architecture document can",
+    "b" : "Only the original author can interpret its diagrams later",
+    "c" : "Reviews must restart from a blank page for every release",
+    "d" : "Architecture keeps changing while the model is left behind",
+    "correct" : "D",
+    "explanation" : "A model is a snapshot, so it must be revisited when a boundary, credential or object type appears; c is the trap that makes ongoing review feel unaffordable.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why should security-relevant logs be shipped off the host they describe?",
+    "a" : "Local disks are usually too small to hold a useful window",
+    "b" : "An attacker with root on that host can edit or delete them",
+    "c" : "Central stores make cross-service searching much faster during an incident",
+    "d" : "Agents must be reinstalled after each crash to keep retention",
+    "correct" : "B",
+    "explanation" : "Independence is the point: a compromised host must not be able to erase its own trail; the convenience argument in c is real but secondary.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement separates hashing from encryption correctly?",
+    "a" : "Hashing protects data more strongly than encryption does in practice",
+    "b" : "Encryption is irreversible while hashing can be reversed with a key",
+    "c" : "Encryption reverses with a key; hashing is a one-way commitment",
+    "d" : "Both reverse cleanly once the salt or IV is known to you",
+    "correct" : "C",
+    "explanation" : "A hash has no inverse and no key; d is the encoding-versus-crypto trap, since knowing a salt does not undo the digest.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A team appends one secret server-side value to every password before hashing it. What is that value?",
+    "a" : "A pepper, which helps only if the hash store leaks alone",
+    "b" : "A salt, which stops two users sharing a password from matching",
+    "c" : "An HMAC key, which keeps stored hashes valid across rotation",
+    "d" : "A nonce, which prevents an old login request from being replayed",
+    "correct" : "A",
+    "explanation" : "Salts are stored and per user; a pepper is the external secret, and its value disappears when application and database leak together.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is base64 not a security control?",
+    "a" : "Because it only encodes bytes and cannot handle any text",
+    "b" : "Because it is reversible and involves no key at all",
+    "c" : "Because it expands data, which slows every request down",
+    "d" : "Because it is applied without ever adding a padding character",
+    "correct" : "B",
+    "explanation" : "Encoding changes representation, never confidentiality, so anyone can decode it; the misconception behind a is that text needs a different codec.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which cipher choice is the right default for new code protecting both confidentiality and integrity?",
+    "a" : "ECB, because identical blocks make the errors easier to spot",
+    "b" : "CBC with padding, since no message authentication is needed",
+    "c" : "SHA-256 of the data, since digests are already one-way",
+    "d" : "An AEAD mode such as AES-GCM or ChaCha20-Poly1305",
+    "correct" : "D",
+    "explanation" : "AEAD refuses to release plaintext from tampered ciphertext; b is the dangerous legacy default, since unauthenticated CBC is malleable.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does reusing a nonce with the same key break AES-GCM?",
+    "a" : "It exposes a keystream relationship and can reveal the auth subkey",
+    "b" : "It silently makes the ciphertext noticeably longer and slower to process",
+    "c" : "It forces the library to fall back on an ECB path",
+    "d" : "It costs you confidentiality only, since tags stay dependable",
+    "correct" : "A",
+    "explanation" : "With the subkey recovered, forged ciphertexts verify as authentic, so integrity collapses too; d is the trap that treats the tag as unaffected.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is a key derivation function such as HKDF designed to do?",
+    "a" : "Turn a low-entropy passphrase straight into a usable AES key",
+    "b" : "Hash passwords with a memory-hard function that resists GPUs",
+    "c" : "Derive separate purpose-specific keys from one high-entropy secret",
+    "d" : "Sign a document so that any verifier can check the author",
+    "correct" : "C",
+    "explanation" : "HKDF expands good key material into independent subkeys; a is the trap, since a weak password needs a slow KDF such as Argon2.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Immediately after a key is rotated, what must the system still be able to do?",
+    "a" : "Decrypt older data, so previous key versions stay available",
+    "b" : "Delete every record protected by the key that was retired",
+    "c" : "Ask all clients to re-encrypt their data with the new key",
+    "d" : "Assume ciphertext written under the old key is now unreadable",
+    "correct" : "A",
+    "explanation" : "Rotation changes future protection, not the past, so key versions and a re-encryption plan matter; d is the comforting assumption that fails in breaches.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which value genuinely needs a cryptographically secure random source?",
+    "a" : "A correlation id attached to a request for tracing",
+    "b" : "A password-reset token delivered to a user by email",
+    "c" : "A random local port chosen by a development server",
+    "d" : "A shuffle seed for synthetic data used in load tests",
+    "correct" : "B",
+    "explanation" : "A reset token is a bearer secret, so predictable generation is account takeover; a and d describe values that need uniqueness rather than secrecy.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a digital signature provide that a keyed MAC does not?",
+    "a" : "Faster verification, because the public key does less arithmetic",
+    "b" : "Confidentiality for the signed content as well as authorship",
+    "c" : "A shared secret that every verifier can freely redistribute",
+    "d" : "Non-repudiation, since only the signer holds the private key",
+    "correct" : "D",
+    "explanation" : "A MAC key lets every holder of it forge a valid tag; c is the trap that treats a symmetric key as though it were a signature scheme.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What goes wrong when ciphertext is decrypted without being authenticated first?",
+    "a" : "Ciphertext simply cannot be compressed afterwards at all",
+    "b" : "Encryption fails to hide patterns in highly structured data",
+    "c" : "An attacker can alter ciphertext and the plaintext shifts",
+    "d" : "Authenticated modes cost extra CPU time relative to these",
+    "correct" : "C",
+    "explanation" : "Malleability means the application may act on attacker-shaped plaintext, historically through padding feedback; the cost argument in d is not a security property.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In which use is a hash with broken collision resistance still acceptable?",
+    "a" : "Detecting accidental corruption in a file you stored yourself",
+    "b" : "Signing release artifacts that users will download",
+    "c" : "Deduplicating untrusted uploads by matching their content digests",
+    "d" : "Hashing account passwords when storage is under load",
+    "correct" : "A",
+    "explanation" : "Corruption detection needs only error sensitivity; c is the trap, since crafted collisions can make two different uploads look identical.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "An application stores its encryption key in the same database as the data it protects. What is true?",
+    "a" : "It is safe, because attackers rarely read a database twice",
+    "b" : "It only slows an attacker who cannot obtain the key",
+    "c" : "It equals a managed key service, since both keep keys encrypted",
+    "d" : "It is required whenever encryption must be deterministic",
+    "correct" : "B",
+    "explanation" : "Protecting ciphertext from a reader who can also read the key is not a boundary; c overstates it, since a key service keeps material out of that host's reach.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which behaviour describes attribute-based access control rather than plain role-based control?",
+    "a" : "Permissions follow group memberships assigned when someone joins",
+    "b" : "Decisions depend on which network segment the caller uses",
+    "c" : "Request-time rules combine user, resource and environment attributes",
+    "d" : "Roles are resolved at login and then reused for the session",
+    "correct" : "C",
+    "explanation" : "Attribute-based control evaluates context such as device or location per request; d is the trap that trades a per-request check for a cached verdict.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "An API correctly checks that the caller owns a project, yet any user can call its archive endpoint. Name the flaw.",
+    "a" : "Missing function-level access control, not an object-level bypass",
+    "b" : "Insecure direct object reference, because a record id is used",
+    "c" : "Broken authentication, since identity was never established",
+    "d" : "CSRF, because the endpoint mutates server state",
+    "correct" : "A",
+    "explanation" : "Ownership checks cover objects, while verb or feature authorization is a separate gate; b is tempting because ids appear all over the request.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does a deny-by-default policy actually do?",
+    "a" : "It allows traffic it does not recognise and logs it for review",
+    "b" : "It treats private subnets as trusted and screens the rest",
+    "c" : "It evaluates the most specific rule before considering any others",
+    "d" : "It blocks anything no explicit rule has already permitted",
+    "correct" : "D",
+    "explanation" : "Allow-listing means an unknown caller gets nothing; b is exactly the network-position assumption that hardened designs reject.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which control prevents session fixation?",
+    "a" : "Setting the Secure flag on every cookie in every response",
+    "b" : "Minting a fresh session identifier after a login succeeds",
+    "c" : "Adding SameSite=Lax so cross-site requests drop the cookie",
+    "d" : "Storing the session identifier only as a hash in the database",
+    "correct" : "B",
+    "explanation" : "Fixation works when a pre-login identifier survives authentication, so it must be replaced; a and c protect cookies in transit or cross-site, not their history.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which second factor resists a real-time phishing proxy that relays logins?",
+    "a" : "A WebAuthn credential that is bound to the site origin",
+    "b" : "A six-digit time-based code generated by an authenticator app",
+    "c" : "A one-time code delivered in an SMS message",
+    "d" : "A push notification the user approves on a phone",
+    "correct" : "A",
+    "explanation" : "An origin-bound challenge cannot be relayed usefully, whereas b and c are codes a proxy can forward within their short lifetime.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What distinguishes credential stuffing from password guessing?",
+    "a" : "It targets one account using many nearby password variants",
+    "b" : "It steals an active session cookie from a shared browser",
+    "c" : "It replays breached username and password pairs across many services",
+    "d" : "It cracks a stolen hash offline on dedicated hardware",
+    "correct" : "C",
+    "explanation" : "Stuffing automates logins with pairs that already work; a describes spraying in reverse, and d is offline cracking rather than login abuse.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A session token is stolen through a cross-site scripting flaw. Which measure limits the damage most?",
+    "a" : "Extending the token lifetime so users have to log in far less often",
+    "b" : "Short token lifetime plus server-side revocation when anomalies appear",
+    "c" : "Moving the token into browser storage away from cookies",
+    "d" : "Encrypting the token payload with the site's TLS key",
+    "correct" : "B",
+    "explanation" : "Bearer tokens are worth only their expiry and revocability; c is the trap, since browser storage is just as readable to the same injected script.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does the HttpOnly flag on a session cookie do?",
+    "a" : "Keeps browser scripts from reading the cookie value",
+    "b" : "Forces the cookie to travel over plain HTTP only",
+    "c" : "Stops the cookie being sent when navigation is top-level",
+    "d" : "Encrypts the cookie content while it is stored",
+    "correct" : "A",
+    "explanation" : "It blocks script access, which limits cookie theft through XSS; c describes SameSite, a different attribute with a different job.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A virtual machine role grants write access to every storage bucket in the account. Why fix it first?",
+    "a" : "Because buckets demand presigned URLs for any write",
+    "b" : "Because policies attached to roles are evaluated only at deploy time",
+    "c" : "Because buckets cannot ever be shared across accounts",
+    "d" : "One foothold there can rewrite backups and other teams' data",
+    "correct" : "D",
+    "explanation" : "Blast radius is the practical test of least privilege, and a broad write role turns one host into account-wide damage; a confuses access mechanics with scope.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is egress filtering on an application subnet worth the operational friction?",
+    "a" : "It removes the obligation to patch internet-facing application code",
+    "b" : "It guarantees that no legitimate outbound call ever fails",
+    "c" : "It cuts off callbacks to outside hosts and to internal metadata",
+    "d" : "It makes any foothold on the host impossible to detect",
+    "correct" : "C",
+    "explanation" : "Denying arbitrary outbound traffic breaks external callbacks and abuse of internal services; a is the trap that treats one control as a substitute for patching.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Full-disk encryption mainly protects data in which situation?",
+    "a" : "When the machine is running and a user is already logged in",
+    "b" : "When a browser extension starts reading page contents",
+    "c" : "When files are shared through an internal network mount",
+    "d" : "When a powered-off laptop is taken from a traveller",
+    "correct" : "D",
+    "explanation" : "While powered on, the key sits in memory and files read normally; the protection is against physical access to a dormant device, which a misses.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does timely patching of systems and dependencies achieve?",
+    "a" : "It guarantees that no unknown vulnerability remains present",
+    "b" : "It closes publicly known flaws that scanners already probe",
+    "c" : "It makes network segmentation unnecessary for safety",
+    "d" : "It replaces the need to write defensively in application code",
+    "correct" : "B",
+    "explanation" : "Advisories inform defenders and attackers alike, so the length of the window matters; a is the trap, since unknown flaws and misconfiguration survive every patch.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which logging habit most often leaks credentials into the analytics pipeline?",
+    "a" : "Recording the outcome of every denied authorization attempt",
+    "b" : "Attaching a request identifier to every line emitted",
+    "c" : "Dumping whole request objects, including headers and tokens",
+    "d" : "Timestamping every event in UTC rather than local time",
+    "correct" : "C",
+    "explanation" : "Serialising the entire request captures bearer tokens and cookies; b and d feel risky but are precisely what makes correlation possible.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "During containment of a suspected compromise, why isolate a host yet avoid wiping it?",
+    "a" : "Isolation alone is sufficient evidence to explain what happened",
+    "b" : "Reimaging from a golden image restores service far more quickly",
+    "c" : "The host must stay reachable so the affected user keeps working",
+    "d" : "Memory and disk hold the evidence that scoping still needs",
+    "correct" : "D",
+    "explanation" : "Destruction ends the questions about reach, persistence and what else was touched; b optimises recovery speed before the investigation has its answer.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A team wants to know which attacker behaviours it currently cannot detect. What helps most?",
+    "a" : "Enable every vendor detection rule available and tune the noise later",
+    "b" : "Map existing detections against ATT&CK techniques to find gaps",
+    "c" : "Increase log retention for a year and review the store again",
+    "d" : "Count alerts per analyst to size the response rota better",
+    "correct" : "B",
+    "explanation" : "Technique coverage turns a vague fear into a short list of missing telemetry; a inflates alert volume without revealing what you cannot see.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the safest habit when a third-party app requests access to an account?",
+    "a" : "Grant the narrowest scope that the feature really requires",
+    "b" : "Approve the broad scope and rely on the vendor's written policies",
+    "c" : "Keep one approval on file so staff need never re-consent",
+    "d" : "Use a single shared service account for every outside vendor",
+    "correct" : "A",
+    "explanation" : "A scope is the only technical limit on what a leaked token can do; b substitutes paperwork for enforcement, and d destroys attribution.",
+    "difficulty" : "MEDIUM"
+  } ]
+}

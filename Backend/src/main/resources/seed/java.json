@@ -1,0 +1,440 @@
+{
+  "name" : "Java",
+  "description" : "Objects, collections, the JVM and the concurrency tools behind production Java services.",
+  "duration" : "6 weeks",
+  "rating" : 4.8,
+  "modules" : [ {
+    "title" : "Objects, Types and the JVM",
+    "content" : [ "Java is a statically typed, class-based language. Every object descends from java.lang.Object, and method dispatch for overridden instance methods happens at runtime through the object's class. The compiler only checks the declared receiver type, while the JVM dispatches against the actual type of the object that arrives at runtime, so a variable typed Animal holding a Dog executes Dog's version of bark(). This late binding is what makes polymorphic collections work, and the just-in-time compiler usually recovers the cost by profiling the call site and inlining the dominant target. The split also explains a maintenance hazard: redefining a method in a subclass silently changes the behaviour of callers that were compiled years ago and never rebuilt.", "Strings are immutable and string literals are interned, so two literals with the same characters usually reference the same instance. Use equals() for value comparison and == only when identity is truly what you mean. Concatenation of two constant literals is folded by javac into a single constant, while runtime concatenation compiles to an invokedynamic string-concatenation strategy that removed the old per-call StringBuilder boilerplate. Interning is not automatic for strings built at runtime: intern() opts one back into the pool, a cheap de-duplication trick when the same tokens recur millions of times. The classic accident is trusting == after reading a value from a socket, because that String is a fresh object outside the pool.", "The JVM separates heap, stack and metaspace: objects live on the heap, each thread has its own stack for frames and local variables, and class metadata lives in metaspace. Metaspace replaced the permanent generation in Java 8, so frameworks that generate dynamic proxies or spin up classloaders can exhaust it even while the heap stays healthy; the resulting OutOfMemoryError names metaspace, not heap. Every heap object also carries a header holding a mark word and a class pointer, which is why millions of tiny objects cost far more than their fields suggest. Each thread's stack is bounded, so runaway recursion, especially through third-party callbacks, surfaces as a StackOverflowError rather than a clean failure.", "The contract between equals and hashCode is load-bearing, not style advice: objects judged equal must return the same hash code, because HashMap and HashSet locate a bucket by hash and then confirm membership with equals. A class that overrides equals without hashCode is silently broken inside every hash-based collection, since the inherited identity hash scatters logically equal instances across buckets. The reverse mistake also bites: a hashCode so weak that everything lands in one bucket degrades expected O(1) lookups into linear scans, which load tests then misattribute to the database. Objects.hash is convenient but allocates a varargs array per call, so value classes on hot paths often combine fields by hand.", "The final keyword carries three different promises, and conflating them causes subtle bugs: a final local cannot be reassigned, a final field must be set during construction, and a final class cannot be extended. For concurrency, freezing final fields at the end of construction lets other threads see the fully initialised object without synchronization, which makes immutable classes the cheapest thread-safe code available. Immutability is a discipline rather than a keyword, though: any mutable object reachable from a supposedly immutable class leaks, whether an exposed Date, an un-copied list parameter, or a setter hidden behind a package-private path. Whether a local is final or effectively final also decides if a lambda may capture it.", "Autoboxing, added in Java 5, smooths the boundary between primitives and wrappers but is not free. The statement Integer x = 5 compiles to Integer.valueOf(5), which caches instances only from -128 to 127, so two Integer values of 127 can be identical while 128 never are; comparing wrappers with == is a latent bug that passes small-value unit tests and fails in production. Boxing also changes overload resolution when a method accepts both long and Long, silently altering dispatch. Numeric loops over List<Integer> pay an object header plus unboxing per iteration, a cost that profiling blames on the garbage collector.", "Serialization lets a class graph cross a process boundary, but deserializing untrusted bytes is a remote-code-execution entry point that history has punished repeatedly, and the serialVersionUID rules mean a refactor can make old stored data unreadable. Java's answer is to keep java.io.ObjectInputStream out of network-facing code entirely: external formats such as JSON, protobuf, or the record-friendly text encoders carry the same data with explicit schemas and no constructor-invoking magic. Even the safe forms expose evolution problems, because Serializable classes bypass constructors, leaving invariant-breaking nulls in fields when the class changes shape. Treat implements Serializable as a legacy integration requirement, not a convenience for caching objects." ]
+  }, {
+    "title" : "Collections, Streams and Concurrency",
+    "content" : [ "ArrayList gives O(1) random access and amortized append; HashMap gives expected O(1) lookup and resizes when the entry count exceeds capacity times the load factor (0.75 by default). Resizing is expensive, so seeding a map with its expected size avoids repeated rehashing in caches that grow at startup. HashMap is deliberately unsynchronised: concurrent puts from two threads can lose updates without any exception, which is how a race hides inside a seemingly correct singleton. When a bucket reaches eight entries and the table is at least sixty-four wide, it treeifies into a balanced tree, turning collision-heavy lookups from linear back into logarithmic; below that capacity the map resizes first.", "Streams are lazy: intermediate operations such as filter and map build a pipeline, and a terminal operation such as collect or forEach drives execution. Laziness has consequences that surprise people coming from collections: peek is not a debug print, because a short-circuiting terminal such as findFirst may never pull some elements through, and the side effect quietly disappears. Calling parallel() hands work to the shared ForkJoinPool common pool, so one blocking call inside a map can starve every other parallel stream in the JVM. Infinite streams from Stream.iterate are legitimate as long as limit or takeWhile bounds them.", "Concurrency requires more than synchronization: volatile guarantees visibility and ordering but not atomicity, so compound updates still need locks or atomic classes. The classic beneficiary is double-checked locking: a singleton reference declared volatile is safe because a thread that observes the reference is also guaranteed to see the fully constructed object, whereas without it a thread can observe a half-initialised instance. For counters, read-modify-write on a volatile field is still a race; AtomicLong fixes correctness, and under heavy contention LongAdder wins by spreading updates across cells. A volatile running flag is the legitimate use: publish state, mutate it only under locks.", "Most java.util collections are fail-fast: they keep a modCount, and iterators compare it on every step, so structurally modifying an ArrayList while a for-each loop runs throws ConcurrentModificationException. That check is an early-warning system, not thread detection, and single-threaded misuse is the most common trigger. The safe patterns are Iterator.remove, which the implementation accounts for, List.removeIf for predicate deletion, or collecting into a replacement list for complex filtering. ConcurrentHashMap iterators behave differently and never throw by contract, traversing with weakly consistent snapshots because the map is designed for concurrent modification.", "Comparable puts a class's natural ordering inside the class, while Comparator carries alternate orderings outside it. TreeMap and TreeSet use compareTo or compare, not equals, as their uniqueness test, so a case-insensitive comparator treats \"Java\" and \"java\" as duplicates and silently drops one. An ordering inconsistent with equals still works, but it violates the documented contract and gives hash- and tree-based collections different opinions about membership for the same elements. Multi-field sorting should chain comparators with thenComparing instead of hand-written subtraction, because subtracting ints overflows on large magnitudes and returns a wrong sign.", "Before Java 21 the standing advice was to size an ExecutorService carefully, because platform threads map onto kernel threads and unbounded creation dies on memory. Virtual threads, final in Java 21, invert the model: they are cheap scheduled continuations mounted on a small pool of carrier threads, so a server can start one per request and keep thread-local code readable. The traps are old habits applied to new machinery: pooling virtual threads discards their point, and blocking that used to be rare now happens constantly, so HTTP clients and drivers must be updated to non-blocking implementations. In Java 21 a long-duration synchronized block can pin its carrier thread; structured concurrency and scoped values remained preview features, so check the version before relying on them.", "ConcurrentHashMap is the default answer for concurrent caches, but its guarantees are narrower than Hashtable's. A get-then-put sequence races even on a thread-safe map, which is why computeIfAbsent, merge and putIfAbsent exist: they run the update atomically with respect to the bin. Two rules follow from that design. The mapping function must be short and must not call back into the same map, because it runs under a bin lock and recursion into the table throws IllegalStateException. And keys and values may not be null, so the map cannot distinguish an absent key from a mapped null, a constraint that pushes code toward Optional-valued entries." ]
+  }, {
+    "title" : "Generics, Records and Sealed Types",
+    "content" : [ "Generics in Java are implemented by erasure: javac type-checks parameterised types, then compiles them to raw types with casts inserted at the boundaries, leaving no List<String> trace at runtime. That explains why two differently parameterised lists report the same Class object, why instanceof List<String> is a compile error, and why new T[] is forbidden in generic code: arrays check their component type at every store, and erasure deliberately deleted the information that check needs. Erasure also forces javac to synthesise bridge methods when a subclass narrows a return type, so virtual dispatch keeps working across erased signatures. The practical cost is that raw types plus unchecked casts can smuggle wrong elements into code the compiler believed was typed.", "Wildcards make API signatures work across families of types, and producer-extends-consumer-super tracks the compiler rules exactly. A List<? extends Number> might reference a List<Integer> or a List<Double>, so reading yields Number safely while adding anything but null is rejected, because the true element type is unknown to the method. List<? super Integer> is the mirror: writing Integers is safe, reads return Object. A method declared to take List<Number> that only reads elements therefore rejects a perfectly valid List<Integer> argument, which is why collection utilities and Comparator parameters consistently use bounded wildcards instead of exact types.", "Type inference has grown without changing what the types mean. The diamond operator lets javac derive class type arguments from the target variable, and since Java 9 from most anonymous class constructions as well. var, new in Java 10, only removes the written type of a local; the variable still receives a fixed static type at compile time, so code using it is fully checked and the runtime is untouched. Inference reaches its limits with null initialisers, with expressions whose inferred type is an awkward intersection, and where a generic method's argument comes from an invisible context; there, spelling the type out is a readability decision rather than a correctness one.", "A record is a true language form with clear rules: an implicitly final class whose state is its named components, given a canonical constructor, accessors named after components, and value-based equals, hashCode and toString. The compact constructor lets you validate or normalise parameters before the implicit assignments, and because the field is initialised from the parameter's final value, reassigning the parameter is the idiomatic defensive-copy point. Immutability is shallow: a record with an array component exposes the same array to every caller, and mutating it changes what equals reports against the recorded hash. Records cannot extend classes but may implement interfaces, and they may declare static fields, which breaks the naive 'no mutable state' reading.", "Sealed types restrict an inheritance hierarchy to a declared list written with permits, and every permitted subtype must itself be final, sealed, or explicitly non-sealed. The payoff is not encapsulation but enumeration: because the compiler knows every subtype, a switch using pattern labels over a sealed hierarchy can be checked for exhaustiveness, and adding a variant makes every switch that forgot it a compile error instead of a silent fallthrough discovered in production. This gives algebraic-data-type modelling with enums plus record variants, without leaving the language. Placement is restricted: permitted classes must share the package, or be in the same module when the package is exported.", "Pattern matching arrived in two steps. The instanceof binding from Java 16, o instanceof String s, declares s for the true branch and removes the shadow-cast idiom that littered older code. Java 21 let switch labels carry type patterns, guarded patterns such as case Integer i when i > 0, and record deconstruction patterns like Point(int x, int y). Patterns are tested top to bottom, so a broader label written above a narrower one makes the later label unreachable, which the compiler rejects outright. A null selector still needs an explicit case null label, otherwise it throws NullPointerException like the classic switch on String did.", "Because of erasure, type arguments must be reference types: there is no List<int>, and int values in collections are boxed Integer objects carrying header and unboxing costs. Numeric hot paths therefore fall back to int[], packed long[] representations, or specialised primitive collections from libraries, which duplicate the type system outside it. Generic code also cannot touch static members through its parameter, cannot use instanceof against T, and can only call Object methods on an unconstrained T. The standard workarounds are passing a Class<T> token for runtime checks and functions for operations, which is exactly the shape Comparator took decades earlier." ]
+  }, {
+    "title" : "Exceptions, I/O and Resource Management",
+    "content" : [ "The exception hierarchy encodes a design opinion: subclasses of Exception except RuntimeException are checked, so the compiler forces every caller to catch or declare them, while RuntimeException covers programming faults like bad arguments or illegal state and Error names JVM-level disasters such as StackOverflowError. The distinction exists only at compile time; the JVM enforces nothing, which is why a checked exception can leak through a lambda or reflection with a sneaky-throw trick. Declaring too many checked exceptions pushes callers into empty catch blocks, and wrapping everything in RuntimeException hides recoverable conditions in generic handlers, so the real judgement is whether the caller can plausibly do anything different.", "try-with-resources compiles each declared resource into a hidden close call guarded against the case where the constructor itself failed, releasing resources on normal and exceptional paths alike. Close happens in reverse declaration order, mirroring how layered streams depend on their wrappers. When the body and a close both throw, the close exception is attached as a suppressed exception to the one propagating, so the primary failure survives and printing only getMessage() loses the secondary evidence. The syntax also accepts pre-existing effectively final variables in its parenthesised header, which makes it usable for borrowed resources and for tests that construct the resource in a fixture.", "Finally still matters for cleanup with no AutoCloseable form, and its control-flow interaction is a classic bug source: a return or throw inside finally completes the statement abruptly, discarding whatever value or exception the try or catch block was about to deliver. A return in finally can therefore swallow an exception so completely that the failure never reaches the log. The modern idiom lets exceptions propagate and centralises handling at a boundary, reserving finally for unconditional resets such as clearing a context holder. A related subtlety exists inside try-with-resources: a finally written around it still runs after the resources have been closed, which is usually but not always what reviewers assume.", "Since Java 14, the JVM can reconstruct the precise null-dereference expression from bytecode line information, turning 'NullPointerException' into 'Cannot read the array length because \"list\" is null'; the -XX:+ShowCodeDetailsInExceptionMessages flag enabled it and it became the default in Java 15. The benefit shows in production logs for unobfuscated builds, and it makes whole classes of triage reports answerable without redeploys. None of that makes NPE cheap or safe: it remains a programming error, a flood of them means missing precondition checks, and the real fix is Objects.requireNonNull at API entry points, which fails fast with your own message instead of a delayed dereference somewhere deeper.", "java.nio.file replaced the legacy File class with Path and paired it with the static helpers on Files. Files.readString and Files.readAllBytes serve small files honestly, while Files.lines returns a lazy Stream<String> that wraps an open BufferedReader and holds the file descriptor until closed, so leaving it outside try-with-resources leaks handles exactly when traffic spikes. Path is closer to a URI than to File: it belongs to a provider, mixing paths from different providers throws IllegalArgumentException, and the same abstraction lets archive files be mounted as whole file systems. Charset choices belong on the call, not on the machine.", "Streams come in byte flavours and character flavours: InputStream and OutputStream move bytes, Reader and Writer move characters, and connecting them requires an explicit decoding charset. Platform-default encodings were a genuine portability bug until Java 18 standardised on UTF-8 per JEP 400; before that, the same image could mangle input on a differently configured host. Wrapping in a BufferedInputStream changes how many system calls hit the file descriptor, not what bytes arrive, but the buffering win vanishes when you read a megabyte array per call anyway. Mixing a BufferedReader and a Scanner on System.in is another failure mode: the Scanner's internal buffer consumes characters the other reader believes are still pending.", "Chaining exists because wrapping a low-level failure without preserving its cause destroys the evidence that made it diagnosable: catch the IOException, throw the repository exception with the original as cause, and let the message add context the stack cannot, the file name, the operation, the row key. Log the failure once, at the boundary that finally handles it; catching, logging, and rethrowing duplicates the same incident in the log at every layer. Declaring throws Exception is an escape hatch that opts every caller out of meaningful recovery, which is why translation tables in framework adapters are usually the least bad compromise between checked purity and unchecked silence." ]
+  }, {
+    "title" : "Testing, Builds and Dependency Management",
+    "content" : [ "JUnit 5 separates the platform that discovers and runs tests from the Jupiter programming model of @Test, @BeforeEach and lifecycle callbacks. Its default test instance lifecycle constructs a fresh test class per method, so the old trick of sharing mutable state through instance fields between tests silently stops working, and per-class state requires @TestInstance(PER_CLASS). Assertions gained assertAll, which collects several failures instead of aborting at the first, and message arguments moved to lambdas so formatting costs nothing on the passing path. The execution order of test methods is deliberately non-deterministic, so anything relying on sequence is a flake factory that property-checking tools exploit on purpose.", "A @ParameterizedTest with @CsvSource or @MethodSource turns one body into a table of cases, the cheapest coverage for boundaries like empty, single, many. Method sources must be static unless the class is per-instance, and their returned streams are consumed per invocation, which rules out reusing a single instance across parameter sets. Display-name templates decide whether a failing row reads as a real case or as 'test(int, String) 3'. CsvSource is convenient until an argument contains a comma or quote, at which point escaping turns the table unreadable and @MethodSource, where arguments are ordinary Java objects, is the honest alternative.", "Mockito builds recording stand-ins for collaborators, and the JUnit 5 MockitoExtension applies strict stubbing by default, so a when().thenReturn() arrangement that never gets used fails the test with UnnecessaryStubbingException rather than passing silently. That strictness guards the genuine failure mode of mock-heavy suites: tests that assert the exact conversation between two objects instead of observable behaviour, breaking on every internal refactor while proving nothing about the feature. Prefer real instances for value types, reserve mocks for boundaries such as HTTP clients and clocks, and use verify and ArgumentCaptor only when the outcome cannot be observed directly.", "Maven identifies every artifact by groupId, artifactId and version, and the dependency scope decides classpath placement and propagation: provided means the container supplies the library at runtime, which is why an application compiles against the servlet API and then fails on deployment to the wrong server. Transitive dependencies are mediated by shortest-path-first, with declaration order breaking ties, so upgrading one direct library can silently change the winner for another. The dependencyManagement section pins transitive versions without introducing dependencies, BOMs distribute those pins across ecosystems, and mvn dependency:tree with exclusions is the standard autopsy for a version conflict.", "Maven binds goals to ordered phases: package runs compile and test, while verify additionally executes integration tests. Two plugins split the testing world, Surefire running unit tests in the test phase and Failsafe executing *IT tests during integration-test and evaluating their results at verify so later phases can still clean up. The shade plugin rewrites a jar into a fat jar, relocating packages when two dependencies ship the same classes, at the price of duplicated classes when someone else shades the same library downstream. The assembly plugin and Spring Boot's repackage goal serve different deployment stories and are routinely confused with one another.", "Gradle models builds as a task graph and caches outputs aggressively, which makes large multi-module Java builds dramatically faster than their Maven equivalents, at the cost of a JVM-based DSL whose failures are harder to read. Version catalogs declared in libs.versions.toml centralise coordinates so dozens of modules upgrade in lockstep. The universal lesson is hygiene: never release against SNAPSHOT versions, pin plugin versions as carefully as library versions, diff the resolved dependency tree between builds, and treat updates as a security practice, because supply-chain incidents through renamed or typosquatted packages are ordinary Java history, not cautionary folklore." ]
+  }, {
+    "title" : "Java in Production: GC, Tuning and Observability",
+    "content" : [ "Collectors exploit the weak generational hypothesis that most objects die young by partitioning the heap into a young area for fresh allocations and an old area for survivors. A minor collection is stop-the-world but cheap: it copies the few live young objects and resets a pointer, while full collections cost an order of magnitude more, which is why latency graphs usually trace back to promotion or to an oversized live set rather than to exotic phases. Allocation goes through thread-local buffers first, so tuning never fixes a workload whose real problem is allocation rate; the win comes from creating fewer objects, pooling carefully where correctness survives it, and measuring with async-profiler's allocation mode before guessing at culprits.", "G1, the default server collector since Java 9, divides the heap into regions of equal size and treats young and old generations as sets of regions rather than contiguous areas. It maintains a collection set predicted to finish within a soft target, -XX:MaxGCPauseMillis, which defaults to two hundred milliseconds; the pause is aimed at, not guaranteed, and setting the target too low starves application threads and degrades throughput. Mixed collections reclaim old regions opportunistically by value. Regions reserved for the young generation are a soft boundary, and undersized heaps with high promotion rates are how a G1 cluster ends up in full collections, which is visible in the logs long before users complain.", "For latency-sensitive services ZGC and Shenandoah keep pauses in the sub-millisecond range across heaps by doing marking and relocation concurrently with application threads. ZGC encodes object state in the address itself, so relocation stays fast, while load barriers catch threads pointing at moved objects; generational ZGC, added in Java 21 behind -XX:+UseZGC with -XX:+ZGenerational and the default in later releases, brought a young generation and better throughput. The bill for all that concurrency is CPU, because collector threads compete with application threads. Sub-millisecond pauses measured on an idle staging box can disappear under production load, so latency SLOs must be validated on representative traffic.", "The two flags everyone reaches for first, -Xmx and -Xms, bound only the Java heap; metaspace, code cache, thread stacks and direct buffers all live outside them, which answers the perennial 'the container killed us with exit 137 although the heap was healthy'. Since 8u191 and Java 10 the JVM reads cgroup limits under -XX:+UseContainerSupport, sizing default maximum heap to a fraction, by default a quarter, of the container's memory rather than the host's; -XX:MaxRAMPercentage is the deliberate knob. Non-heap regions have their own ceilings, MaxMetaspaceSize, ReservedCodeCacheSize and MaxDirectMemorySize, and Native Memory Tracking plus jcmd's summary report are how you actually attribute the footprint.", "Unified logging replaced the old PrintGCDetails flags: -Xlog:gc* to a file emits tagged GC output with rotation, and -Xlog:safepoint exposes the stop-the-world points where every thread stalls, including pauses that have nothing to do with collection. Reading the output is a skill: a rising floor after old-generation collections indicates retention, frequent humongous allocations mean large-array churn in G1, and to-space exhaustion means the concurrent cycle could not claim regions before promotion demanded them. jstat -gcutil samples the same numbers live without a restart. Those signals separate an undersized heap, an allocation storm and a genuine leak, which need opposite fixes.", "Observability starts with the bundled command-line tools. jcmd is the front door to a running JVM: it lists diagnostic flags, dumps threads, triggers heap dumps and controls flight recordings without attaching a debugger. JFR, the Java Flight Recorder, runs inside the JVM with overhead small enough that continuous recording is a sane production default, and a ring buffer of GC, allocation, and lock events can be dumped after the incident with jcmd rather than being reproduced. A heap dump is heavy artillery, multi-gigabyte and written at a safepoint, best analysed offline in a tool like Eclipse MAT, whose dominator-tree views find retained-heap culprits far faster than eyeballing a histogram of raw jmap output.", "Bytecode is compiled in tiers: interpreted and lightly compiled code runs until C2 recognises a hot method, then optimises aggressively on profiling assumptions, deoptimising back when an assumption breaks. This is why cold-start benchmarks mislead and why deploy-time load-shedding exists on large services. Escape analysis can scalar-replace objects that never leave a method, removing allocations entirely, though the effect is brittle: enlarging a method past compilation thresholds silently brings the objects back. The code cache has its own ceiling under -XX:ReservedCodeCacheSize, and when it fills the JVM warns explicitly while performance collapses toward interpreter speed, a signature that looks exactly like GC trouble until the logs are read properly." ]
+  } ],
+  "questions" : [ {
+    "text" : "A subclass wants to replace the behaviour of an inherited instance method at runtime. Which mechanism does Java provide?",
+    "a" : "Method overloading",
+    "b" : "Method overriding",
+    "c" : "Encapsulation",
+    "d" : "Static binding",
+    "correct" : "B",
+    "explanation" : "Overriding is resolved dynamically against the actual object type; overloading is resolved at compile time by signature.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Given String s1 = 'java'; and String s2 = 'java'; what does s1 == s2 evaluate to?",
+    "a" : "true, because literals are interned and share one instance",
+    "b" : "false, because == always compares characters",
+    "c" : "false, because every literal creates a new object",
+    "d" : "It does not compile",
+    "correct" : "A",
+    "explanation" : "Both literals come from the string pool, so the references are equal. Value comparison should still use equals().",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In a default HashMap, what triggers a resize of the internal table?",
+    "a" : "Each time two keys collide, because collision resolution needs a larger table",
+    "b" : "When a negative hash code is stored",
+    "c" : "After every put call, regardless of size",
+    "d" : "When the entry count exceeds 75% of the current capacity",
+    "correct" : "D",
+    "explanation" : "The default load factor is 0.75. Collisions are handled by chaining or treeification and do not by themselves force a resize.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement about checked exceptions is correct?",
+    "a" : "RuntimeException must always be declared in throws so callers can recover",
+    "b" : "A checked exception must be caught or declared in the method signature",
+    "c" : "Errors extend Exception and are checked",
+    "d" : "finally executes only when no exception is thrown",
+    "correct" : "B",
+    "explanation" : "The compiler enforces catch-or-declare for checked exceptions. RuntimeException and Error are unchecked, and finally runs in both normal and exceptional paths.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What happens when add(4) is called on a list created with List.of(1, 2, 3)?",
+    "a" : "UnsupportedOperationException",
+    "b" : "ClassCastException",
+    "c" : "ConcurrentModificationException",
+    "d" : "ArrayIndexOutOfBoundsException",
+    "correct" : "A",
+    "explanation" : "List.of returns an unmodifiable list, so structural modification throws UnsupportedOperationException.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which stream operation is terminal?",
+    "a" : "filter",
+    "b" : "peek",
+    "c" : "collect",
+    "d" : "map",
+    "correct" : "C",
+    "explanation" : "collect consumes the pipeline and produces a result. filter, map and peek are intermediate and return another stream.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A class implements two interfaces that both declare the same default method. What must the class do?",
+    "a" : "The first interface listed wins",
+    "b" : "The second interface listed wins",
+    "c" : "Override the method to resolve the conflict",
+    "d" : "Nothing; Object.toString is used instead",
+    "correct" : "C",
+    "explanation" : "When two inherited defaults conflict, the compiler requires an explicit override, which may delegate with InterfaceName.super.method().",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two resources are opened in one try-with-resources statement. In what order does Java close them?",
+    "a" : "In declaration order",
+    "b" : "Only the first resource is closed",
+    "c" : "Only when an exception occurs",
+    "d" : "In reverse order of declaration",
+    "correct" : "D",
+    "explanation" : "Resources are closed in reverse order, mirroring stack unwinding. All resources are closed whether or not an exception occurred.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Where are local variables of a running method stored?",
+    "a" : "In the young generation of the heap",
+    "b" : "In the stack frame of the executing thread",
+    "c" : "In metaspace",
+    "d" : "In the constant pool",
+    "correct" : "B",
+    "explanation" : "Each thread has a stack of frames; primitives and object references declared locally live in the frame, while the objects themselves live on the heap.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does the volatile keyword guarantee for a field?",
+    "a" : "It makes compound operations such as count++ atomic for every thread",
+    "b" : "It provides mutual exclusion between threads",
+    "c" : "It guarantees visibility of writes and prevents certain reorderings",
+    "d" : "It persists the field to disk",
+    "correct" : "C",
+    "explanation" : "Volatile establishes happens-before for reads and writes of that field but does not make read-modify-write sequences atomic.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Given a record declared as record Point(int x, int y), which expression reads the x component from a Point p?",
+    "a" : "p.getX()",
+    "b" : "p.x()",
+    "c" : "p.x",
+    "d" : "p.field(\"x\")",
+    "correct" : "B",
+    "explanation" : "Records generate accessors named exactly after the components, so p.x() is correct. JavaBean-style getX() is never generated, and p.x fails outside the record body because the field is private.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does type erasure mean for Java generics at runtime?",
+    "a" : "Every parameterised type becomes its own Class object when loaded",
+    "b" : "Erased code runs only after the JIT compiler inlines it",
+    "c" : "Generic type information is stored in the object header instead",
+    "d" : "Type parameters compile away, so both lists share one Class",
+    "correct" : "D",
+    "explanation" : "Erasure compiles generics to raw types with casts at the boundaries, so the runtime sees no type argument and instanceof List<String> is rejected. Lists do not carry their element type in any header.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which keyword declares the allowed subtypes of a sealed interface?",
+    "a" : "permits",
+    "b" : "non-sealed",
+    "c" : "restrict",
+    "d" : "final",
+    "correct" : "A",
+    "explanation" : "sealed interface Shape permits Circle, Square. lists the closed set. non-sealed opens a subtype back up, and an absent restrict keyword only tempts people who expect annotation-style metadata.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Object o = \"hello\"; if (o instanceof String s) { System.out.println(s.length()); } What does this print?",
+    "a" : "A compile error until o is cast",
+    "b" : "5",
+    "c" : "0",
+    "d" : "It throws ClassCastException",
+    "correct" : "B",
+    "explanation" : "The pattern binding introduces s, scoped to the true branch, so the cast happens as part of the test. Assuming a classic explicit cast is still required is the Java-8 reflex this question targets.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "To use a resource in try-with-resources, what must its class implement?",
+    "a" : "java.io.Closeable specifically",
+    "b" : "AutoCloseable, which Closeable itself extends",
+    "c" : "Serializable with a public close()",
+    "d" : "A class that merely declares a public no-arg close method",
+    "correct" : "B",
+    "explanation" : "AutoCloseable is the actual requirement; Closeable is one implementer among many. Requiring Closeable specifically is the common misconception, and merely declaring close() without implementing the interface does not compile.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which JUnit 5 annotation runs one test body repeatedly with different arguments supplied per row?",
+    "a" : "@RepeatedTest",
+    "b" : "@TestFactory",
+    "c" : "@ParameterizedTest",
+    "d" : "@CsvSource annotation",
+    "correct" : "C",
+    "explanation" : "@ParameterizedTest drives a method from a value source like @CsvSource or @MethodSource. @RepeatedTest re-runs identical work without arguments, and @CsvSource is only a value source attached to an existing parameterized test.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which garbage collector is the default for server-shaped Java 17 workloads when ergonomics choose?",
+    "a" : "Serial",
+    "b" : "Parallel",
+    "c" : "ZGC",
+    "d" : "G1",
+    "correct" : "D",
+    "explanation" : "G1 has been the default server collector since Java 9. Serial and Parallel still appear in single-core or footprint-based ergonomics, and ZGC must be requested explicitly rather than selected by default.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Inside a method declared process(List<? extends Number> ns), which statement compiles?",
+    "a" : "ns.add(new Integer(1))",
+    "b" : "Number n = ns.get(0)",
+    "c" : "ns.add(new Object())",
+    "d" : "List<Number> copy = ns",
+    "correct" : "B",
+    "explanation" : "A extends wildcard makes the list a producer: reads widen to Number but adds are rejected because the unknown element type might be List<Integer> or List<Double>. Assigning it to List<Number> breaks invariance.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A record holds an int[] component scores. After constructing r, a caller mutates the same array it passed in. What changes?",
+    "a" : "Nothing observable, because records deep-copy every component at construction",
+    "b" : "The record's hashCode recomputes to stay consistent with equals",
+    "c" : "The record's observed state changes because arrays are shared by reference",
+    "d" : "The constructor throws at mutation time",
+    "correct" : "C",
+    "explanation" : "Record immutability is shallow: the component reference never changes, but the array contents do unless the compact constructor defensively copies. Nothing is copied automatically, and the JVM cannot detect post-construction mutation.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A Java 21 switch matches every permitted subtype of sealed interface Shape without a default. Later a third subtype is added to permits. What happens at the switch site?",
+    "a" : "It fails to compile because the switch is no longer exhaustive",
+    "b" : "It runs the last case as an implicit default arm",
+    "c" : "It compiles and silently skips values of the newly added subtype",
+    "d" : "It throws IllegalAccessError when the new type is loaded",
+    "correct" : "A",
+    "explanation" : "Sealing lets the compiler check exhaustiveness, so widening the hierarchy turns every stale switch into a build error rather than a runtime surprise. There is no implicit default arm for pattern switches.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "String s = null; switch (s) { case \"a\" -> 1; default -> 2; } What happens?",
+    "a" : "Evaluates to 2",
+    "b" : "Evaluates to 1",
+    "c" : "A compile-time error for the null selector",
+    "d" : "NullPointerException",
+    "correct" : "D",
+    "explanation" : "A classic switch on String dereferences the selector before matching, so null throws; only a pattern switch can catch it with an explicit case null. Expecting default to receive null is the trap.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Integer a = 127, b = 127 (each via literal assignment) compare equal with ==, but the same code at 128 does not. What explains it?",
+    "a" : "valueOf caches only the range -128 to 127",
+    "b" : "Autoboxing defers comparison of any value above 128",
+    "c" : "The JIT interns boxed values once per loop only",
+    "d" : "Literals above 128 are compiled to distinct heap floats",
+    "correct" : "A",
+    "explanation" : "Integer.valueOf serves pooled instances within -128..127, so identity holds there and breaks above; comparing wrappers with == passes small-value tests and fails in production. Nothing about loops or floats is involved.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A for-each loop over an ArrayList calls list.remove(o) while matching. What is the reliable outcome?",
+    "a" : "The loop skips elements but completes normally",
+    "b" : "The loop silently keeps every matching element in the list",
+    "c" : "ConcurrentModificationException thrown by the iterator",
+    "d" : "A compile-time error from the for-each grammar",
+    "correct" : "C",
+    "explanation" : "The iterator compares modCount each step and throws, which is an early warning rather than thread detection. The safe rewrites are Iterator.remove or removeIf, not catching and continuing.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which iteration guarantee does java.util.HashSet actually make?",
+    "a" : "None beyond every element appearing exactly once",
+    "b" : "Iteration order follows insertion sequence",
+    "c" : "Iteration order matches the Comparable of its elements",
+    "d" : "Iteration order equals the underlying map's capacity",
+    "correct" : "A",
+    "explanation" : "HashSet's order is unspecified and changes across versions and capacities; LinkedHashSet adds insertion order and TreeSet adds sorting. A HashSet never guarantees any order, whatever its elements implement.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A TreeSet<String> built with String.CASE_INSENSITIVE_ORDER receives \"Java\" and then \"java\". What is size()?",
+    "a" : "Two, because equals still distinguishes them",
+    "b" : "Two, because comparators never affect set membership tests",
+    "c" : "One, unless the set downcasts internally to HashSet",
+    "d" : "One, because the comparator is the set's uniqueness test",
+    "correct" : "D",
+    "explanation" : "TreeSet tests duplicates with the comparator, so compare returning zero drops the second insert even though equals says the strings differ. The equals-based misconception is exactly what this contract inconsistency exposes.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which operation can end an infinite Stream.iterate without using a fixed element count?",
+    "a" : "collecting into an immutable List.of",
+    "b" : "adding an intermediate filter predicate",
+    "c" : "takeWhile, available since Java 9",
+    "d" : "peeking until the first side effect fires",
+    "correct" : "C",
+    "explanation" : "takeWhile stops pulling once the predicate fails, bounding the pipeline by content rather than count. Intermediate filter is itself lazy and never terminates anything on its own.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A Java web app calls a blocking database query inside map on a parallel stream. What is the main risk?",
+    "a" : "map rejects lambdas that throw checked exceptions",
+    "b" : "The shared ForkJoinPool common pool gets starved for the JVM",
+    "c" : "Streams fall back to sequential without any notice at runtime",
+    "d" : "collect loses ordering as soon as blocking appears",
+    "correct" : "B",
+    "explanation" : "Parallel streams default to the common pool, so blocking work in one place starves every other parallel operation in the process. Checked exceptions affect whether the lambda compiles at all, not pool health.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the recommended way to use virtual threads in Java 21 server code?",
+    "a" : "Start one per task and never pool them",
+    "b" : "Pool them like platform threads for reuse",
+    "c" : "Limit them with newFixedThreadPool semantics",
+    "d" : "Confine them to a single carrier thread",
+    "correct" : "A",
+    "explanation" : "Virtual threads are cheap continuations multiplexed onto carriers, so one-per-task is the point and pooling discards the benefit. A fixed pool is the platform-thread reflex that this question targets.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In try-with-resources the body throws IllegalStateException and a close() then throws IOException. What does the caller receive?",
+    "a" : "IOException, because close runs last",
+    "b" : "A hidden third exception",
+    "c" : "IllegalStateException, with the IOException suppressed",
+    "d" : "Both exceptions surface together, chained as one ExceptionGroup",
+    "correct" : "C",
+    "explanation" : "The body exception is primary and close failures attach to it via suppression, which is why logging must print getSuppressed. Only the close exception propagating is the familiar misreading.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A method's try block returns 1, its catch (for a thrown RuntimeException) returns 2, and its finally returns 3. Which value comes back to the caller when the exception occurs?",
+    "a" : "1",
+    "b" : "2",
+    "c" : "The RuntimeException propagates",
+    "d" : "3",
+    "correct" : "D",
+    "explanation" : "A return in finally completes the statement abruptly and discards the exception in flight, swallowing it entirely. Believing the pending exception survives the finally is the exact production bug this hides.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "With helpful NullPointerExceptions enabled, what extra detail does the NPE message carry?",
+    "a" : "A compiler-suggested null-safe rewrite of the failing line",
+    "b" : "The variable or subexpression that evaluated to null",
+    "c" : "The full allocation stack of the null object",
+    "d" : "A hint naming only the enclosing method",
+    "correct" : "B",
+    "explanation" : "The JVM reconstructs the failing expression from bytecode line data, e.g. 'because \"list\" is null'. It reports no allocation history or rewrite suggestions; method-only hints understate what the feature added.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Files.lines(Path) returns a Stream<String> of a text file's contents. What is required to avoid running out of file descriptors under load?",
+    "a" : "Calling parallel() on the returned stream",
+    "b" : "Collecting the stream into a List quickly",
+    "c" : "Wrapping only the terminal operation in a try block",
+    "d" : "Closing the stream, best done in try-with-resources",
+    "correct" : "D",
+    "explanation" : "The stream lazily holds an open BufferedReader over the file, and closing the stream releases the descriptor; collecting does not close it. A try around the terminal call alone never closes the stream itself.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why must javac synthesise a bridge method when a subclass narrows an overridden method's return type?",
+    "a" : "The JVM cannot verify covariant return types at class-file load time",
+    "b" : "Bridge methods carry erased type arguments in their exception table",
+    "c" : "The erased signature would otherwise bypass the narrowed override",
+    "d" : "C2 cannot otherwise inline an overridden method",
+    "correct" : "C",
+    "explanation" : "After erasure the superclass call site targets a raw signature, so a delegating bridge preserves dispatch to the narrowed method. Bridges are not load-time artifacts or exception-table carriers; inlining is a separate JIT matter.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Inside class Box<T>, why does the compiler reject new T[10]?",
+    "a" : "Arrays store-check a component type that erasure has deleted",
+    "b" : "T[] would expose mutable state to the heap",
+    "c" : "The compiler cannot size an array from an unknown type argument",
+    "d" : "T would become raw",
+    "correct" : "A",
+    "explanation" : "An array must know its component class at runtime, but erasure leaves no T to check elements against, so the language forbids the creation. It is not a sizing or mutability concern.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Given List<?> list holding an unknown element type, which add call compiles?",
+    "a" : "list.add(new Object())",
+    "b" : "list.add(null)",
+    "c" : "list.add(list.get(0))",
+    "d" : "Any value whose type the compiler can cast",
+    "correct" : "B",
+    "explanation" : "The capture of List<?> is an unknown type, and only null fits every possibility; reading is safe but writing any other value is rejected. Assuming cast(Object) or get-then-add works is the standard misconception.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A sealed interface in a named module's exported package wants a permitted implementation class in another package of the same module. When is that legal?",
+    "a" : "Never; all permitted subtypes must share one package",
+    "b" : "Always, as long as the implementing class is final",
+    "c" : "Only when the sealed interface carries a special annotation",
+    "d" : "When the sealed package is exported to the subtype's module",
+    "correct" : "D",
+    "explanation" : "Same package, or same module with the package exported, satisfies the sealing rules, and a package-private hierarchy can keep subtypes co-located. Requiring one package always, or relying on a sealing annotation, both misread the rules.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A record's compact constructor reassigns its parameter to trim a String name. What ends up in the field?",
+    "a" : "The original argument, because constructor parameters are copies",
+    "b" : "The reassigned parameter value, assigned after the compact body",
+    "c" : "The assignment is a compile error",
+    "d" : "A defensive copy of the trimmed String",
+    "correct" : "B",
+    "explanation" : "The compact constructor assigns fields from the parameter values that exist when its body finishes, which is why normalising via reassignment is the documented idiom. Nothing copies the string, and the reassignment is perfectly legal.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A pattern switch on Object o has arms in this order: case String s, case Integer i when i > 0, case Number n, case Object o. Where does o = 5.0 land?",
+    "a" : "The guarded integer arm",
+    "b" : "Uncaught with a MatchException, not the default arm",
+    "c" : "The Number arm",
+    "d" : "The Object arm",
+    "correct" : "C",
+    "explanation" : "Patterns test top to bottom, and a Double is neither String nor Integer, so it matches Number before ever reaching Object. Falling through to Object is the ordering misconception, and MatchException only fires when no pattern matches.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two transitive paths offer spring-core 5.3 at depth three and 5.2 at depth two. Which does Maven resolve and why?",
+    "a" : "5.2, because the shortest path wins",
+    "b" : "5.3, because Maven mediation always picks the newest version",
+    "c" : "5.3, unless the pom pins otherwise",
+    "d" : "Both, and the classloader decides at runtime",
+    "correct" : "A",
+    "explanation" : "Maven's default mediation is nearest-declaration wins, so depth trumps version, with declaration order breaking ties; dependencyManagement or a BOM overrides the result. Newest-wins is a Gradle-style assumption.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "To run *IT.java integration tests during a Maven verify, which plugin binding must the pom declare?",
+    "a" : "maven-surefire-plugin",
+    "b" : "maven-jar-plugin",
+    "c" : "maven-shade-plugin",
+    "d" : "maven-failsafe-plugin",
+    "correct" : "D",
+    "explanation" : "Failsafe executes integration tests in the integration-test phase and evaluates failures at verify so post phases still run. Surefire covers unit tests in the test phase and would not honour the IT contract.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "With JUnit 5's MockitoExtension at default strictness, a when().thenReturn() stub is never invoked. What occurs?",
+    "a" : "The stub is silently dropped",
+    "b" : "UnnecessaryStubbingException at test end",
+    "c" : "The test fails only if a verify call exists",
+    "d" : "A compile-time warning",
+    "correct" : "B",
+    "explanation" : "The extension checks every stub was used after the test and reports UnnecessaryStubbingException; lenient() exists for genuinely conditional stubs. Silent success is what non-strict setups allowed, and it is a maintenance trap rather than safety.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does -XX:MaxGCPauseMillis=100 promise in G1?",
+    "a" : "Every pause will last under 100 milliseconds",
+    "b" : "The heap automatically shrinks whenever a pause exceeds 100ms",
+    "c" : "A target that shapes each collection set size, not a guarantee",
+    "d" : "At most 100 GC cycles per minute",
+    "correct" : "C",
+    "explanation" : "G1 sizes each collection set against the target using its statistics, but full GCs and undersized heaps exceed it, and lowering it too far hurts throughput. Reading it as a per-pause guarantee is the misconception.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "On JDK 21, how do you enable generational ZGC?",
+    "a" : "-XX:+UseZGC alone",
+    "b" : "ZGC is generational by default in 21",
+    "c" : "-XX:+UseG1GC -XX:+ZGenerational",
+    "d" : "-XX:+UseZGC plus -XX:+ZGenerational",
+    "correct" : "D",
+    "explanation" : "Java 21 shipped generational ZGC behind -XX:+ZGenerational together with -XX:+UseZGC; it became the default mode only in later JDKs. Requesting the option without the flag selects the non-generational collector.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In G1, which object counts as humongous?",
+    "a" : "Anything spanning more than half a region",
+    "b" : "Anything promoted after surviving ten garbage collection cycles",
+    "c" : "Anything in the old generation",
+    "d" : "Anything larger than one region",
+    "correct" : "A",
+    "explanation" : "G1 allocates humongous objects directly into the old generation when they exceed half a region, so repeated large arrays fragment regions and force extra work. Age and simple whole-region overflow are the usual wrong mental models.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A ThreadLocal context holder inside a servlet container is never removed after request completion. Why does it leak?",
+    "a" : "Weak entries are kept until metaspace compacts",
+    "b" : "Pool threads outlive requests, and their thread-local values remain",
+    "c" : "The ThreadLocal object itself is a permanent GC root",
+    "d" : "The pool refuses to reuse a thread while any entry exists",
+    "correct" : "B",
+    "explanation" : "Pool threads survive requests, and their ThreadLocalMap keeps entries keyed by weak references whose values persist until the same key is set or removed; the request graph stays reachable through those values. A separate ThreadLocal GC root does not exist.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A Java 17 app runs in a container capped at 2 GB of memory, started with no flags. What is roughly its default maximum heap?",
+    "a" : "About 2 GB, the container memory",
+    "b" : "Unbounded until the container itself OOM-kills the JVM",
+    "c" : "About 512 MB, a quarter of the container limit",
+    "d" : "About 1 GB, a third of the container memory",
+    "correct" : "C",
+    "explanation" : "Container-aware ergonomics cap the default maximum heap at a quarter of the limit, so roughly 512 MB; MaxRAMPercentage raises it deliberately. Seeing host RAM or no limit is a pre-container-awareness mental model.",
+    "difficulty" : "HARD"
+  } ]
+}

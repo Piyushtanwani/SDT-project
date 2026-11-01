@@ -147,7 +147,7 @@ const CommunityPage = () => {
 
   if (!userId || !token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950">
+      <div className="min-h-screen flex items-center justify-center">
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -161,7 +161,7 @@ const CommunityPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen p-4 sm:p-6 md:p-8">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -189,7 +189,7 @@ const CommunityPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.6 }}
-          className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-4 sm:p-6 rounded-3xl shadow-2xl mb-8 border border-gray-200 dark:border-gray-700"
+          className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-3xl shadow-lg mb-8 ring-1 ring-gray-200/70 dark:ring-white/10"
         >
           <div className="flex items-center gap-3 mb-6">
             <FiFilter className="text-indigo-600 dark:text-indigo-400 text-xl sm:text-2xl" />
@@ -209,7 +209,7 @@ const CommunityPage = () => {
                 placeholder="Search skills..."
                 value={skillSearch}
                 onChange={(e) => setSkillSearch(e.target.value)}
-                className="w-full min-h-[44px] px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full min-h-[44px] px-3 py-2 mb-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
               />
               <div className="flex flex-wrap gap-2">
                 {displayedSkills.map((skill) => (
@@ -219,7 +219,7 @@ const CommunityPage = () => {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleSkillToggle(skill)}
-                    className={`min-h-[36px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                    className={`min-h-[44px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
                       filters.skills.includes(skill)
                         ? "bg-indigo-600 text-white"
                         : "bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
@@ -237,7 +237,7 @@ const CommunityPage = () => {
                       aria-expanded={isDropdownOpen}
                       aria-controls="more-skills-menu"
                       aria-label={isDropdownOpen ? "Hide more skills" : "Show more skills"}
-                      className="flex items-center min-h-[36px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gray-200 dark:bg-gray-600 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
+                      className="flex items-center min-h-[44px] px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-gray-200 dark:bg-gray-600 text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
                     >
                       More
                       <FiChevronDown className="ml-1" />
@@ -262,7 +262,7 @@ const CommunityPage = () => {
                                   setIsDropdownOpen(false);
                                 }}
                                 aria-pressed={filters.skills.includes(skill)}
-                                className={`w-full min-h-[36px] text-left px-3 py-1.5 text-xs sm:text-sm rounded-md ${
+                                className={`w-full min-h-[44px] text-left px-3 py-1.5 text-xs sm:text-sm rounded-md ${
                                   filters.skills.includes(skill)
                                     ? "bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900 dark:hover:bg-indigo-800 text-indigo-800 dark:text-indigo-200"
                                     : "text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -291,8 +291,7 @@ const CommunityPage = () => {
                 name="role"
                 value={filters.role}
                 onChange={handleFilterChange}
-                whileHover={{ scale: 1.02 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full min-h-[44px] px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
               >
                 <option value="">Any Role</option>
                 {rolesList.map((role) => (
@@ -312,8 +311,7 @@ const CommunityPage = () => {
                 name="timezone"
                 value={filters.timezone}
                 onChange={handleFilterChange}
-                whileHover={{ scale: 1.02 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full min-h-[44px] px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 rounded-lg text-sm sm:text-base text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
               >
                 <option value="">Any Timezone</option>
                 {timezonesList.map((tz) => (
@@ -331,7 +329,7 @@ const CommunityPage = () => {
               aria-hidden="true"
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-indigo-600 dark:border-indigo-400 border-t-purple-500 dark:border-t-purple-400 rounded-full"
+              className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full"
             ></motion.div>
           </div>
         ) : error ? (
@@ -366,7 +364,7 @@ const CommunityPage = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.4 }}
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={{ y: -4 }}
                     className="relative z-0"
                   >
                     <UserProfileCard

@@ -1,6 +1,6 @@
 "use client";
 import React, { useCallback, useState, useEffect, useRef } from "react";
-import { PlusCircle, X, Play, Copy, Save, Loader2, Code, FileCode, CheckCircle, ExternalLink, BookOpen, Trophy, Users, Star, Menu } from "lucide-react";
+import { PlusCircle, X, Play, Copy, Save, Loader2, Code, FileCode, ExternalLink, BookOpen, Menu } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -26,10 +26,10 @@ const draculaTheme = createTheme({
     selectionMatch: '#45475a',
     lineHighlight: '#31324450',
     gutterBackground: '#1e1e2e',
-    gutterForeground: '#6c7086',
+    gutterForeground: '#a6adc8',
   },
   styles: [
-    { tag: t.comment, color: '#6c7086' },
+    { tag: t.comment, color: '#a6adc8' },
     { tag: t.variableName, color: '#cdd6f4' },
     { tag: [t.string, t.special(t.brace)], color: '#a6e3a1' },
     { tag: t.number, color: '#f9e2af' },
@@ -56,11 +56,11 @@ const githubLightTheme = createTheme({
     selectionMatch: '#dbeafe',
     lineHighlight: '#f1f5f9',
     gutterBackground: '#f8fafc',
-    gutterForeground: '#6b7280',
+    gutterForeground: '#5a5577',
     gutterBorder: 'transparent',
   },
   styles: [
-    { tag: t.comment, color: '#6b7280', fontStyle: 'italic' },
+    { tag: t.comment, color: '#5a5577', fontStyle: 'italic' },
     { tag: t.variableName, color: '#1f2937' },
     { tag: [t.string, t.special(t.brace)], color: '#15803d' },
     { tag: t.number, color: '#b91c1c' },
@@ -71,7 +71,7 @@ const githubLightTheme = createTheme({
     { tag: t.className, color: '#b91c1c' },
     { tag: t.definition(t.typeName), color: '#0369a1' },
     { tag: t.typeName, color: '#0369a1' },
-    { tag: t.angleBracket, color: '#6b7280' },
+    { tag: t.angleBracket, color: '#5a5577' },
     { tag: t.tagName, color: '#15803d' },
     { tag: t.attributeName, color: '#7c3aed' },
   ],
@@ -376,7 +376,7 @@ export default function CodingPlatform() {
   // Show Toast
   const showToast = (message) => {
     const toast = document.createElement("div");
-    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-medium shadow-lg z-50 transition-transform transform scale-100 opacity-100 animate-bounce`;
+    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium shadow-lg z-50 transition-transform transform scale-100 opacity-100 animate-bounce`;
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => {
@@ -411,10 +411,10 @@ export default function CodingPlatform() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col ${theme === 'dark' ? 'bg-gradient-to-br from-gray-900 via-indigo-950 to-gray-800 text-gray-100' : 'bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 text-gray-900'} transition-colors duration-500 font-sans`}>
+    <div className={`min-h-screen flex flex-col ${theme ==='dark' ?' text-gray-100' :' text-gray-900'} transition-colors duration-500 font-sans`}>
       {/* Mobile Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-700/20 md:hidden">
-        <h1 className={`text-xl font-bold bg-gradient-to-r bg-clip-text text-transparent flex items-center ${theme === 'dark' ? 'from-indigo-400 via-purple-400 to-pink-400' : 'from-indigo-600 via-purple-600 to-pink-600'}`}>
+        <h1 className={`text-xl font-bold flex items-center text-gray-900 dark:text-white`}>
           <Code className="mr-2 h-5 w-5" /> Learn Without Limits
         </h1>
         <div className="flex gap-2">
@@ -425,7 +425,7 @@ export default function CodingPlatform() {
             aria-label={isLeftSidebarOpen ? "Hide practice questions" : "Show practice questions"}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-indigo-500/20"
           >
-            <Menu className="h-5 w-5 text-indigo-400" />
+            <Menu className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           </button>
           <button
             type="button"
@@ -434,16 +434,16 @@ export default function CodingPlatform() {
             aria-label={isRightSidebarOpen ? "Hide saved code" : "Show saved code"}
             className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-indigo-500/20"
           >
-            <Users className="h-5 w-5 text-indigo-400" />
+            <Save className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
           </button>
         </div>
       </div>
 
       <div className="flex flex-1 flex-col md:flex-row">
         {/* Left Sidebar */}
-        <div className={`w-full md:w-80 flex-shrink-0 border-r border-gray-700/20 backdrop-blur-lg ${theme === 'dark' ? 'bg-gray-800/20' : 'bg-gray-50'} flex flex-col transition-all duration-300 ${isLeftSidebarOpen ? 'block' : 'hidden md:block'}`}>
+        <div className={`w-full md:w-72 lg:w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} flex flex-col transition-all duration-300 ${isLeftSidebarOpen ? 'flex' : 'hidden'}`}>
           <div className="p-4 md:p-6 border-b border-gray-700/20 hidden md:block">
-            <h1 className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent flex items-center ${theme === 'dark' ? 'from-indigo-400 via-purple-400 to-pink-400' : 'from-indigo-600 via-purple-600 to-pink-600'}`}>
+            <h1 className={`text-2xl font-bold flex items-center text-gray-900 dark:text-white`}>
               <Code className="mr-2 h-6 w-6" /> Learn Without Limits
             </h1>
           </div>
@@ -457,7 +457,7 @@ export default function CodingPlatform() {
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className={`w-full px-3 py-2 text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
+                  className={`min-h-[44px] w-full px-3 py-2 text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
                 >
                   {Object.entries(languages).map(([key, { label }]) => (
                     <option key={key} value={key}>{label}</option>
@@ -466,7 +466,7 @@ export default function CodingPlatform() {
                 <select
                   value={difficultyFilter}
                   onChange={(e) => setDifficultyFilter(e.target.value)}
-                  className={`w-full px-3 py-2 text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
+                  className={`min-h-[44px] w-full px-3 py-2 text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
                 >
                   <option value="All">All Difficulties</option>
                   <option value="Easy">Easy</option>
@@ -487,7 +487,7 @@ export default function CodingPlatform() {
                         <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} truncate mt-1`}>{question.description}</div>
                         <div className="flex gap-2 mt-2 flex-wrap">
                           {question.tags.map(tag => (
-                            <span key={tag} className={`text-xs px-2 py-0.5 ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-600'} rounded-full`}>{tag}</span>
+                            <span key={tag} className={`text-xs px-2 py-0.5 ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'} rounded-full`}>{tag}</span>
                           ))}
                         </div>
                       </div>
@@ -510,8 +510,8 @@ export default function CodingPlatform() {
         </div>
 
         {/* Main Workspace (IDE) */}
-        <div className="flex-1 p-4 md:p-6 flex flex-col">
-          <div className={`rounded-2xl shadow-2xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/50'} backdrop-blur-lg border border-gray-700/10`}>
+        <div className="min-w-0 flex-1 p-4 md:p-6 flex flex-col">
+          <div className={`rounded-2xl shadow-lg overflow-hidden ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} ring-1 ${theme === 'dark' ? 'ring-white/10' : 'ring-gray-200/70'}`}>
             {/* File Tabs */}
             <div className="flex items-center border-b border-gray-700/20 bg-gray-900/20 overflow-x-auto">
               {tabs.map((tab, index) => (
@@ -527,7 +527,7 @@ export default function CodingPlatform() {
                     type="button"
                     onClick={() => handleTabChange(index)}
                     aria-current={activeTab === index ? "true" : undefined}
-                    className="flex items-center px-3 md:px-4 py-2 md:py-3"
+                    className="flex min-h-[44px] items-center px-3 md:px-4 py-2 md:py-3"
                   >
                     <FileCode className="mr-2 h-3 md:h-4 w-3 md:w-4 text-indigo-400" />
                     <span className="text-xs md:text-sm font-mono">{tab.name}</span>
@@ -545,7 +545,7 @@ export default function CodingPlatform() {
               <button
                 onClick={addNewTab}
                 aria-label="New file"
-                className={`px-3 md:px-4 py-2 md:py-3 ${theme === 'dark' ? 'text-gray-400 hover:text-indigo-300' : 'text-gray-600 hover:text-indigo-700'} transition-colors duration-300 flex-shrink-0`}
+                className={`min-h-[44px] px-3 md:px-4 py-2 md:py-3 ${theme === 'dark' ? 'text-gray-400 hover:text-indigo-300' : 'text-gray-600 hover:text-indigo-700'} transition-colors duration-300 flex-shrink-0`}
               >
                 <PlusCircle className="h-3 md:h-4 w-3 md:w-4" />
               </button>
@@ -560,7 +560,7 @@ export default function CodingPlatform() {
                     id="compiler-language"
                     value={tabs[activeTab]?.language || "javascript"}
                     onChange={changeLanguage}
-                    className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
+                    className={`w-full min-h-[44px] md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
                   >
                     {Object.entries(languages).map(([key, { label }]) => (
                       <option key={key} value={key}>{label}</option>
@@ -573,7 +573,7 @@ export default function CodingPlatform() {
                     id="compiler-theme"
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}
-                    className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
+                    className={`w-full min-h-[44px] md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
                   >
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
@@ -585,7 +585,7 @@ export default function CodingPlatform() {
                     id="compiler-font-size"
                     value={fontSize}
                     onChange={(e) => setFontSize(parseInt(e.target.value))}
-                    className={`w-full md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
+                    className={`w-full min-h-[44px] md:w-auto px-3 py-1.5 text-xs md:text-sm rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-100' : 'bg-white/50 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-300 touch-manipulation`}
                   >
                     {[12, 14, 16, 18, 20].map(size => (
                       <option key={size} value={size}>{size}px</option>
@@ -597,21 +597,21 @@ export default function CodingPlatform() {
                 <button
                   onClick={executeCode}
                   disabled={loading}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 text-sm shadow-md w-full md:w-auto touch-manipulation"
+                  className="flex min-h-[44px] items-center px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 text-sm shadow-md w-full md:w-auto touch-manipulation"
                 >
                   {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />} Run
                 </button>
                 <button
                   onClick={copyCode}
                   aria-label="Copy code"
-                  className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'bg-gray-600/50 hover:bg-gray-500/50' : 'bg-gray-200 hover:bg-gray-300'} ${theme === 'dark' ? 'text-white' : 'text-gray-900'} rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
+                  className={`flex min-h-[44px] min-w-[44px] justify-center px-3 ${theme === 'dark' ? 'bg-gray-600/50 hover:bg-gray-500/50' : 'bg-gray-200 hover:bg-gray-300'} ${theme === 'dark' ? 'text-white' : 'text-gray-900'} rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
                 >
                   <Copy className="h-4 w-4" />
                 </button>
                 <button
                   onClick={saveCode}
                   aria-label="Save code"
-                  className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
+                  className={`flex min-h-[44px] min-w-[44px] justify-center px-3 ${theme === 'dark' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg transition-all duration-300 text-sm shadow-md w-full md:w-auto touch-manipulation`}
                 >
                   <Save className="h-4 w-4" />
                 </button>
@@ -656,7 +656,7 @@ export default function CodingPlatform() {
                     <h3 className={`text-xs md:text-sm font-semibold ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-700'}`}>HTML Preview</h3>
                     <button
                       onClick={() => setPreviewVisible(false)}
-                      className={`text-xs md:text-sm px-3 py-1 rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 hover:bg-gray-600/50 text-indigo-300' : 'bg-gray-200/50 hover:bg-gray-300/50 text-indigo-700'} transition-all duration-300 touch-manipulation`}
+                      className={`min-h-[44px] text-xs md:text-sm px-3 py-1 rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 hover:bg-gray-600/50 text-indigo-300' : 'bg-gray-200/50 hover:bg-gray-300/50 text-indigo-700'} transition-all duration-300 touch-manipulation`}
                     >
                       Hide
                     </button>
@@ -687,86 +687,45 @@ export default function CodingPlatform() {
         </div>
 
         {/* Right Sidebar */}
-        <div className={`w-full md:w-80 flex-shrink-0 border-l border-gray-700/20 backdrop-blur-lg ${theme === 'dark' ? 'bg-gray-800/20' : 'bg-gray-50'} flex flex-col transition-all duration-300 ${isRightSidebarOpen ? 'block' : 'hidden md:block'}`}>
-          <div className="p-4 md:p-6 border-b border-gray-700/20">
-            <h3 className={`text-base md:text-lg font-semibold flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-900'}`}>
-              <Users className="h-4 md:h-5 w-4 md:w-5 mr-2 text-indigo-400" /> Community Hub
-            </h3>
-          </div>
-          <div className="p-4 md:p-6 flex-1 overflow-y-auto space-y-6 overscroll-contain">
+        <div className={`w-full md:w-72 lg:w-80 flex-shrink-0 border-l border-gray-200 dark:border-gray-800 ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} flex flex-col transition-all duration-300 ${isRightSidebarOpen ? 'flex' : 'hidden'}`}>
+          <div className="p-4 md:p-6 flex-1 overflow-y-auto overscroll-contain">
             {/* Saved Snippets */}
             <div>
-              <h4 className={`text-xs md:text-sm font-semibold mb-3 flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-900'}`}>
-                <CheckCircle className="h-3 md:h-4 w-3 md:w-4 mr-2 text-indigo-400" /> Saved Snippets
-              </h4>
+              <h3 className={`text-sm font-semibold mb-3 flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-900'}`}>
+                <Save className="h-3 md:h-4 w-3 md:w-4 mr-2 text-indigo-400" /> Saved snippets
+              </h3>
               {savedCodes.length === 0 ? (
                 <div className={`text-xs md:text-sm italic ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  No saved snippets yet.
+                  Nothing saved yet. Use Save to keep this file here.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <ul className="space-y-3">
                   {savedCodes.map((code) => (
-                    <div
-                      key={code.id}
-                      onClick={() => loadSavedCode(code)}
-                      className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-700/30 hover:bg-gray-600/30' : 'bg-gray-100 hover:bg-gray-200'} cursor-pointer transition-all duration-300 group relative border ${theme === 'dark' ? 'border-gray-700/10' : 'border-gray-300'} touch-manipulation`}
-                    >
-                      <div className={`text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'} truncate`}>{code.name}</div>
-                      <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {languages[code.language]?.label || code.language}
-                      </div>
+                    <li key={code.id} className="relative">
                       <button
+                        type="button"
+                        onClick={() => loadSavedCode(code)}
+                        className={`w-full text-left p-4 pr-11 rounded-xl ${theme === 'dark' ? 'bg-gray-700/30 hover:bg-gray-600/30' : 'bg-gray-100 hover:bg-gray-200'} border ${theme === 'dark' ? 'border-gray-700/10' : 'border-gray-300'} transition-all duration-300 touch-manipulation`}
+                      >
+                        <span className={`block text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'} truncate`}>
+                          {code.name}
+                        </span>
+                        <span className={`block text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {languages[code.language]?.label || code.language}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={(e) => deleteSavedCode(code.id, e)}
                         aria-label={`Delete ${code.name}`}
-                        className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity duration-300 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 touch-manipulation"
+                        className="absolute top-2 right-2 rounded-lg p-1.5 transition-colors touch-manipulation hover:bg-red-50 dark:hover:bg-red-900/30"
                       >
-                        <X className="h-3 md:h-4 w-3 md:w-4 text-red-400 hover:text-red-500" />
+                        <X className="h-3 md:h-4 w-3 md:w-4 text-red-500 dark:text-red-400" />
                       </button>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
-            </div>
-
-            {/* Community Feed */}
-            <div>
-              <h4 className={`text-xs md:text-sm font-semibold mb-3 flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-900'}`}>
-                <Star className="h-3 md:h-4 w-3 md:w-4 mr-2 text-indigo-400" /> Community Snippets
-              </h4>
-              <div className="space-y-3">
-                <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-700/30' : 'bg-gray-100'} border ${theme === 'dark' ? 'border-gray-700/10' : 'border-gray-300'}`}>
-                  <div className={`text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>Quick Sort in Python</div>
-                  <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>by CodeMaster</div>
-                </div>
-                <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-700/30' : 'bg-gray-100'} border ${theme === 'dark' ? 'border-gray-700/10' : 'border-gray-300'}`}>
-                  <div className={`text-xs md:text-sm font-medium ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>React Hooks Example</div>
-                  <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>by DevGuru</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Leaderboard */}
-            <div>
-              <h4 className={`text-xs md:text-sm font-semibold mb-3 flex items-center ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-900'}`}>
-                <Trophy className="h-3 md:h-4 w-3 md:w-4 mr-2 text-indigo-400" /> Leaderboard
-              </h4>
-              <div className="space-y-3">
-                <div className={`flex items-center p-3 rounded-xl ${theme === 'dark' ? 'bg-gradient-to-r from-yellow-400/20 to-orange-400/20' : 'bg-yellow-100'} border ${theme === 'dark' ? 'border-yellow-400/10' : 'border-gray-300'}`}>
-                  <span className={`text-xs md:text-sm font-medium mr-2 ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-800'}`}>1.</span>
-                  <span className={`text-xs md:text-sm ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>Ismail</span>
-                  <span className={`text-xs md:text-sm ml-auto ${theme === 'dark' ? 'text-yellow-300' : 'text-yellow-800'}`}>1200 pts</span>
-                </div>
-                <div className={`flex items-center p-3 rounded-xl ${theme === 'dark' ? 'bg-gradient-to-r from-gray-400/20 to-gray-300/20' : 'bg-gray-100'} border ${theme === 'dark' ? 'border-gray-400/10' : 'border-gray-300'}`}>
-                  <span className={`text-xs md:text-sm font-medium mr-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>2.</span>
-                  <span className={`text-xs md:text-sm ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>Karan</span>
-                  <span className={`text-xs md:text-sm ml-auto ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>1150 pts</span>
-                </div>
-                <div className={`flex items-center p-3 rounded-xl ${theme === 'dark' ? 'bg-gradient-to-r from-gray-400/20 to-gray-300/20' : 'bg-gray-100'} border ${theme === 'dark' ? 'border-gray-400/10' : 'border-gray-300'}`}>
-                  <span className={`text-xs md:text-sm font-medium mr-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>3.</span>
-                  <span className={`text-xs md:text-sm ${theme === 'dark' ? 'text-indigo-300' : 'text-gray-800'}`}>Hamzah</span>
-                  <span className={`text-xs md:text-sm ml-auto ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>1100 pts</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>

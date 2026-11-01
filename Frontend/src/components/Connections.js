@@ -171,7 +171,7 @@ export const Connections = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -209,7 +209,7 @@ export const Connections = () => {
                       setNotice("");
                     }}
                     disabled={isLoadingUsers || availableUsers.length === 0}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none text-sm disabled:opacity-60"
+                    className="w-full min-h-[44px] px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none text-sm disabled:opacity-60"
                   >
                     <option value="">
                       {isLoadingUsers
@@ -248,7 +248,7 @@ export const Connections = () => {
                 <button
                   type="button"
                   onClick={() => navigate("/community")}
-                  className="mt-3 w-full min-h-[36px] text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                  className="mt-3 w-full min-h-[44px] text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   Browse members in the Community
                 </button>
@@ -294,7 +294,7 @@ export const Connections = () => {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUpdateConnection(request.connectionId, "ACCEPTED")}
                             aria-label={`Accept connection request from ${request.name || request.username}`}
-                            className="min-h-[36px] px-3 py-1 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs"
+                            className="min-h-[44px] px-3 py-1 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs"
                           >
                             Accept
                           </motion.button>
@@ -303,7 +303,7 @@ export const Connections = () => {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUpdateConnection(request.connectionId, "REJECTED")}
                             aria-label={`Decline connection request from ${request.name || request.username}`}
-                            className="min-h-[36px] px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
+                            className="min-h-[44px] px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs"
                           >
                             Decline
                           </motion.button>
@@ -326,7 +326,7 @@ export const Connections = () => {
                     {acceptedConnections.map((connection) => (
                       <motion.div
                         key={connection.id}
-                        whileHover={{ scale: 1.02 }}
+                        whileHover={{ y: -4 }}
                         whileTap={{ scale: 0.98 }}
                         role="button"
                         tabIndex={0}
@@ -368,7 +368,7 @@ export const Connections = () => {
                             handleChatRedirect(connection.id);
                           }}
                           aria-label={`Open chat with ${connection.name || `@${connection.username}`}`}
-                          className="min-h-[36px] px-3 py-1 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-xs"
+                          className="min-h-[44px] px-3 py-1 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white rounded-lg text-xs"
                         >
                           Chat
                         </motion.button>
@@ -481,7 +481,7 @@ export const Connections = () => {
             <button
               type="button"
               onClick={loadConnections}
-              className="min-h-[36px] px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              className="min-h-[44px] px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
             >
               Try again
             </button>

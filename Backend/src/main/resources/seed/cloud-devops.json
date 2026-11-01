@@ -1,0 +1,506 @@
+{
+  "name" : "Cloud & DevOps",
+  "description" : "Containers, Kubernetes, CI/CD, infrastructure as code and the reliability practices that keep services deployable.",
+  "duration" : "6 weeks",
+  "rating" : 4.7,
+  "modules" : [ {
+    "title" : "Containers and Orchestration",
+    "content" : [
+      "Containers share the host kernel and isolate processes with namespaces and cgroups; virtual machines include a guest operating system and a hypervisor boundary. Because no guest kernel has to boot, container start-up is measured in milliseconds and images are stacks of read-only filesystem layers rather than whole disk images, which is why one build host can hold dozens of them. The trade-off is a thinner isolation boundary: a kernel exploit or a hostile mount reaches the host, so untrusted code and multi-tenant workloads still want a dedicated node pool between them and everything else.",
+      "A Kubernetes pod is the smallest deployable unit and groups containers that share a network namespace. Deployments manage replica sets, rolling updates and rollbacks. Containers in one pod share an IP address and talk over localhost, which suits a sidecar that logs, proxies or collects metrics for the main process, but they also share the node failure domain and the pod resource envelope. When a helper container has genuinely independent scaling or lifecycle needs it belongs in its own workload rather than bolted onto the application it serves.",
+      "Docker layer caching rewards ordering: copy manifests and install dependencies before copying source so code edits do not invalidate dependency layers. A layer cache key covers its own instruction plus every parent, so any earlier change invalidates everything downstream and a build silently grows from minutes to tens of minutes. In CI the cache only helps when it is keyed on the lockfile hash and restored from a shared store; otherwise every runner starts cold and the team concludes that container builds are slow instead of concluding that the Dockerfile is ordered badly.",
+      "Registry tags are mutable pointers while digests are content addresses. Pushing the same tag twice replaces whatever the pointer resolves to, so a cluster that pulls by tag can restart a pod into bytes nobody reviewed, especially after a node reboot or an autoscaling event that pulls the image again. Deploying by digest pins the exact manifest, makes rollbacks deterministic and lets a pipeline promote one artifact between environments. Keep human-readable tags for navigation, but let workloads reference digests so the running version stays provable.",
+      "Requests tell the scheduler how much room a pod needs; limits cap what it may consume. Memory behaves as a hard boundary: a container exceeding its limit is killed with an out-of-memory error and the restart looks like a crash even though the application never misbehaved. CPU is compressible, so an over-committed pod is throttled rather than killed, which shows up as a slow p99 with healthy-looking pods. Sizing from observed percentiles instead of guesses makes both failure modes rare and keeps node bin-packing honest.",
+      "Three probes answer three different questions. A readiness probe gates the endpoint slice, so a failing pod stops receiving traffic while still running; a liveness probe restarts a container that cannot demonstrate progress; a startup probe protects slow starters from being killed before their first successful check. The classic outage comes from a liveness probe that checks an external dependency: the dependency degrades, every pod is judged unhealthy, the kubelet restarts them all, and a slow-down becomes a full outage behind cold caches.",
+      "A Deployment replaces pods gradually, bounded by maxUnavailable and maxSurge, and advances only when new pods pass readiness. Graceful shutdown is the part teams forget: the pod receives SIGTERM and deletion proceeds while the load balancer deregisters it asynchronously, so in-flight requests can reach a closed socket. A short pre-stop delay, a handler that stops accepting connections and drains in-flight work, and a termination grace period longer than the slowest request make a rollout invisible to users; without them every deploy produces a handful of errors nobody can explain."
+    ]
+  }, {
+    "title" : "Delivery and Reliability",
+    "content" : [
+      "A CI/CD pipeline builds, tests and packages automatically, then deploys through stages with approvals and rollback paths. Each stage narrows the search space: a failure at lint costs seconds, a failure at the production smoke test costs an incident review. Pipelines are also the enforcement point for conventions nobody has time to raise in review, so they must produce artifacts, logs and decisions that outlive the run. A pipeline nobody trusts is a pipeline people bypass, and bypassed changes are exactly the ones that reach production untested.",
+      "Canary releases send a small share of traffic to the new version before a full rollout; blue-green runs two environments and switches traffic at once. A canary exposes regressions with real traffic at limited blast radius, and it needs automated analysis to decide whether to continue, which is the expensive part. Blue-green keeps the old environment warm so a rollback is only a traffic switch, at the cost of double capacity and of any stateful change applying to both. Choosing between them is a question of what must be observed before committing.",
+      "An SLO is a target for a service level indicator, and the error budget is the allowed unreliability within the period. The budget turns an argument about speed into shared accounting: while it lasts, shipping fast is defensible, and once it burns down the same team is expected to spend the window on reliability work. That only functions when the indicator reflects user-facing behaviour, when the window is short enough to feel real, and when nobody quietly redefines the SLO to make an exhausted budget look healthy.",
+      "Choosing between rollback and forward fix is a data question, not a preference. Rolling back a stateless service built from immutable images with backward-compatible schema changes is usually the fastest way to stop user pain. A release that wrote rows in a new format, advanced a consumer offset, or registered a webhook can leave the old version unable to read current state, so the rollback introduces a second failure. The safest designs are the ones where either direction works, which is why migration plans belong in the deploy review.",
+      "A test that passes on retry and fails on a clean checkout is a pipeline bug, not a test problem. Flakiness destroys the only signal the pipeline exists to provide: once red often means nothing, engineers rerun until green and stop reading output, and genuinely broken changes ride through. Teams that keep the signal healthy quarantine the test with a named owner and a deadline, keep the rerun count visible on a dashboard, and treat the quarantine list as work in progress rather than a permanent parking lot.",
+      "Delivery metrics are useful when they describe a system rather than accuse individuals. Lead time says how long a commit waits before reaching users, deployment frequency says how large each batch is, change failure rate says how often deploys cause degradation, and time to recovery says how quickly the team stops the pain. When those numbers worsen together the cause is usually batch size, review queues or environments nobody trusts, and the fix is smaller changes and more automation rather than more approvals.",
+      "A staging environment that differs from production in topology, dependency versions or traffic shape validates the wrong system. The cheapest parity is one codebase and one artifact promoted across environments with behaviour changed only through configuration and feature flags; the expensive version is hand-tuned per-stage builds that drift apart. Parity is not binary, since data volume, credentials and third-party sandbox endpoints are legitimately different, but a version skew means every passing staging test is evidence about something other than production."
+    ]
+  }, {
+    "title" : "CI/CD Pipeline Design and Artifact Integrity",
+    "content" : [
+      "Pipeline stages form a directed graph rather than a straight line: linting and unit tests fan out in parallel, then fan in to a build that publishes one artifact. The gain is wall-clock time and failure isolation, because a lint error surfaces in seconds instead of after a ten-minute integration suite. The failure mode appears when teams model the graph as one giant job: every cold dependency download and every flaky test then blocks the only path to a verdict, so engineers start ignoring red builds and the pipeline stops being a gate.",
+      "A build should produce one artifact and every environment should deploy those same bytes. When staging rebuilds from source with different flags or a newer base image, the binary proven in staging is not the one that reaches production, and a production outage cannot be reproduced locally. Promoting an immutable image by digest keeps the difference between environments in configuration and data, which is the only part that should legitimately differ. Rebuilding per environment also makes rollbacks ambiguous, because the previous digest may no longer be what the branch says it was.",
+      "Artifact integrity means a consumer can prove who produced a package and from which source revision. Signing attests that a key controlled by the build system vouched for a specific digest, provenance records the pipeline run and commit behind it, and a software bill of materials enumerates the dependencies inside the image. Without those three, responding to an upstream vulnerability disclosure becomes a guessing exercise about which running services actually contain the affected library, and a registry full of images provides no reliable answer.",
+      "Trigger design decides whether the pipeline reflects the current branch or its history. Runs should be scoped with path filters so documentation edits do not rebuild the platform, and a concurrency group should cancel superseded runs of the same branch rather than letting two deployments race for one environment. A queue holding five stale builds behind each other teaches people to watch the newest run instead of the one they caused, and the runs that get cancelled are often the ones carrying the real regression.",
+      "CI runners hold credentials, so the trust boundary of the repository extends into the pipeline. A workflow triggered by a pull request from a fork can usually read secrets only when the configuration deliberately exposes them, and build logs echo environment values unless they are masked, so one curious diff or compromised dependency can harvest tokens from standard output. Keeping deploy credentials outside the untrusted build step, and limiting secret reachability to trusted events, shrinks what a single malicious pull request can steal.",
+      "Test suites inside CI should mirror the shape of the system under change. Fast deterministic unit tests gate every commit, while integration tests that need a database or a broker run against ephemeral containers started by the same job and torn down afterwards, so no long-lived shared instance becomes a source of failures. When the only test target is a permanent environment, two engineers overwrite each other's fixtures, leftovers accumulate, and a green pipeline stops predicting anything about the change that triggered it.",
+      "Manual approval gates are a design decision with measurable cost. A gate before production keeps a human accountable for the moment of exposure and lets a release wait for a support window, but a pipeline requiring three approvals across two days accumulates batches, and larger batches fail worse. The sustainable pattern is one narrow gate on production entry backed by automatic rollback, so the approval decides timing and the pipeline decides correctness. Gates placed after a stage has already deployed do not protect anything except the reviewer's sense of control."
+    ]
+  }, {
+    "title" : "Infrastructure as Code and Environment Promotion",
+    "content" : [
+      "Declarative infrastructure as code describes a desired end state and lets the tool work out the difference. Running apply twice should converge on the same result, so idempotency is the property that makes repeated automation safe; a plan that always proposes changes usually means the configuration encodes drift, or that an API returns a field in a form the code never wrote. The same declaration is what makes review possible, because the diff in a pull request is a precise statement of what will change inside a live account.",
+      "Most tools keep a state file mapping declared resources to remote identifiers, and that file is operational data. It is normally serialized in plain text, so anything a provider reads can land inside it and access should be treated like credential access. Concurrent applies without locking interleave writes and can orphan real resources. State also decides ownership: importing brings an existing resource under management, deleting a workspace without migrating state can leave resources unreferenced, and renaming an address must be done deliberately rather than by editing the file and hoping.",
+      "Drift is the difference between the live system and the code, and it starts accumulating the moment anyone edits in a console. A hotfix applied by hand keeps production running today and makes tonight's plan unreviewable, because the next apply either overwrites the undocumented change or the team learns to fear applies and edits by hand permanently. The remedy is procedural as much as technical: scheduled drift detection, a rule that emergency changes are codified within a day, and environments separated enough that a fix can be written in code first.",
+      "A module packages a pattern with inputs and outputs so the fifth environment does not restate the same twenty resources. Useful modules stay narrow, are versioned and are released like libraries; a module that models the entire platform grows an option for every exception until no caller can predict what it creates. Environments then differ by arguments rather than by copies of source, and a shared fix arrives as a version bump. Pinning a module version keeps plan output stable while upgrades remain deliberate and reviewable.",
+      "Not every edit is an update. Changing an immutable attribute means destroy then create, which drops data, reassigns network addresses and breaks anything referencing the resource; a plan that says replace where the author expected update is the last cheap chance to notice. Create-before-destroy keeps availability by overlapping the two objects but fails where names must be unique. Targeting a subset of resources skips the rest of the graph and can leave outputs dangling, so it belongs to repair work rather than to routine deployment.",
+      "Policy as code moves guardrails from review comments to enforcement. Rules can block an unencrypted bucket, require owner and cost-center tags, or forbid public network exposure before a plan is ever applied, and the same rules can run continuously against accounts to catch changes made outside the pipeline. The failure mode is a guardrail so broad that every plan fails, which trains engineers to request exceptions; narrow rules with tests and a documented bypass path stay trusted, and therefore stay switched on.",
+      "Provider plugins translate configuration into cloud API calls, and their version decides how attribute names and defaults behave. An unpinned provider can change plan output with no edit to the code, and a major bump can reinterpret resources as replacements rather than updates. Lock files keep a team and its pipeline on the same translation, while scheduled upgrades stay predictable; the alternative is discovering provider behaviour changes during an emergency deploy. The same reasoning applies to pinned module versions and to any tool that reads shared state."
+    ]
+  }, {
+    "title" : "Cloud Networking, IAM and Least Privilege",
+    "content" : [
+      "A virtual private cloud is an isolated address space divided into subnets whose behaviour comes from route tables and gateways. A public subnet has a path to an internet gateway and a private subnet does not, so outbound internet from private subnets usually travels through a managed NAT device billed per gigabyte. CIDR sizing hurts later: overlapping ranges are painful to peer or connect, and a subnet carved too small cannot grow without being replaced. Network layout is a long-lived decision that most teams make once, under time pressure.",
+      "A security group is stateful and attached to an instance: return traffic for an allowed outbound connection needs no inbound rule, and inbound is denied by default. A network ACL is stateless and evaluated at the subnet boundary, so every rule needs a mirror image and ephemeral ports must be opened for return traffic. Teams that reach for ACLs to compensate for a missing security group rule usually end up with a wide-open subnet, because the stateless model invites an allow-everything shortcut that then silently overrides its own denies.",
+      "Inbound exposure gets attention, but outbound rules decide what a compromised workload can do. An egress path to the whole internet lets malware exfiltrate data, fetch tools and reach a mining pool, and a default route through a NAT gateway makes that path easy to open by accident. Controlled egress means forwarding through a proxy that filters destinations, using private provider endpoints for platform services and denying the rest, which also removes the per-gigabyte transfer charge for traffic that never needed to leave the network.",
+      "Cloud roles are assumed rather than owned, and the credentials they hand out are temporary. Attaching a role to a virtual machine or a pod lets software request short-lived credentials from the instance metadata service instead of carrying a permanent access key that must be pasted into a repository, baked into an image or remembered after it leaks. Long-lived user keys are the weaker pattern for workloads precisely because they do not expire, they outlive the person or service that created them, and their audit trail rarely names the actual user.",
+      "Policy resolution is not a vote. An explicit deny in any attached policy overrides every allow, so one broad restriction can make a carefully written permission unusable, and debugging stops being a matter of reading the policy the workload has. Wildcards in an action or resource field grant current and future capabilities of a service, so a bucket-wide statement can quietly reach every other bucket in the account. Conditions on tags, source address or session policy are what keep a broad grant honest, and are usually the difference between a role that fits and a role that can do anything.",
+      "Traffic enters most architectures through a load balancer, and the durable shape is an internet-facing balancer in public subnets forwarding to workloads in private subnets. Placing the application instance itself in a public subnet with a permissive group turns every exposed port and every service bound to all interfaces into attack surface, which is how development servers and admin panels end up scanned and indexed. One narrow entry point also means one place to attach certificates, health checks, rate limits and request logs.",
+      "Separation in the cloud is about how far a single mistake travels. Splitting accounts or projects by environment and trust boundary means a leaked credential can only reach resources its role can assume, and cross-environment access becomes an explicit assumption with its own audit trail. Trust policies decide who may assume a role, so a role trusting an entire account is a permission any workload in it can collect. Naming and tagging conventions matter here because they are what make an urgent permission review possible at all."
+    ]
+  }, {
+    "title" : "Observability, Incidents and Service Objectives",
+    "content" : [
+      "Metrics, logs and traces answer different questions and are strongest when linked. Metrics aggregate cheaply and support alerting and trending, logs record discrete events with detail too expensive to count, and traces follow one request across services to show where latency or failure originates. Correlation is the working part: a log line carrying a trace identifier, or a dashboard panel that links into the right query, turns a page into an investigation instead of a scavenger hunt across three tools that do not share identifiers.",
+      "Distributed tracing only works when every hop propagates context, and one service that drops the header ends the trace, so the gap reads like a slow dependency rather than a broken handoff. Sampling is the cost lever: deciding up front is cheap but keeps oddities rare, while deciding after the fact can retain every slow or errored request at the price of buffering spans. Uniformly sampling a small percentage produces traces that are useless exactly when needed, because the request that failed was rarely the ordinary one.",
+      "Metric labels multiply time series, and cardinality is both the bill and the memory limit. A counter labeled by user identifier or raw request path grows with the number of distinct values instead of with traffic, and dashboards begin timing out long before anyone notices the schema mistake. The safe pattern is bounded labels: status codes, endpoint names from a fixed routing table, service names. Logs carry the same hazard in another shape, since unthrottled debug verbosity turns a traffic bump into an ingestion outage.",
+      "Alerts should fire on symptoms users feel rather than on every internal cause. A page on error rate or latency breaching an objective, with a burn-rate threshold that reacts fast to severe failures and tolerates brief noise, distinguishes real pain from jitter. Paging on one degraded dependency generates calls that resolve themselves and trains responders to dismiss messages, which costs attention precisely when it is the scarce resource. Cause signals still belong in the system, as tickets and dashboards rather than as pages.",
+      "Incident response works when roles are declared early. One person owns coordination and communication, another drives technical investigation, and a scribe keeps the timeline, because the engineer debugging a live outage is a poor broadcaster and a worse note-taker. Severity levels must be defined in advance and must decide who gets paged, who is notified and how often updates go out. A published cadence, even an empty status note every thirty minutes, stops leadership interrupting the investigation looking for news.",
+      "Root cause is the most misused phrase in incident review. Failures are usually chains of contributing conditions, and a single-cause story stops at whichever change was most recent, producing an action item nobody can dispute and nobody will implement. A blameless review reconstructs the timeline from evidence, asks what made each condition look survivable, and separates detection, response and prevention improvements. Action items need owners and deadlines, because a postmortem without follow-through is a document that schedules the repeat.",
+      "Dashboards decay because the system and its assumptions change underneath them. A panel built for one migration becomes wallpaper that explains nothing, and an unowned dashboard is where real problems blend into noise. Objective-based views age better because they answer a question people still ask: how much error budget is left, which service is burning it, what is the current user-facing symptom. Retention should follow investigation needs instead of tool defaults, since keeping everything is a cost everyone pays every month."
+    ]
+  } ],
+  "questions" : [ {
+    "text" : "What is the key architectural difference between containers and virtual machines?",
+    "a" : "Containers include a guest OS and a hypervisor for stronger isolation",
+    "b" : "Containers share the host kernel while VMs include a guest OS",
+    "c" : "VMs are always lighter than containers",
+    "d" : "Containers cannot be isolated",
+    "correct" : "B",
+    "explanation" : "Sharing the kernel makes containers smaller and faster to start but reduces the isolation boundary compared with a hypervisor.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is a Kubernetes pod?",
+    "a" : "A physical server",
+    "b" : "A persistent volume",
+    "c" : "The smallest deployable unit, grouping containers that share networking",
+    "d" : "A cluster-wide database that stores all pod configuration and cluster state",
+    "correct" : "C",
+    "explanation" : "Containers in a pod share an IP and can communicate over localhost; the pod is scheduled as a unit.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a CI/CD pipeline do?",
+    "a" : "Replaces version control by storing source code and all build artifacts",
+    "b" : "Only runs in production",
+    "c" : "Is a monitoring tool",
+    "d" : "Builds and tests automatically, then deploys through controlled stages",
+    "correct" : "D",
+    "explanation" : "Continuous integration validates every change; continuous delivery or deployment moves artifacts through environments.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why is infrastructure as code valuable?",
+    "a" : "It requires manual console changes for every deployment",
+    "b" : "Definitions are idempotent and reviewable in version control",
+    "c" : "It cannot manage cloud resources",
+    "d" : "It is only useful for DNS",
+    "correct" : "B",
+    "explanation" : "Codified infrastructure can be reviewed, diffed, reproduced and rolled back like application code.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What characterizes a canary deployment?",
+    "a" : "All traffic switches at once",
+    "b" : "It rolls back automatically only on Tuesdays",
+    "c" : "It permanently runs two production clusters and splits traffic evenly",
+    "d" : "A small share of traffic goes to the new version before full rollout",
+    "correct" : "D",
+    "explanation" : "Canaries limit blast radius and expose regressions with real traffic before everyone is affected.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the safest way to handle application secrets?",
+    "a" : "Commit them to the repository",
+    "b" : "Put them in Dockerfile ENV lines so every container receives them",
+    "c" : "Inject them at runtime from a managed secret store",
+    "d" : "Store them in public build logs",
+    "correct" : "C",
+    "explanation" : "Runtime injection keeps secrets out of images and source history, and managed stores provide rotation and audit trails.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What signals should drive autoscaling?",
+    "a" : "Only fixed calendar times",
+    "b" : "CPU, queue depth or latency that reflects real load",
+    "c" : "Autoscaling removes the need for monitoring",
+    "d" : "Only vertical scaling is autoscaling",
+    "correct" : "B",
+    "explanation" : "Scaling on a signal that tracks demand avoids both over-provisioning and late reactions.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How do you maximize Docker layer cache reuse?",
+    "a" : "Copy the whole repository first so every layer has all the project source files",
+    "b" : "Layers are never reused",
+    "c" : "Copy dependency manifests and install dependencies before copying source",
+    "d" : "Caching requires a paid registry",
+    "correct" : "C",
+    "explanation" : "Ordering instructions from least to most frequently changed keeps expensive dependency layers cached.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is a service level objective (SLO)?",
+    "a" : "A type of database",
+    "b" : "A target for a service level indicator, such as 99.9% availability",
+    "c" : "A replacement for incident response",
+    "d" : "A guarantee that error budgets never shrink during a major incident",
+    "correct" : "B",
+    "explanation" : "The SLO sets the target; the error budget is the remaining allowance for unreliability.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why use presigned URLs with object storage?",
+    "a" : "Object stores cannot serve static assets without a presigned URL",
+    "b" : "They grant temporary access without exposing credentials",
+    "c" : "They require mounting a filesystem",
+    "d" : "They make buckets permanently public",
+    "correct" : "B",
+    "explanation" : "A signed URL embeds a short-lived signature, so clients can upload or download directly without holding cloud credentials.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is deploying a workload by image digest safer than deploying by a tag such as latest?",
+    "a" : "Digests let a node skip pulling when the layers are cached",
+    "b" : "Digests prove the image already passed every test stage",
+    "c" : "A tag always resolves to the newest manifest, so rolling back just means rebuilding",
+    "d" : "A tag can be repushed over new bytes, so a restart may run untested code",
+    "correct" : "D",
+    "explanation" : "Tags are mutable pointers, so a node reboot or scale-up can pull different content under the same name, while a digest is a content address. Digests say nothing about test coverage, which is the trap in option B.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a multi-stage Dockerfile achieve?",
+    "a" : "It runs the build and the server in one image, so debugging is far easier",
+    "b" : "It removes the need for any base image at runtime",
+    "c" : "Its final stage copies only built artifacts into a fresh minimal base image",
+    "d" : "It compresses layers better, since fewer and smaller layers are stored",
+    "correct" : "C",
+    "explanation" : "Later stages start from a clean base and copy only what is needed, shrinking the shipped filesystem and the set of installed tools. A final stage still needs a base image, so option B describes something that does not happen.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A pod is repeatedly killed with an out-of-memory error. What does that indicate?",
+    "a" : "The node has too little CPU for the workload",
+    "b" : "The container used more memory than its limit allows",
+    "c" : "The readiness probe is configured with the wrong port",
+    "d" : "The image is missing a shared library",
+    "correct" : "B",
+    "explanation" : "Memory is a hard boundary, so exceeding the limit terminates the container; CPU pressure only throttles it. Confusing throttling with killing is the mistake in option A, which produces slow responses rather than restarts.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Every pod in a healthy deployment restarts whenever a downstream database slows down. Which configuration explains this?",
+    "a" : "The liveness probe checks the database, so degraded dependencies get containers killed",
+    "b" : "Its readiness probe is failing, and a failing readiness probe restarts the pod",
+    "c" : "The termination grace period is set too high for the request latency",
+    "d" : "The deployment strategy uses maxSurge instead of maxUnavailable",
+    "correct" : "A",
+    "explanation" : "Liveness should measure whether the process can recover itself, not whether a dependency is healthy, otherwise a slow-down becomes a restart storm behind cold caches. Readiness only removes the pod from traffic, so option B misattributes the restart.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A rolling update is configured with maxUnavailable zero and maxSurge one. What is the effect?",
+    "a" : "The Deployment rolls back automatically if any new pod fails its readiness check",
+    "b" : "The deployment pauses until a human approves each individual pod",
+    "c" : "Pods are deleted first and replaced afterwards to save capacity",
+    "d" : "A replacement pod is added before an old one is removed, keeping full capacity",
+    "correct" : "D",
+    "explanation" : "Zero unavailable with surge means extra capacity is created first, so serving capacity never dips, at the cost of needing headroom on the nodes. Option C describes the opposite ordering, which is what maxUnavailable above zero permits.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Pods receive SIGTERM and then fail in-flight requests before shutting down. What is the usual fix?",
+    "a" : "Raise terminationGracePeriodSeconds so the process has far more time before it is killed",
+    "b" : "Disable readiness probes so traffic stops being gated during shutdown",
+    "c" : "Add a small pre-stop delay, stop accepting new work, then drain in-flight requests",
+    "d" : "Run the process as the container's init so it receives signals directly",
+    "correct" : "C",
+    "explanation" : "Deregistration from the load balancer is asynchronous, so a brief delay plus real draining keeps connections alive; the race is timing, not signal delivery. A longer grace period in option A only delays the kill without stopping new requests from arriving.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does a ReplicaSet do inside a Deployment?",
+    "a" : "It stores container images for pods scheduled on the same node",
+    "b" : "It keeps the number of pods matching a desired count for a given template",
+    "c" : "It spreads incoming traffic across the pods it manages using a round-robin policy",
+    "d" : "It holds the cluster-wide configuration for every deployment",
+    "correct" : "B",
+    "explanation" : "The ReplicaSet reconciles observed replicas against the desired count, deleting extras and creating replacements, which is what makes the level of pods self-healing. Traffic distribution is a Service's job, not the ReplicaSet's, so option C names the wrong component.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Editing one source file causes a full dependency reinstall on the next build. What is the likely cause?",
+    "a" : "The dependency lockfile is committed to version control and restored on every build",
+    "b" : "The registry cache is keyed on the image digest",
+    "c" : "A COPY of the whole project appears before the dependency install step",
+    "d" : "The build runs in CI with a shared cache service",
+    "correct" : "C",
+    "explanation" : "A layer's cache key includes its parents, so copying frequently changed source early invalidates the install layer that follows it. Committing the lockfile in option A is good practice and actually helps, because it lets the cache key track real dependency changes.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the main operational advantage of blue-green over a canary?",
+    "a" : "It exposes the new version to a gradually increasing share of live production traffic",
+    "b" : "It removes the need to plan database migrations",
+    "c" : "It guarantees that no request is ever dropped during the switch",
+    "d" : "Rolling back is switching traffic to an untouched environment that still runs",
+    "correct" : "D",
+    "explanation" : "Because the previous environment is left running rather than torn down, undoing a bad release is one routing change. Progressive traffic sharing describes a canary, so option A attributes the other strategy's property to blue-green.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A service's error budget for the period is fully consumed. What does the usual policy dictate?",
+    "a" : "Quietly relax the SLO target so that feature releases can continue without any debate",
+    "b" : "Pause feature releases for that service and spend the window on reliability work",
+    "c" : "Add nodes until the indicator recovers on its own",
+    "d" : "Stop all deployments, including emergency fixes, until the window resets",
+    "correct" : "B",
+    "explanation" : "The budget is the agreed allowance for unreliability, so exhausting it converts reliability into the priority for the next window. Halting emergency fixes as in option D would make the policy the cause of a worse outage, which is why fixes stay exempt.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why separate feature flags from deployments?",
+    "a" : "Behaviour can be turned off quickly without rebuilding or redeploying the artifact",
+    "b" : "Flags replace the need for testing in production",
+    "c" : "Flags make the deployed version provably identical to the tested artifact digest",
+    "d" : "Flags remove the need for rollback plans on schema changes",
+    "correct" : "A",
+    "explanation" : "Decoupling the release decision from the deploy decision lets a bad behaviour be switched off in seconds while the same bytes keep running. A flag still changes code paths that must be exercised, so option B describes the opposite of what flags do for safety.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does the change failure rate metric measure?",
+    "a" : "How often builds fail before any of them reaches a deployed environment",
+    "b" : "How often a pipeline must be rerun to go green",
+    "c" : "What share of deployments cause degradation that needs a fix",
+    "d" : "What share of tests are flaky in the main suite",
+    "correct" : "C",
+    "explanation" : "The metric counts production-affecting outcomes of releases, which makes it a quality signal about change size and review, not about build hygiene. Failing before deploying, as in option A, costs time but says nothing about user impact.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A bad release already wrote data in a new schema format. Why can rolling back make things worse?",
+    "a" : "The old version may be unable to read state produced by the new one",
+    "b" : "Rolling back always requires restoring the database from a backup taken beforehand",
+    "c" : "Immutable images cannot be pulled in reverse order",
+    "d" : "The old deployment still holds the cluster's traffic share",
+    "correct" : "A",
+    "explanation" : "Reverting code without reverting data can surface a second failure, which is why forward fixes are often safer once state has changed. Backups help recovery but are not a mandatory prerequisite, so option B states a rule that does not exist.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A test fails intermittently on the main branch and passes locally on the first rerun. What is the healthy response?",
+    "a" : "Add automatic retries to every stage so the pipeline stays green",
+    "b" : "Delete the test because it slows the pipeline down",
+    "c" : "Require contributors to rerun until green before merging",
+    "d" : "Quarantine the test with a named owner and a deadline to fix it",
+    "correct" : "D",
+    "explanation" : "Isolating the flake keeps the signal honest while making the debt visible and assigned. Blanket retries in option A hide real regressions behind a green check, which is exactly how trust in the pipeline is destroyed.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a pipeline that fans checks out in parallel and then fans in to one build stage gain?",
+    "a" : "Faster feedback and failure isolation, since cheap checks finish before the long build",
+    "b" : "Guaranteed reproducibility across runs, because parallel jobs share one warm cache service",
+    "c" : "Automatic elimination of flaky tests from the suite",
+    "d" : "Fewer artifact uploads, because only the final stage publishes",
+    "correct" : "A",
+    "explanation" : "Splitting independent checks lets a lint or unit failure stop a change in seconds instead of after a long build, and localizes which gate broke. Parallelism does not make builds reproducible, so option B confuses graph shape with cache correctness.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why should staging and production deploy the same artifact rather than rebuild from source?",
+    "a" : "Rebuilding in each environment makes rollbacks faster and much easier to reason about",
+    "b" : "A rebuilt binary may differ from the tested one, so staging proves little about production",
+    "c" : "Registries forbid pushing the same digest to two repositories",
+    "d" : "Build caches are only warm in the production environment",
+    "correct" : "B",
+    "explanation" : "Different base images, flags or dependency resolution can produce a build that was never tested, so the environments no longer prove the same thing. Option A inverts the relationship: promoting one artifact is what makes rollbacks deterministic.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a software bill of materials make possible during a vulnerability disclosure?",
+    "a" : "Automatic patching of every affected container that is currently running",
+    "b" : "Blocking unreviewed images from ever entering the registry",
+    "c" : "Reliably naming which deployed images contain the affected library",
+    "d" : "Proving which commit produced a given image digest",
+    "correct" : "C",
+    "explanation" : "An SBOM lists the components inside an image, so a disclosed dependency can be matched against what is actually deployed instead of guessed. Provenance rather than an SBOM answers who built what, so option D describes the sibling artifact.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does signing a build artifact actually establish?",
+    "a" : "That a key controlled by the build system vouched for exactly these bytes",
+    "b" : "That the artifact contains no known vulnerabilities at the time of publication",
+    "c" : "That the artifact will run on every supported platform",
+    "d" : "That the artifact was tested before publication",
+    "correct" : "A",
+    "explanation" : "A signature binds identity to content, so a consumer can reject anything republished or tampered with under the same name. Verification proves origin, not safety, which is why the vulnerability claim in option B is a different control.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Two deployments for the same branch run at once and fight over one environment. Which pipeline setting prevents this?",
+    "a" : "Increasing the number of runners available so that queued jobs never wait for capacity",
+    "b" : "Adding path filters to the workflow triggers",
+    "c" : "Raising the retry count on the deployment stage",
+    "d" : "A concurrency group per branch and environment that cancels superseded runs",
+    "correct" : "D",
+    "explanation" : "A concurrency group serializes runs that touch the same target and discards obsolete ones, so only the newest change races for the environment. Path filters reduce irrelevant runs but do not bound overlap, so option B does not solve contention.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A pull request opened from a fork needs a build that requires a private registry credential. What is the safe handling?",
+    "a" : "Expose every repository secret to fork events so that outside builds keep succeeding",
+    "b" : "Gate artifact publishing to trusted events and keep deploy credentials out of the build",
+    "c" : "Commit a read-only pull token so the workflow can fetch base images",
+    "d" : "Disable builds from forks entirely until review completes",
+    "correct" : "B",
+    "explanation" : "Fork code is untrusted input running on a machine holding credentials, so the fix is to narrow which events can reach which secrets. A read-only token still leaks and stays long-lived, which makes option C the risky shortcut it looks like.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Dependency installation in CI is restored from a cache keyed only on the job name. What breaks?",
+    "a" : "A stale cache can supply old dependencies while the lockfile has moved on",
+    "b" : "The cache is deleted after every run, so nothing is reused",
+    "c" : "Every run becomes slower than a cold build with no cache at all",
+    "d" : "Cached files cannot be downloaded by a later run, so jobs install from scratch anyway",
+    "correct" : "A",
+    "explanation" : "Cache keys must describe content, usually the lockfile hash, otherwise the job silently installs whatever was cached first. An over-broad key still speeds builds up, so option C mistakes the symptom's opposite for the cause.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why run integration tests against containers started by the CI job instead of a shared staging database?",
+    "a" : "Containers remove the need to write assertions about the results",
+    "b" : "Shared staging environments are always slower than starting a container for every job",
+    "c" : "Each run gets a known initial state and cannot collide with another engineer's fixtures",
+    "d" : "Ephemeral databases are automatically backed up after every run",
+    "correct" : "C",
+    "explanation" : "Deterministic setup plus isolation means a failure is evidence about the change rather than about accumulated state in a long-lived instance. Assertions are still required for the test to mean anything, so option A describes a convenience that does not exist.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A pipeline requires three separate human approvals across two days before production. What is the predictable outcome?",
+    "a" : "Deployment frequency rises because each gate is well documented",
+    "b" : "Change failure rate falls to zero once approvals are thorough",
+    "c" : "Engineers deploy smaller changes more often to pass gates quickly",
+    "d" : "Changes accumulate into larger batches, which fail harder",
+    "correct" : "D",
+    "explanation" : "Waiting on multiple approvals across days turns each release into a bundle, and bundles hide which change caused a regression. Approvals change who decides, not how much ships at once, so option B credits them with a property batches do not have.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What makes a plan diff from an IaC tool useful in code review?",
+    "a" : "It spells out the exact resources that will change before anything is applied",
+    "b" : "It proves that the proposed change already passed the whole automated test suite",
+    "c" : "It locks the state so nobody else can apply at the same time",
+    "d" : "It removes resources that the configuration no longer declares",
+    "correct" : "A",
+    "explanation" : "The plan turns a configuration edit into a concrete, reviewable statement of intended change, which is the core value of declarative IaC. Locking is a separate backend feature, so option C names a mechanism that has nothing to do with reviewing.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does an IaC state file do?",
+    "a" : "It records the credentials used to authenticate each provider call",
+    "b" : "It stores the full history of applied plans for auditing",
+    "c" : "It caches the rendered template so applies run faster",
+    "d" : "It maps declared resources to their real remote identifiers",
+    "correct" : "D",
+    "explanation" : "State is the link between configuration addresses and actual cloud resources, which is how a tool can diff and update instead of recreating. Because it can contain sensitive values read by providers, option A's credential framing matters operationally even though it is not the file's purpose.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "An emergency change was applied directly in the cloud console. What is the main consequence for the next IaC run?",
+    "a" : "The tool automatically imports the console change into the configuration for later review",
+    "b" : "Drift detection permanently disables future applies for that resource",
+    "c" : "The plan may destroy the undocumented fix or the team stops trusting applies",
+    "d" : "State is invalidated until the resource is manually deleted",
+    "correct" : "C",
+    "explanation" : "Declarative applies converge toward the code, so a change that exists only in the console is either overwritten or drives people to abandon code in favour of manual edits. Nothing is imported automatically into configuration, so option A grants the tool a magic it does not have.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why should shared infrastructure modules be versioned and pinned per environment?",
+    "a" : "So the module source can be edited directly inside the consuming repository",
+    "b" : "So each environment can keep its own copy of the module code and diverge",
+    "c" : "So modules can be deleted without checking who references them",
+    "d" : "So an upgrade is a deliberate, reviewable change rather than a silent one",
+    "correct" : "D",
+    "explanation" : "Pinning keeps plan output stable while environments drift, and a version bump makes the shared change visible and testable. Copying module source per environment, as option B suggests, reproduces exactly the duplication the module was meant to remove.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A plan reports that a database resource will be replaced rather than updated. What does that mean?",
+    "a" : "An immutable attribute changed, so the resource is destroyed and a new one created",
+    "b" : "The provider renames the resource in place while preserving all of its stored data",
+    "c" : "The resource will be recreated only if the apply is run twice",
+    "d" : "The configuration no longer matches the state file's stored identifier",
+    "correct" : "A",
+    "explanation" : "Some attributes cannot be modified in place, so the change means losing the resource, its data and its address, which is the moment to stop and reconsider. A replace is a single apply's behaviour, not something that requires rerunning, so option C invents a condition.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is the risk of routinely applying IaC with a target that covers only some resources?",
+    "a" : "Providers refuse to act on resources that reference anything outside the target set",
+    "b" : "Changes outside the target stay unapplied, so the system matches neither code nor plan",
+    "c" : "The state file is rewritten every time, causing duplicate resources",
+    "d" : "Targeting disables drift detection for the whole workspace until the next full apply run",
+    "correct" : "B",
+    "explanation" : "Targeting skips the rest of the dependency graph, so partial applications leave real infrastructure inconsistent with the declared whole. It does not touch provider capability or drift detection settings, so options A and D attribute side effects the flag does not have.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A value read by a provider appears inside the IaC state file. What is the correct way to treat that file?",
+    "a" : "As a build cache that can safely be deleted and regenerated whenever it grows large",
+    "b" : "As documentation, safe to store in the source repository",
+    "c" : "As a secret-bearing artifact needing restricted access and a protected backend",
+    "d" : "As a lock file that must be committed for reproducibility",
+    "correct" : "C",
+    "explanation" : "State serializes resource attributes, many of which are sensitive, so access control and storage location are security decisions. Deleting it does not delete the resources and does not regenerate the mapping, which makes option A the most expensive misconception here.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why pin IaC provider versions with a lock file?",
+    "a" : "Plan output stays predictable, since provider versions can change attribute semantics",
+    "b" : "A pinned provider cannot be upgraded later without deleting the stored state file first",
+    "c" : "Resources stop being replaced when their configuration is edited",
+    "d" : "So providers run faster by skipping schema lookups",
+    "correct" : "A",
+    "explanation" : "The provider translates configuration into API calls, and a version change can alter defaults or reinterpret an update as a replacement even with unchanged code. Pinning slows upgrades deliberately, so option B mistakes a controlled process for a hard restriction.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the key difference between a security group and a subnet-level access control list?",
+    "a" : "Both are stateful, but only the access control list supports outbound rules at all",
+    "b" : "The ACL is attached to instances and the group to subnets",
+    "c" : "The group denies all outbound traffic by default while the ACL allows it",
+    "d" : "The group is stateful so return traffic needs no rule; the ACL is stateless and needs mirrors",
+    "correct" : "D",
+    "explanation" : "Statefulness is the distinction that shapes rule design: a security group tracks connections, a network ACL evaluates every packet in both directions. Because ACL rules are stateless, an allow-everything-then-deny ordering often silently defeats its own restrictiveness.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A workload must reach an external API. Its security group has an outbound allow but no inbound rule for the response. What happens?",
+    "a" : "The response is dropped, because inbound traffic is denied unless a rule explicitly allows it",
+    "b" : "The response is allowed, because the group is stateful for connections the workload initiated",
+    "c" : "The request fails until an ACL entry permits the ephemeral return port",
+    "d" : "The response arrives only if the instance sits in a public subnet",
+    "correct" : "B",
+    "explanation" : "Security groups remember outbound flows, so reply traffic does not need an inbound rule. Adding a broad inbound allow to compensate, which is the instinct behind option A, is a common way of accidentally exposing a workload to the internet.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why prefer a role attached to a workload over a long-lived access key stored in its configuration?",
+    "a" : "Roles issue short-lived credentials that expire and are attributed in audit logs",
+    "b" : "Access keys cannot be rotated at all by any cloud provider, so they never go stale",
+    "c" : "Roles remove the need to define permissions for the workload",
+    "d" : "Keys are always scoped to a single region, limiting their use",
+    "correct" : "A",
+    "explanation" : "Temporary credentials reduce the value of anything leaked and tie usage to an assumed identity, whereas a static key lives until someone remembers to revoke it. Keys can be rotated, so option B overstates the problem instead of naming the real one.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A workload has an allow policy granting a needed action but still receives a denial. What is the most likely cause?",
+    "a" : "The role's name does not match the name of the resource being accessed",
+    "b" : "The policy is attached to a group rather than to the role",
+    "c" : "An explicit deny elsewhere overrides every allow in the evaluation",
+    "d" : "The action requires a region the workload is not in",
+    "correct" : "C",
+    "explanation" : "Policy evaluation treats an explicit deny as absolute, so a broad organizational or boundary restriction can silence a perfectly written grant. Reading only the attached allow policy is the trap, because the deny usually lives somewhere the workload definition never mentions.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is the practical danger of a policy with wildcards in both the action and resource fields?",
+    "a" : "Such a policy can be attached to only one role at a time in the account",
+    "b" : "It grants present and future capabilities far beyond the intended task",
+    "c" : "It slows policy evaluation enough to cause timeouts",
+    "d" : "It prevents the workload from assuming any other role",
+    "correct" : "B",
+    "explanation" : "A wildcard statement grants everything the service supports now and later, so a new capability becomes reachable the day the provider ships it. Evaluation cost is not the issue, which makes option C a plausible-sounding distraction from the blast radius problem.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Where should application instances normally sit in relation to an internet-facing load balancer?",
+    "a" : "In public subnets whose security groups allow inbound only on the balancer's ports",
+    "b" : "In private subnets reachable only through the balancer, keeping one entry point",
+    "c" : "In public subnets, because the balancer terminates TLS for them",
+    "d" : "Anywhere, as long as the instances have no public addresses assigned",
+    "correct" : "B",
+    "explanation" : "Keeping workloads in private subnets means one narrow ingress to harden, log and rate limit, so a mistaken rule cannot expose a port directly. A group allowing only the balancer still leaves a public path for anything bound to all interfaces, which is why option A is weaker than it sounds.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does a role's trust policy control?",
+    "a" : "Which network addresses are permitted to reach the resources that the role owns",
+    "b" : "Which API actions the role may perform once assumed",
+    "c" : "Which resources the role is allowed to create",
+    "d" : "Who or what is permitted to assume the role and get its credentials",
+    "correct" : "D",
+    "explanation" : "The trust policy is the gate for assumption while permissions decide what the assumed session can do, so widening trust to a whole account lets any workload there collect the role's power. Confusing the two policies is the classic mistake behind options B and C.",
+    "difficulty" : "HARD"
+  } ]
+}

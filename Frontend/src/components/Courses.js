@@ -11,16 +11,19 @@ export const Courses = () => {
   const [courses, setCourses] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const navigate = useNavigate();
 
   const apiUrl = API_BASE_URL;
 
   const fetchCourses = useCallback(async () => {
     try {
+      setLoadError("");
       const response = await axios.get(`${apiUrl}/course/getCourses`);
-      setCourses(response.data);
+      setCourses(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Error fetching courses:", error);
+      setLoadError("Could not load the course list. Check that the server is running, then try again.");
     } finally {
       setLoading(false);
     }
@@ -40,23 +43,19 @@ export const Courses = () => {
     react: <DiReact size={40} color="#61DAFB" />,
   };
 
-  // Updated CourseCard component with styling similar to HomePage
   const CourseCard = ({ course }) => {
     const normalizedName = course.name.trim().toLowerCase();
     
     return (
-      <div className="group relative">
-        {/* Animated Glow Effect - Keeping this */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur opacity-30 group-hover:opacity-80 transition duration-1000 group-hover:duration-300 animate-pulse-slow"></div>
-        
-        <div className="relative bg-white dark:bg-gray-900 rounded-xl p-6 ring-1 ring-gray-200/50 dark:ring-gray-800 shadow-lg flex flex-col h-full transition-all duration-300 group-hover:translate-y-1">
+      <div className="group relative h-full">
+        <div className="lift relative bg-white dark:bg-gray-900 rounded-2xl p-6 ring-1 ring-gray-200/70 dark:ring-white/10 shadow-lg flex flex-col h-full">
           <div className="flex items-center mb-5">
             <div className="flex-shrink-0 p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/30">
               <span className="text-indigo-600 dark:text-indigo-400">
                 {courseIcons[normalizedName] || <DiReact size={40} color="#61DAFB" />}
               </span>
             </div>
-            <h3 className="ml-4 text-lg font-medium text-gray-900 dark:text-white">{course.name.trim()}</h3>
+            <h2 className="ml-4 text-lg font-medium text-gray-900 dark:text-white">{course.name.trim()}</h2>
           </div>
           
           <p className="text-gray-600 dark:text-gray-300 text-sm mb-6">{course.description}</p>
@@ -68,17 +67,23 @@ export const Courses = () => {
             </span>
             
             <div className="flex items-center">
-              <div className="flex mr-2" aria-hidden="true">
-                {[...Array(5)].map((_, i) => (
-                  <FaStar key={i} className="text-yellow-400 text-xs" />
-                ))}
-              </div>
-              <button 
+              {typeof course.rating === "number" && (
+                <span
+                  className="mr-3 inline-flex items-center text-xs font-medium text-gray-700 dark:text-gray-300"
+                  aria-label={`Average rating ${course.rating.toFixed(1)} out of 5`}
+                >
+                  <FaStar className="mr-1 text-yellow-500" aria-hidden="true" />
+                  {course.rating.toFixed(1)}
+                </span>
+              )}
+              <button
                 onClick={() => navigate(`/course/${course.id}/modules`)}
                 aria-label={`Open ${course.name.trim()} modules`}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300"
+                className="flex h-11 w-11 items-center justify-center rounded-full"
               >
-                <FaArrowRight size={12} />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                  <FaArrowRight size={12} />
+                </span>
               </button>
             </div>
           </div>
@@ -92,15 +97,11 @@ export const Courses = () => {
   );
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950">
-      {/* Removed the background patterns div */}
-      
+    <div className="w-full min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         <header className="text-center mb-12 relative">
-          {/* Removed the header background effects */}
-          
-          <h2 className="inline-block text-lg font-medium px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-4">Expand Your Knowledge</h2>
-          <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500">
+          <p className="inline-block text-lg font-medium px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-4">Expand Your Knowledge</p>
+          <h1 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900 dark:text-white">
             Available Courses
           </h1>
           <p className="text-lg mb-8 max-w-2xl mx-auto text-gray-700 dark:text-gray-300">
@@ -121,6 +122,22 @@ export const Courses = () => {
           </div>
         </header>
 
+        {loadError && !loading ? (
+          <div
+            role="alert"
+            className="mb-20 rounded-2xl bg-white dark:bg-gray-900 ring-1 ring-gray-200/70 dark:ring-white/10 shadow-md p-12 text-center"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">The course list did not load</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchCourses}
+              className="min-h-[44px] px-6 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
           {loading ? (
             Array(6).fill().map((_, index) => (
@@ -145,40 +162,26 @@ export const Courses = () => {
             ))
           ) : (
             <div className="col-span-full flex flex-col items-center justify-center p-12 bg-white dark:bg-gray-900 rounded-2xl shadow-md">
-              <div className="text-6xl mb-4" aria-hidden="true">😕</div>
-              <p className="text-center text-xl font-medium text-indigo-800 dark:text-indigo-300 mb-2">No courses found</p>
-              <p className="text-center text-gray-600 dark:text-gray-400">Try adjusting your search term</p>
-              <button
-                className="mt-6 px-6 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200"
-                onClick={() => setSearchTerm("")}
-              >
-                Clear Search
-              </button>
+              <div className="text-5xl mb-4" aria-hidden="true">😕</div>
+              <h2 className="text-center text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                {searchTerm.trim() ? "No courses match that search" : "No courses yet"}
+              </h2>
+              <p className="text-center text-gray-600 dark:text-gray-400">
+                {searchTerm.trim() ? "Try a shorter term, or the language name on its own." : "Courses appear here as soon as an admin publishes them."}
+              </p>
+              {searchTerm.trim() && (
+                <button
+                  className="mt-6 min-h-[44px] px-6 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-all duration-200"
+                  onClick={() => setSearchTerm("")}
+                >
+                  Clear search
+                </button>
+              )}
             </div>
           )}
         </section>
+        )}
       </div>
-
-      {/* Keep the necessary CSS animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
-        }
-        
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-        
-        @keyframes ping {
-          0% { transform: scale(1); opacity: 1; }
-          75%, 100% { transform: scale(1.5); opacity: 0; }
-        }
-        
-        .animate-ping {
-          animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-        }
-      `}</style>
     </div>
   );
 };

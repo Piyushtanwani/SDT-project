@@ -12,9 +12,9 @@ const AdminPanel = () => {
       icon: <BookOpen size={24} />,
       label: 'Manage Courses',
       description: 'Add, edit or delete courses.',
-      color: 'bg-blue-100 dark:bg-blue-900',
-      textColor: 'text-blue-600 dark:text-blue-300',
-      borderColor: 'border-blue-600 dark:border-blue-300'
+      color: 'bg-indigo-100 dark:bg-indigo-900',
+      textColor: 'text-indigo-600 dark:text-indigo-300',
+      borderColor: 'border-indigo-600 dark:border-indigo-300'
     },
     {
       to: '/course/add-module',
@@ -185,7 +185,7 @@ const AdminPanel = () => {
   ).toUpperCase() || 'AD';
 
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <div className="flex min-h-screen transition-colors duration-300">
       <Sidebar />
 
       <div className="flex-1 flex flex-col">
@@ -211,7 +211,7 @@ const AdminPanel = () => {
               disabled={isLoading}
               aria-label="Refresh dashboard"
               title="Refresh dashboard"
-              className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="h-11 w-11 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
             </button>
@@ -246,7 +246,7 @@ const AdminPanel = () => {
               </div>
               <Link
                 to="/updateprofile"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-2"
+                className="min-h-[44px] px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-2"
               >
                 <Shield size={18} />
                 <span>Account Settings</span>
@@ -304,7 +304,7 @@ const AdminPanel = () => {
                 {quickLinks.map((item, index) => (
                   <motion.div
                     key={index}
-                    whileHover={{ scale: 1.03 }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
                     transition={{ type: 'spring', stiffness: 300 }}
                   >
@@ -339,7 +339,7 @@ const AdminPanel = () => {
                   <ul className="space-y-4">
                     {activities.map((activity, index) => (
                       <li key={activity.id} className="flex items-start space-x-3">
-                        <div className={`p-2 rounded-full ${index % 2 === 0 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300'}`}>
+                        <div className={`p-2 rounded-full ${index % 2 === 0 ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300' : 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300'}`}>
                           <Users size={16} />
                         </div>
                         <div className="flex-1">
@@ -360,7 +360,7 @@ const AdminPanel = () => {
                 )}
                 <Link
                   to="/admin/users"
-                  className="mt-6 block w-full py-2 text-center text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+                  className="mt-6 flex min-h-[44px] w-full items-center justify-center text-center text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
                 >
                   Manage Users
                 </Link>

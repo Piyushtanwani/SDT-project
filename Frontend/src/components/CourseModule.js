@@ -125,7 +125,7 @@ export const CourseModule = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 dark:from-gray-950 dark:to-indigo-950 p-4 md:p-8">
+    <div className="min-h-screen p-4 md:p-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -139,11 +139,11 @@ export const CourseModule = () => {
           transition={{ delay: 0.2, duration: 0.5 }}
           className="w-full bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden mb-8 ring-1 ring-gray-200/50 dark:ring-gray-800"
         >
-          <div className="h-24 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 dark:from-indigo-700 dark:via-purple-700 dark:to-blue-700"></div>
+          <div className="h-24 bg-indigo-600 dark:bg-indigo-700"></div>
           <div className="p-6 md:p-8 -mt-10">
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-4 md:p-6 mb-4 flex flex-col md:flex-row md:items-center md:justify-between ring-1 ring-gray-200/50 dark:ring-gray-800">
               <div>
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500 bg-clip-text text-transparent">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">
                   {courseTitle}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -152,8 +152,9 @@ export const CourseModule = () => {
               </div>
               <div className="mt-4 md:mt-0">
                 <button
+                  type="button"
                   onClick={handleBackToCourses}
-                  className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition"
+                  className="inline-flex min-h-[44px] items-center rounded-lg text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition"
                 >
                   ← Back to Courses
                 </button>
@@ -164,7 +165,7 @@ export const CourseModule = () => {
                 <h4 className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-1">Course Progress</h4>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                   <div
-                    className="bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-600 dark:to-purple-600 h-2.5 rounded-full"
+                    className="bg-indigo-500 dark:bg-indigo-400 h-2.5 rounded-full"
                     style={{ width: `${getProgressPercentage()}%` }}
                   ></div>
                 </div>
@@ -176,7 +177,7 @@ export const CourseModule = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleTakeExam}
-                className="ml-6 bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-md hover:shadow-lg transition duration-300 flex items-center"
+                className="min-h-[44px] ml-6 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-md hover:shadow-lg transition duration-300 flex items-center"
               >
                 <span className="mr-2">Take Exam</span>
                 <svg
@@ -239,7 +240,7 @@ export const CourseModule = () => {
               <p className="text-red-800 dark:text-red-300">{error}</p>
               <button
                 onClick={() => setReloadKey((key) => key + 1)}
-                className="mt-4 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition duration-300"
+                className="min-h-[44px] mt-4 px-4 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition duration-300"
               >
                 Try Again
               </button>
@@ -256,17 +257,17 @@ export const CourseModule = () => {
                   <motion.div
                     key={module[0]}
                     variants={itemVariants}
-                    whileHover={{ y: -5, boxShadow: "0 10px 25px rgba(99, 102, 241, 0.2)" }}
+                    whileHover={{ y: -4 }}
                     whileTap={{ scale: 0.98 }}
-                    className="bg-gradient-to-br from-white to-indigo-50 dark:from-gray-900 dark:to-indigo-900/30 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
+                    className="bg-white dark:bg-gray-900 rounded-2xl shadow-md ring-1 ring-gray-200/70 dark:ring-white/10 overflow-hidden"
                   >
                     <div
                       className={`h-2 ${
                         index % 3 === 0
                           ? "bg-indigo-500 dark:bg-indigo-600"
                           : index % 3 === 1
-                          ? "bg-purple-500 dark:bg-purple-600"
-                          : "bg-blue-500 dark:bg-blue-600"
+                          ? "bg-indigo-300 dark:bg-indigo-500"
+                          : "bg-indigo-200 dark:bg-indigo-400"
                       }`}
                     ></div>
                     <button
@@ -275,13 +276,7 @@ export const CourseModule = () => {
                     >
                       <div className="flex items-start gap-4">
                         <div
-                          className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg ${
-                            index % 3 === 0
-                              ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
-                              : index % 3 === 1
-                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                          }`}
+                          className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300"
                         >
                           <span className="text-2xl">{renderModuleIcon(index)}</span>
                         </div>
@@ -359,7 +354,7 @@ export const CourseModule = () => {
               <p className="text-xl text-gray-600 dark:text-gray-400">No modules available for this course</p>
               <button
                 onClick={handleBackToCourses}
-                className="mt-6 px-6 py-2.5 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-800 transition duration-300"
+                className="mt-6 min-h-[44px] px-6 bg-indigo-600 dark:bg-indigo-700 text-white rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-800 transition duration-300"
               >
                 Browse Other Courses
               </button>
@@ -381,7 +376,7 @@ export const CourseModule = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleTakeExam}
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-700 dark:to-purple-700 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-xl transition duration-300 flex items-center"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-xl transition duration-300 flex items-center"
               >
                 <span className="mr-2">Take Final Exam</span>
                 <svg
@@ -419,22 +414,6 @@ export const CourseModule = () => {
           </p>
         </motion.div>
       </motion.div>
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

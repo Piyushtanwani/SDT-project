@@ -1,0 +1,449 @@
+{
+  "name" : "Data Structures & Algorithms",
+  "description" : "Complexity analysis, core data structures and the algorithmic patterns that appear in technical interviews.",
+  "duration" : "8 weeks",
+  "rating" : 4.9,
+  "modules" : [ {
+    "title" : "Complexity and Linear Structures",
+    "content" : [ "Big-O describes how running time or memory grows with input size. Hash tables give expected O(1) lookup but degrade to O(n) when many keys collide. The notation hides constant factors and lower-order terms, so an O(n) routine with a heavy per-element cost can lose to an O(n log n) one at the sizes you actually ship. Big-O is an upper bound, which is why any claim must say whether it is worst case, average case or amortized; those are three different promises, and mixing them silently is the most common analysis error in code review.", "Arrays offer O(1) indexed access and contiguous memory, while linked lists offer O(1) insertion at a known node but O(n) search because nodes are scattered. That scattered-ness costs more than the pointer chase: array walks stream through the cache while every list hop risks a fresh fetch, so arrays usually win even when the asymptotics tie. Appending to a growable array is amortized O(1) because occasional reallocation doubles capacity, but inserting mid-array is O(n) since later elements shift, which is why building a list by repeated front insertion is a quiet quadratic trap.", "Binary search runs in O(log n) only on data sorted by the search key; applying it to unsorted input silently produces wrong answers. The same halving idea underlies lower-bound and upper-bound variants, which locate the first element not less than a target and the first element strictly greater, turning a linear scan that counts duplicates into O(log n). Two bugs dominate real implementations: computing the midpoint as (lo + hi) / 2 on fixed-width integers can overflow, and the invariant must state whether the high end is inclusive or exclusive, because blending the two conventions yields loops that stop one element early or never stop.", "Before comparing two complexities, pin down what n counts, because one symbol hides very different quantities. In graph code n usually means vertices while m means edges, so a routine that is O(n^2) on a dense graph may be near-linear on a sparse one; in text work n can be characters, tokens or documents. Nested loops over a container that changes size are where analysis goes wrong: an inner bound that tracks a growing structure is quadratic in total elements even though each pass looks linear in isolation.", "A stack gives push, pop and peek in O(1), and a queue gives first-in first-out enqueue and dequeue in O(1) only when the backing structure supports cheap removal at both ends. Implementing a queue by appending to the tail of an array and removing index zero makes each dequeue O(n) because the survivors shift; a ring buffer with head and tail indices, or a doubly linked deque, keeps both ends constant. That distinction is what turns a sliding-window routine into O(n) instead of O(n times the window), and it surfaces in nearly every buffering or streaming loop.", "Space analysis follows the same discipline and often bites harder: recursion costs stack frames proportional to depth, not to the number of calls, so a divide-and-conquer routine can sit at O(log n) space while an unpaced branching one reaches O(n) or worse. Auxiliary space excludes the input you were handed but includes copies, memo tables and output buffers. When a review calls an algorithm in-place, the claim should survive a hunt for hidden copies made by convenience APIs, since those quietly convert an O(1)-space rewrite into an O(n)-space one.", "Linear structures reappear disguised as algorithmic tools: a monotonic stack answers next-greater-element questions in O(n) total because every element is pushed and popped once, and a monotonic deque gives sliding-window maximum in O(n) instead of rescanning the window each step. The trick is not the container but the invariant it maintains, and the amortized argument counts pops rather than loop iterations. Once that clicks, breadth-first level traversal, undo history and bracket matching all read as one pattern applied to different invariants." ]
+  }, {
+    "title" : "Graphs, Trees and Optimization",
+    "content" : [ "BFS explores a graph level by level and finds shortest paths when every edge has the same weight; weighted graphs need Dijkstra or Bellman-Ford. Both are queue-driven but the queue differs: breadth-first search uses a plain first-in first-out queue, while Dijkstra needs a priority queue that always expands the current cheapest frontier, so swapping one for the other is not a small edit. Memory is the practical limit on wide graphs, because the whole frontier stays live at once, and techniques such as iterative deepening or meeting two frontiers halfway exist precisely to trade extra expansion work for a smaller live set.", "A binary heap supports insert and extract-min in O(log n) and peek in O(1), which is why it backs priority queues and heap sort. Building a heap from an unsorted array by sifting nodes down from the bottom is O(n), not O(n log n), because most sifts happen near the wide leaves and their lengths fall off geometrically; looping inserts instead is the pessimizing version. Heap sort reuses that array and guarantees O(n log n) worst case with O(1) extra space, but it is not stable and its long jumps defeat the cache, which is why a tuned merge-based or hybrid sort usually outruns it on real arrays.", "Dynamic programming applies when a problem has overlapping subproblems and optimal substructure; memoization trades memory for avoided recomputation. The workable mental model is to name the state as the smallest tuple of parameters that determines the answer, then read complexity as reachable states times work per state. A state that forgets a binding flag produces wrong answers that still pass every small sample test, while a state that carries an unused parameter inflates the table for nothing. Choosing top-down memoization or bottom-up loops changes stack depth and fill order, not the asymptotics.", "Adjacency lists store a graph in O(n + m) space and make iterating one vertex's neighbours cheap, which suits the sparse graphs most code actually sees. An adjacency matrix costs O(n^2) memory but answers whether a single edge exists in O(1) and lets tight loops skip indirection on small dense graphs. Picking badly shows up as memory blowup when vertex identifiers are large and sparsely numbered, so renumbering them into a dense range, or keying neighbour sets by hash, stands in for the textbook matrix. Whether edges are directed must also be encoded honestly, since dropping a direction silently changes reachability, cycle detection and traversal cost.", "Depth-first search uses stack space proportional to recursion depth, so it is the usual tool for reachability, connected components and cycle detection, and it yields a topological order simply by emitting vertices as the recursion unwinds. That ordering exists only for acyclic directed graphs, and spotting the offending back edge needs either three colours (unvisited, on the current path, finished) or Kahn's in-degree queue. A single visited flag cannot distinguish a vertex that is done from one still on the path, which is why naive cycle checkers report cycles in graphs that have none.", "Dijkstra with a binary heap runs in about O((n + m) log n) and requires non-negative weights, because it treats the first pop of a vertex as final and never revisits it; a negative edge can cheapen an already-finalized vertex and the answer is quietly wrong. Bellman-Ford instead relaxes every edge n-1 times for O(n*m) and, with one extra pass, can report a reachable negative cycle. When weights are small integers, arrays of distance-indexed buckets get near-linear behaviour, and when a goal-directed search has an admissible estimate it can expand far fewer vertices than uniform-cost expansion at the same correctness.", "Self-balancing trees keep height O(log n) after each insert or delete through local rotations, buying ordered operations a hash table cannot offer: first, last, successor, predecessor and range scans in O(log n + k) for k results. More aggressive rebalancing leaves a shallower search path but restructures more on writes; a laxer colour rule does the opposite, so the choice between them is a constant-factor and write-pattern question rather than an asymptotic one. The discipline of proving a local choice safe reappears in minimum spanning trees, where both classic algorithms lean on the cut property, and in greedy schedules, which are correct only when a swap argument shows no later choice could have done better." ]
+  }, {
+    "title" : "Hashing, Sets and Amortized Analysis",
+    "content" : [ "A hash table works because a computed code turns a key into a bucket index, so the contract is narrow: equal keys must produce equal codes and the codes must spread. Hashing is not free, either, because the code of a long key costs time proportional to that key's length, which means a lookup that looks constant actually carries a hidden factor of the average key size. Two keys with different content may collide, and the whole design question is what happens next: grow the chain, probe elsewhere, or change the hashing scheme so pathological collisions stop being predictable.", "Two collision strategies sit side by side in most standard libraries. Separate chaining stores a small list or tree per bucket, tolerates a load factor near one, and costs an allocation per entry. Open addressing keeps entries in the bucket array itself, which is cache-friendly and compact, but the probe length explodes as the table fills, roughly like the reciprocal of the remaining slack for linear probing, and neighbouring collisions merge into runs. That clustering, not the number of collisions itself, is why an open-addressed table grows early rather than riding a high load factor.", "Deletion is the interesting operation in an open-addressed table. Clearing a slot truncates the probe sequence, so a key placed further along that sequence becomes unreachable even though it is still stored; a marked deleted slot, or shifting successors back into place, fixes the lookup but changes how growth is counted, because marks still block probe chains even though they no longer hold data. Resizing solves that by rehashing everything into a larger array, and although one resize copies every entry, geometric growth keeps the average insert constant and bounds the worst single call at the cost of a long latency spike.", "Amortized analysis makes those spikes honest, and three standard arguments do the work. Aggregate analysis sums the whole operation sequence and divides, accounting assigns each operation an artificial price and shows the overcharge pays for future bills, and the potential method charges actual cost plus the change in a stored potential, so the telescoping sum bounds everything. For a doubling dynamic array the total copy work is under twice the element count, so each append amortizes to O(1) even though one append in many moves every element.", "Worst-case hashing assumes nothing about the keys, and that is where attacks live: if a caller can choose inputs that share codes, a table expected to hold constant-time lookups becomes a linear scan per probe with a handful of requests. Randomly seeding the hash family per process, or picking from a universal family so no collision pattern can be predicted in advance, removes the adversary's leverage, while converting an abnormally long bucket into a balanced tree caps the worst lookup at logarithmic without slowing ordinary buckets. Both fixes trade something, either a per-process salt or extra structure, and neither changes the expected constant time of well-behaved keys.", "Sets and multisets inherit every hashing caveat plus one contract of their own: an entry's bucket is chosen when it is inserted, so mutating a key afterwards can leave it unreachable and effectively leak it. Keys therefore need a code consistent with their notion of equality, which is why composite keys usually get a derived code or a canonical string form rather than a structural default. Numeric keys bring their own traps, since two computed values that ought to match often differ in the last bit, so they compare and hash apart, leaving a set full of entries that no later membership test recognizes.", "Ordered sets and hash sets answer different questions. A hash set only promises fast equality: contains, add and remove average constant time with no ordering, no range scan and no neighbour lookup. A balanced tree adds first, last, rank, predecessor and interval results at O(log n) per step, and an insertion-ordered hash variant preserves arrival order purely for deterministic iteration. Tries sit outside both families by storing the key's characters as structure, which makes prefix and longest-prefix questions cheap while costing memory per level; a Bloom filter answers the weakest question of all, membership with one-sided error, at a fraction of the space a real set needs." ]
+  }, {
+    "title" : "Dynamic Programming and Recurrence",
+    "content" : [ "A dynamic program is a recursion plus a cache, and the entire design lives in the state: a tuple of parameters such that one value of the tuple determines the answer completely. Write the recursion, then count the parameters its calls actually vary; a state that omits one is wrong, a state that carries an unused one is slow, and the number of distinct tuples is the true input size. Transitions then read as the choices at one step, and cost per state is the branch factor, which is why a five-parameter state on a small grid can still be the practical limit of a solution.", "Top-down memoization and bottom-up tabulation solve the same recurrence and share time complexity, but they fail differently. The memoized version only visits reachable states, which can beat the table when most of the state space is never needed, and it mirrors the recursive definition, so it is easier to reason about and reconstruct. The tabulated version controls fill order explicitly, never overflows the stack, and enables the space reductions that follow from knowing which rows are still live; it is also where iteration-direction bugs live, since a wrong loop direction silently changes which recurrence you are evaluating.", "The space reduction that turns a table into a couple of variables applies when the recurrence's dependencies are confined to a small, known window of earlier states. A single-row problem over pairs needs two previous values, and a two-row recurrence needs the current and previous rows only, so a rolling buffer holds it. The reduction fails the moment a transition reaches several rows back, whenever the answer must be reconstructed by walking decisions, and when the table is shared between passes that mutate it. Reconstructing a path after compressing the table is a classic mistake: the information was overwritten, not merely rearranged.", "Iteration direction is semantics, not style. In a one-dimensional capacity array for a knapsack over items, sweeping capacities downward means the current item cannot contribute to a state it has already updated, which is exactly the zero-or-one constraint; sweeping upward allows unlimited reuse and quietly becomes the other recurrence. The same nesting choice decides what you count in coin-change problems: fixing the outer loop over denominations imposes an order on chosen coins so each multiset counts once, while iterating the total first counts every sequence and inflates the result.", "Classic recurrences fall into a few shapes worth recognizing by eye. A split in half plus linear combination work, as in a merge-based sort, gives n log n because the work per level stays linear across logarithmically many levels. A split with no combining gives linear time, since work shrinks geometrically. A chain that spawns two calls per step without caching is exponential in depth, and memoization collapses it to linear in the number of distinct states. The general recipe is to count levels and work per level, then compare the growth of subproblem size with the growth of subproblem count.", "Some problems look like dynamic programs but are greedy, and the test is whether choosing optimally at one step still leaves an optimal remainder. For activity selection, taking the earliest finishing interval provably never hurts, because any solution can be swapped to use it. For minimum coin counts, no such swap exists in an arbitrary denomination system, so the greedy answer can be off by one on tiny inputs and the honest approach is a table over totals. Fractional knapsack is greedy while zero-or-one knapsack is not, which is the cleanest illustration that optimal substructure depends on what a choice removes.", "Beyond tables over inputs, dynamic programming runs on subsets and on trees. A bitmask state lets a scheduling or assignment problem cost O(2^n times n) by treating each subset as a node and building up, which is fine for small n and hopeless past a threshold, so estimating the reachable state count before coding is the real skill. Tree and interval DP index states by node pairs or ranges and inherit quadratic or cubic blowups from the structure of the transitions. In each case the recurrence, the fill order and the memory reduction follow from one question: how far back can a single state look?" ]
+  }, {
+    "title" : "Sorting, Searching and Divide-and-Conquer",
+    "content" : [ "Two properties decide most sorting conversations. Stability means equal keys keep their previous relative order, which is what makes a secondary-then-primary pass or a database-style multi-key sort work. In-place refers to auxiliary space, not to whether the input gets overwritten, so an algorithm can mutate your array and still be described as in-place. The comparison bound is the ceiling these properties live under: any decision-tree sort must resolve every permutation, so log of n factorial comparisons, which is on the order of n log n, is unavoidable, and the sorts that beat it get there by never comparing two elements at all.", "Merge sort is the dependable half of that story. Splitting recursively and merging sorted halves gives O(n log n) in every case, it is stable when the merge prefers the left element on ties, and its access pattern is predictable; the price is a linear temporary buffer, which turns a sorting task into a memory task on large arrays or constrained devices. Iterative bottom-up merging removes the recursion bookkeeping and makes the doubling schedule explicit. Merge sort is also the right answer when the data lives in linked storage or arrives as streams, because merging needs no random access at all.", "Quick sort usually wins on arrays despite its unflattering worst case, because partitioning works in place, scans contiguously, and discards a fraction of the array per pass. Its expected time is O(n log n) with random or sampled pivots, while a naive fixed pivot on sorted or reverse-sorted input degenerates toward quadratic. Equal keys are the other trap: two-way partitioning keeps re-splitting duplicates, so partitioning into less, equal and greater finishes the whole middle in one pass and turns a degenerate input into linear work. Recursion depth is bounded by always descending into the smaller range and looping on the larger, which is why the space claim is expected logarithmic rather than worst-case linear.", "Simple quadratic sorts stay relevant for narrow reasons. Selection sort makes exactly one swap per position but always performs the same quadratic comparisons and is not stable in its naive form. Insertion sort's running time tracks the number of inversions, so an already sorted array costs linear time and a nearly sorted one is nearly free, which makes it the standard leaf routine inside hybrid sorts and the right tool when small fragments arrive almost ordered. Both are genuinely in-place with constant extra space, unlike merge sort, so the decision at small sizes is about constants and adaptivity rather than asymptotics.", "Non-comparison sorts replace comparisons with key structure. Counting sort scans the data to tally each key value and then emits each value according to its count, giving time linear in items plus key range and memory proportional to that range, which is superb for small integer keys and disastrous for wide ones. Radix sort repeats a stable distribution step per digit or character, so time is linear in the item count times the number of passes, and the stability of each pass is what preserves the ordering produced by the less significant digits. Bucket sort assumes a spread-out distribution and degrades badly when many keys land in one bucket.", "Searching is where the off-by-one bugs concentrate. The lower-bound search finds the first position where a target could be inserted without breaking order, the upper-bound search finds the first strictly greater position, and the difference between them is the count of duplicates, all in logarithmic time on sorted data. Writing them correctly requires committing to a half-open interval and computing the midpoint without overflow; with those two choices fixed, the loop body is trivial and the termination argument is obvious. Rotated or bitonic data can still be searched by deciding which half is properly ordered at each step, but the moment you cannot state that invariant the search is just a guess.", "Divide and conquer is a recurrence in disguise: split the input, solve each part, then pay for combining and for deciding which side to keep. Closest pair keeps both halves sorted by the coordinate that matters and inspects a narrow strip, which preserves the n log n bound instead of collapsing to quadratic. Quick select descends one side only, giving expected linear selection with a quadratic worst case unless pivots come from a careful median rule. Karatsuba multiplication trades one of four recursive products for extra additions to beat linear multiplication's exponent. Each example answers the same question: how much work survives the merge, and can a discarded side be dropped safely." ]
+  }, {
+    "title" : "Choosing Structures for Real Workloads",
+    "content" : [ "Structure choice is a set of questions in order. What operations run how often: exact lookup, ordered iteration, interval query, append, remove by handle, extreme element? Is the data built once or mutated continuously? Must old versions survive, or may readers see a snapshot? How large is a record and how much memory can be paid for speed? Asymptotics rank the candidates; the answers to these five questions usually pick between them.", "The hash map versus balanced tree question is really about what a query looks like. Equality lookups average constant time in a hash map and logarithmic in a tree, so the tree loses there unless latency must be bounded rather than merely expected. Range questions, nearest-key, first, last, ordered traversal and paginating keys in order are only available in the ordered structure, so an interval query against a hash map becomes a full scan no matter how fast its lookups are. If both matter, the common answer is a hash map for point access plus an ordered index, or a tree that also stores cached counts to serve rank queries.", "A key set built once and queried heavily deserves different treatment than a mutable map: a compact sorted array with binary search over it gives logarithmic lookups with excellent locality and almost no per-entry overhead, and it frequently beats a hash table in wall-clock terms. An auxiliary hash set is the right tool when membership tests sit inside an inner loop, because its average constant lookup removes the quadratic that a container scan would introduce. Doubling capacity on append is another amortized bet, and a preallocated buffer trades memory for steady latency when the spike of a resize is unacceptable.", "Order-statistic workloads choose differently again. A min-heap is the standard streaming top-k device: push each candidate, pop the smallest when the heap exceeds k, for O(n log k) time and O(k) memory, and a bounded priority queue is the same structure with a size cap that turns dropping overflow work into one comparison. Merging many sorted streams is a heap over the stream heads. A skip list trades tree rotations for probabilistic layers and lock-free inserts. Counting sorts and radix sorts win where keys are small integers or fixed-length tokens and stability across passes is guaranteed.", "Text and prefix workloads are the trie's home: autocomplete, routing-table lookups and IP-style longest-prefix matching all walk the key's characters as structure instead of hashing them. A dense trie can be wasteful for long, sparse keys, so compressed edges collapse chains of single-child nodes, and a hash map of prefixes gives exact matching quickly but cannot enumerate related keys. Tries also make memory the binding constraint, since cost is per character per branch, so the design question is which levels get arrays, which get maps, and which get pruned.", "Concurrency and durability change the ranking. A single mutex over a hot shared map turns an O(1) lookup into a serialization point, which is why partitioning the map and locking parts of it, or sharding by key, buys throughput by trading memory and rehash complexity for finer granularity. Copy-on-write publishing lets readers traverse a stable snapshot while a writer builds and installs a new version, at the cost of a full rebuild, and a persistent tree with shared subtrees costs only a logarithmic path of new nodes per version. None of this changes asymptotics; it changes who waits.", "The workload you measure is rarely the one you modelled. String concatenation in a loop, membership tests against a linear container inside a loop, and repeated recomputation of an invariant are the standard sources of accidental quadratic time in glue code. Asymptotics assume a uniform cost per memory access, which hardware does not provide, so a pointer-following structure can lose to an array with a worse bound. Profile at production sizes, because a constant factor invisible at a thousand records dominates at a million, and keep a fallback path available so a structure that wins on average can be replaced when a pathological input appears." ]
+  } ],
+  "questions" : [ {
+    "text" : "What are the expected and worst-case lookup costs of a hash table?",
+    "a" : "O(1) expected and O(n) worst case",
+    "b" : "O(log n) expected and O(n) worst case",
+    "c" : "O(n) expected and O(n log n) worst case",
+    "d" : "O(1) in every case",
+    "correct" : "A",
+    "explanation" : "Uniform hashing gives constant expected time, but all keys landing in one bucket degrade lookup to a linear scan.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What precondition does binary search require?",
+    "a" : "The array must contain distinct values",
+    "b" : "A hash function must be available",
+    "c" : "The array must be sorted by the search key",
+    "d" : "The array length must be a power of two",
+    "correct" : "C",
+    "explanation" : "Each comparison discards half the remaining range only if the ordering is guaranteed.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does BFS find shortest paths in an unweighted graph?",
+    "a" : "BFS explores nodes in order of distance from the source",
+    "b" : "BFS uses a priority queue ordered by edge weight to expand nearest first",
+    "c" : "BFS visits every node exactly twice",
+    "d" : "Depth-first search is always shorter",
+    "correct" : "A",
+    "explanation" : "The queue processes all nodes at distance d before any node at distance d+1, so the first visit is via a shortest path.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the cost of inserting into a binary heap of n elements?",
+    "a" : "O(1)",
+    "b" : "O(log n)",
+    "c" : "O(n)",
+    "d" : "O(n log n)",
+    "correct" : "B",
+    "explanation" : "The new element bubbles up at most the height of the tree, which is O(log n).",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "When does quicksort degrade to O(n^2)?",
+    "a" : "When the pivot splits the array evenly into two equal halves on every pass",
+    "b" : "When the input is already sorted and the first element is chosen as pivot",
+    "c" : "When all elements are distinct",
+    "d" : "When recursion is replaced by iteration",
+    "correct" : "B",
+    "explanation" : "A sorted input with a fixed first-element pivot produces maximally unbalanced partitions; randomized or median pivots avoid this.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which conditions make dynamic programming applicable?",
+    "a" : "Subproblems must be independent and disjoint",
+    "b" : "Overlapping subproblems and optimal substructure",
+    "c" : "The input must be sorted",
+    "d" : "The problem must be a graph",
+    "correct" : "B",
+    "explanation" : "Overlap makes caching worthwhile, and optimal substructure lets solutions be assembled from optimal sub-solutions.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Inserting at the head of a linked list versus an array costs what?",
+    "a" : "Both O(1)",
+    "b" : "Array O(1), linked list O(n) because traversal to the tail is required",
+    "c" : "Linked list O(1), array O(n) because existing elements shift",
+    "d" : "Both O(n)",
+    "correct" : "C",
+    "explanation" : "A linked list only rewires a pointer; an array must shift every existing element unless there is spare space at the front.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What is the lookup cost of a prefix in a trie?",
+    "a" : "O(length of the prefix)",
+    "b" : "O(number of stored words)",
+    "c" : "O(log n) where n is the alphabet size",
+    "d" : "O(1) regardless of prefix length",
+    "correct" : "A",
+    "explanation" : "Each character follows one edge, so the work is proportional to the prefix rather than the dictionary size.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "How does union-find detect a cycle while adding undirected edges?",
+    "a" : "Compare node degrees",
+    "b" : "Run Dijkstra from every node and compare all of the final distances",
+    "c" : "A cycle exists only when edges exceed nodes",
+    "d" : "Union the endpoints; if they already share a root, a cycle exists",
+    "correct" : "D",
+    "explanation" : "If both endpoints are already connected, the new edge closes a cycle. Path compression and union by rank keep operations near constant time.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why can deep recursion fail in production?",
+    "a" : "Recursion never uses stack memory",
+    "b" : "The JVM converts all deep recursion to iteration before the stack can exhaust",
+    "c" : "Python optimizes tail calls by default",
+    "d" : "Each call consumes stack space, so a deep chain can exhaust the stack",
+    "correct" : "D",
+    "explanation" : "Every frame is retained until its call returns; convert to an explicit stack or increase limits carefully when depth is unbounded.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which pair of operations does a deque provide in O(1) at both ends?",
+    "a" : "Push and pop at the tail only",
+    "b" : "Insert and remove at either end",
+    "c" : "Indexed access plus ordered iteration",
+    "d" : "Insertion at any position after shifting",
+    "correct" : "B",
+    "explanation" : "A deque keeps both ends constant time using linked nodes or a ring buffer. Options A and D describe a stack and an array respectively, neither of which is cheap at both ends.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does it mean for a sorting algorithm to be stable?",
+    "a" : "It never reallocates its backing array while sorting runs",
+    "b" : "It takes the same time for every input order",
+    "c" : "It needs no extra memory beyond the input",
+    "d" : "It keeps equal keys in their prior relative order",
+    "correct" : "D",
+    "explanation" : "Stability concerns ties, which is what makes a secondary-then-primary pass sort correct. Option C confuses it with being in-place and B with adaptivity.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "How many comparisons does insertion sort make on an already sorted array of n elements?",
+    "a" : "O(n log n)",
+    "b" : "O(n^2)",
+    "c" : "O(n)",
+    "d" : "O(1)",
+    "correct" : "C",
+    "explanation" : "One comparison per element and no shifting makes the best case linear, since its running time tracks the inversion count. Option A is merge sort's bound, not this adaptive one.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "For n below a few dozen, why can a quadratic sort beat an O(n log n) one?",
+    "a" : "It becomes stable below that size",
+    "b" : "Asymptotic guarantees stop applying below a few hundred elements",
+    "c" : "Its constant factors and setup dominate the asymptotic term",
+    "d" : "It stops needing comparisons at that size",
+    "correct" : "C",
+    "explanation" : "Big-O ignores constants and recursion overhead, so tight simple loops win at small n. Option B is the trap, since the bound stays true but is not the deciding factor.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which pair of guarantees does a binary heap-backed priority queue give?",
+    "a" : "O(1) access to any rank, O(1) insert",
+    "b" : "O(n) access to the extreme, amortized O(1) removal",
+    "c" : "O(log n) access to an arbitrary element and O(n) delete",
+    "d" : "O(1) peek at the extreme, O(log n) insert and delete",
+    "correct" : "D",
+    "explanation" : "The heap exposes only the root cheaply and repairs by sifting along a logarithmic path. Option C describes an indexed structure with random access, which a plain heap is not.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does a hash table's load factor measure?",
+    "a" : "Buckets divided by distinct keys",
+    "b" : "Stored entries divided by buckets",
+    "c" : "Collisions divided by successful lookups",
+    "d" : "Bytes used divided by bytes reserved",
+    "correct" : "B",
+    "explanation" : "Growth decisions compare entries against buckets, so the ratio is entries over capacity. Option A is the inverted slip that makes a table look underfilled when it is nearly full.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Given only a head pointer, which singly linked list operation is O(1)?",
+    "a" : "Removing the last node",
+    "b" : "Adding a node at the front",
+    "c" : "Reading the middle element",
+    "d" : "Appending a node at the tail",
+    "correct" : "B",
+    "explanation" : "The new node points at the old head and the head moves once, a constant amount of work. Option D is the trap: without a stored tail pointer, appending walks the entire list.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does a set backed by hashing promise for membership tests?",
+    "a" : "Iteration in sorted key order on every traversal",
+    "b" : "O(1) access to the kth smallest",
+    "c" : "Average O(1) contains with no ordering",
+    "d" : "O(log n) contains in every case",
+    "correct" : "C",
+    "explanation" : "Hashed sets trade ordering for expected constant-time equality. Option D is the balanced tree's worst-case guarantee, which a hash set does not provide.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does an algorithm's best-case complexity fail to tell you?",
+    "a" : "How it behaves on inputs of unusual or pathological shape",
+    "b" : "Any lower bound on the work required",
+    "c" : "That it terminates on empty input",
+    "d" : "Whether a single operation can be far slower",
+    "correct" : "D",
+    "explanation" : "Best case describes a favourable input, so a routine with a linear worst-case step still looks good while the spike exists. Option A is the trap, since unusual shapes are exactly what worst-case and amortized analysis cover.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does breadth-first search give shortest paths only when edges share one weight?",
+    "a" : "Because the queue holds vertices only, so it cannot record edge weights",
+    "b" : "Because it revisits vertices more than once",
+    "c" : "Because level order matches distance order only with uniform cost",
+    "d" : "Because it needs the graph stored as a matrix",
+    "correct" : "C",
+    "explanation" : "Distance order equals arrival order only when every hop adds the same amount. Option A misdiagnoses the mechanism, since a queue-based search does record distances; the failure is that a cheap edge can appear later in a deeper level.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which structure answers first, last and range queries in logarithmic time plus output size?",
+    "a" : "A self-balancing search tree",
+    "b" : "A hash table with a good mixing function",
+    "c" : "A plain array kept in sorted order",
+    "d" : "A min-heap over the keys",
+    "correct" : "A",
+    "explanation" : "Only an ordered tree can descend to a boundary and then walk neighbours. Option C locates a boundary in O(log n) but must shift on every insert, and B has no order at all.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does heapify from an unsorted array cost O(n) rather than O(n log n)?",
+    "a" : "Each sift-down traverses the full height of the tree",
+    "b" : "Insert order makes the array nearly sorted already",
+    "c" : "Sibling nodes never need to be compared",
+    "d" : "Most nodes sit near the leaves, where sifts are short",
+    "correct" : "D",
+    "explanation" : "Node heights fall off geometrically, so the sum of sift lengths stays linear. Option A is the assumption that produces the pessimizing n log n bound.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "As an open-addressed hash table's load factor approaches one, what happens?",
+    "a" : "Lookups stay constant because nothing chains",
+    "b" : "The table rehashes keys under a new function",
+    "c" : "Probes lengthen sharply and clustering degrades lookup",
+    "d" : "Collisions spill into per-bucket linked lists",
+    "correct" : "C",
+    "explanation" : "Expected probe length grows with the reciprocal of the free-slot fraction, so a nearly full table becomes a linear scan. Option D describes separate chaining, a different collision strategy.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why is clearing a slot outright the wrong way to delete from an open-addressed table?",
+    "a" : "The freed slot can never be reused for inserts",
+    "b" : "The hash function stops being deterministic for the keys already stored",
+    "c" : "Keys further along the same probe chain become unreachable",
+    "d" : "The load factor rises after every deletion",
+    "correct" : "C",
+    "explanation" : "Probing halts at the first empty slot, so erasing mid-chain truncates it and later keys are missed; tombstones or backward shifting fix that. Option A inverts reality, since freed slots are exactly what inserts claim.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Some hash tables convert an unusually long collision chain into a balanced tree. What does that guarantee?",
+    "a" : "Every lookup now costs O(log n) at worst",
+    "b" : "Worst-case chain scanning is capped at O(log n)",
+    "c" : "Collisions stop happening at high load factors",
+    "d" : "Iteration now follows key order in every bucket",
+    "correct" : "B",
+    "explanation" : "Only the pathological buckets become trees, so well-spread ones still cost constant expected time and just the tail shrinks. Option A overstates it as a global bound, and D describes an ordered map.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A recursive routine makes two calls per level down a chain of depth n. What is its space cost?",
+    "a" : "O(1), because only a single branch is ever active at a time",
+    "b" : "O(2^n), because the number of calls is exponential",
+    "c" : "O(n), because stack depth, not call count, sets frame use",
+    "d" : "O(n log n), because each level doubles the frames",
+    "correct" : "C",
+    "explanation" : "Frames are released when a branch returns, so live frames track the longest root-to-leaf chain. Option B conflates total work with memory, which is the classic misreading of branching recursion.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which requirement rules out a hash map and forces a balanced tree?",
+    "a" : "Constant-time access to the kth stored entry",
+    "b" : "Iteration over all entries exactly once",
+    "c" : "Membership testing for a key by equality",
+    "d" : "Counting entries whose key falls in an interval",
+    "correct" : "D",
+    "explanation" : "Range and rank questions need order, which hashing destroys by design. Option A would require a tree augmented with subtree sizes, so a plain tree does not give it either.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which workload actually favors an adjacency matrix over adjacency lists?",
+    "a" : "Very many vertices with almost no edges",
+    "b" : "A stream of edges with almost no lookups",
+    "c" : "Repeated iteration over every vertex's neighbour list in turn",
+    "d" : "Frequent is-this-edge-there tests on a small dense graph",
+    "correct" : "D",
+    "explanation" : "The matrix answers edge existence in O(1) but costs quadratic memory and a linear neighbour scan. Options A and C are the sparse, iteration-heavy shapes where lists win.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why is Dijkstra invalid when an edge weight can be negative?",
+    "a" : "A finalized vertex can become cheaper and is never reopened",
+    "b" : "Distances cannot exceed the largest edge weight stored",
+    "c" : "Its priority queue requires ties to be broken stably",
+    "d" : "Negative weights make every edge behave as if it were bidirectional",
+    "correct" : "A",
+    "explanation" : "The greedy finalization assumes extending a path only increases its cost. Option C is the trap that blames the queue: tie order affects equal keys, not the correctness of distances.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Bellman-Ford relaxes every edge n-1 times. What is the extra pass for?",
+    "a" : "Computing the reverse shortest-path tree",
+    "b" : "Cutting the remaining work roughly in half",
+    "c" : "Detecting a reachable negative-weight cycle",
+    "d" : "Finding vertices still unreachable from the source",
+    "correct" : "C",
+    "explanation" : "Any shortest simple path uses at most n-1 edges, so a further improvement means a negative cycle was traversed. Option D is the trap: unreachable vertices keep their infinite distance and reveal nothing.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why does an interval search on a sorted array count duplicates in O(log n)?",
+    "a" : "Duplicates hash to the same bucket in the array",
+    "b" : "Lower and upper bound searches bracket the run of ties",
+    "c" : "The array is stable, so ties sit adjacent by definition",
+    "d" : "A monotonic stack has already recorded each run length",
+    "correct" : "B",
+    "explanation" : "Two boundary searches find the first position not less than the target and the first strictly greater, and the gap is the count. Option C is the trap: adjacency needs ordering, not stability.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why choose merge sort when both a worst-case guarantee and stable ordering matter?",
+    "a" : "Its merge step never needs an auxiliary buffer",
+    "b" : "It guarantees O(n log n) and keeps equal keys in order",
+    "c" : "Its partitions depend on randomly chosen pivots",
+    "d" : "It compares fewer elements than any other comparison sort",
+    "correct" : "B",
+    "explanation" : "Halving bounds every path at O(n log n) and a left-preferring merge preserves ties, which is why record sorting keeps it. Option A hides the linear buffer, the actual cost of that guarantee.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which property must the stable subroutine inside radix sort preserve between passes?",
+    "a" : "Ordering produced by the less significant digits",
+    "b" : "The original input index of every record",
+    "c" : "Bucket counters reset before each pass",
+    "d" : "Key length, which must be identical across records",
+    "correct" : "A",
+    "explanation" : "Least-significant-digit radix depends on each pass respecting the previous pass's order. Option C is a genuine implementation requirement but has nothing to do with stability.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "In a one-dimensional knapsack table, why does the capacity loop run downward for 0/1 items?",
+    "a" : "Descending order prevents reusing the current item",
+    "b" : "Descending order sorts items by increasing weight",
+    "c" : "Ascending order skips capacities above half the sum",
+    "d" : "Direction changes only speed, never reachable values",
+    "correct" : "A",
+    "explanation" : "An upward sweep lets the item feed states it has already updated, which is precisely the unbounded recurrence. Option D is the misconception that loop direction is a performance detail.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is the solution of the recurrence T(n) = 2T(n/2) + n with T(1) constant?",
+    "a" : "O(n), since the subproblems shrink geometrically",
+    "b" : "O(n log n), since every level still costs linear",
+    "c" : "O(n^2), since the two calls each do half the work",
+    "d" : "O(log n), since only one branch is ever descended",
+    "correct" : "B",
+    "explanation" : "There are logarithmically many levels and each one still does O(n) combining work in total. Option A confuses this with a single-branch halving recurrence such as binary search.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Naive Fibonacci recursion branches exponentially. What does memoization change it into?",
+    "a" : "Still exponential, since two calls remain per frame",
+    "b" : "O(log n), because the recursion tree halves each step",
+    "c" : "O(1), because the recursion disappears entirely",
+    "d" : "O(n) time, since each distinct state is computed once",
+    "correct" : "D",
+    "explanation" : "Caching collapses the tree into n distinct states linked by constant work each. Option A conflates the branching factor of plain recursion with the count of distinct subproblems.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Greedy coin change, always taking the largest denomination, is optimal only when what holds?",
+    "a" : "The denomination system is canonical, so no step wastes count",
+    "b" : "The target amount is larger than the biggest denomination available",
+    "c" : "Coins are sorted before the greedy scan starts",
+    "d" : "The number of coin types stays below ten",
+    "correct" : "A",
+    "explanation" : "Systems such as 1, 3 and 4 make six greedily as 4+1+1 rather than 3+3, so correctness depends on the denominations. Options C and D change cost, never optimality.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does the potential method charge for each operation in an amortized analysis?",
+    "a" : "Actual cost plus the change in stored potential",
+    "b" : "Its worst-case cost times the length of the sequence",
+    "c" : "The running average of the costs seen so far",
+    "d" : "Only the cost of memory allocations",
+    "correct" : "A",
+    "explanation" : "Prepaid work accumulates as potential and later pays for expensive operations, and the sum telescopes to a bound on the real total. Option C confuses the proof technique with measuring an empirical mean.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "On an array holding a few repeated values, quicksort with two-way partitioning is:",
+    "a" : "O(n log n) anyway, since halving still occurs each pass",
+    "b" : "Quadratic unless a three-way split isolates equal keys",
+    "c" : "Linear, because comparisons of equal elements are cheap",
+    "d" : "O(n log n) only when the array starts out sorted",
+    "correct" : "B",
+    "explanation" : "Duplicates reappear on both sides of every two-way split, so partitioning into less, equal and greater settles the middle in one pass. Option C is the intuition that equal keys are harmless.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What keeps Kruskal's edge scanning close to linear after the initial sort?",
+    "a" : "Path compression plus union by rank keeps each step near constant",
+    "b" : "Every edge is inspected exactly once and no bookkeeping is needed",
+    "c" : "Union by rank builds a balanced search tree of components",
+    "d" : "The algorithm skips any edge that could close a cycle",
+    "correct" : "A",
+    "explanation" : "The near-constant inverse-Ackermann bound comes from the two heuristics, not from fewer inspections. Option C misnames union-find as a search tree, which it is not.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Kahn's algorithm run on a directed graph containing a cycle outputs what?",
+    "a" : "A valid order, since a cycle merely reorders siblings",
+    "b" : "A topological order with cyclic vertices placed first",
+    "c" : "Nothing at all, because the queue begins empty",
+    "d" : "A partial order shorter than the vertex count",
+    "correct" : "D",
+    "explanation" : "Vertices inside a cycle never reach in-degree zero, so the process stops early and the shortfall is the cycle signal. Option B is what unchecked code silently ships.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Selecting the kth smallest by quickselect costs what on average and in the worst case?",
+    "a" : "O(n log n) average, because partitioning repeats; O(n^2) worst",
+    "b" : "O(n) average, because each pass discards a large fraction; O(n^2) worst without a median-of-medians pivot",
+    "c" : "O(log n) average, since one side is descended",
+    "d" : "O(n) in every case, since one scan is enough",
+    "correct" : "B",
+    "explanation" : "Only one partition survives, so work sums geometrically to linear, while unlucky pivots make it quadratic. Option A wrongly keeps both halves, as a sort would.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why can no comparison-based sort use fewer than on the order of n log n comparisons in the worst case?",
+    "a" : "Swaps cost more than comparisons on real hardware",
+    "b" : "Comparisons cannot be parallelized deeply",
+    "c" : "Cache misses dominate memory access patterns",
+    "d" : "A height-h binary decision tree distinguishes at most 2^h outcomes and n! permutations exist",
+    "correct" : "D",
+    "explanation" : "Since log of n factorial grows as n log n, the tree must be that deep to isolate every ordering. Options A and C are engineering facts that never set a theoretical floor.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Comparing AVL and red-black trees, which claim holds?",
+    "a" : "The stricter balance usually means faster searches and more restructuring on writes",
+    "b" : "The looser rule guarantees smaller height than the stricter rule",
+    "c" : "Neither performs rotations because they rebalance on reads",
+    "d" : "Both give O(1) lookup once built and never modified",
+    "correct" : "A",
+    "explanation" : "Height closer to the logarithmic minimum shortens search paths but forces more aggressive repair during updates. Option D reverts to hash-table expectations, which trees never meet.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A persistent tree builds each new version by copying only the changed path. What does an update cost?",
+    "a" : "O(1), since structural sharing makes copying free",
+    "b" : "O(n), since the whole spine must be rebuilt each time",
+    "c" : "O(log n) new nodes, with the rest shared across versions",
+    "d" : "O(n log n), since every rotation must be cloned too",
+    "correct" : "C",
+    "explanation" : "Only the root-to-leaf path differs between versions, so space grows by one path per update. Option A is the intuitive misreading of sharing as cost-free.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Keeping the k largest values from a stream of n items costs what with a min-heap?",
+    "a" : "O(n log k) time and O(k) space, since the heap stays at k entries",
+    "b" : "O(n log n) time and O(n) space, since every item is retained",
+    "c" : "O(n) time and O(1) space, since a running maximum is enough",
+    "d" : "O(k log n) time and O(n) space, since inserts track the stream",
+    "correct" : "A",
+    "explanation" : "Each item displaces the current minimum only when it is larger, so heights are log k and live entries are k. Option C finds the single maximum, not the top k.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which glue-code pattern silently turns an O(n) pass into O(n^2)?",
+    "a" : "Hoisting an invariant computation out of the loop",
+    "b" : "Reading every element once from a contiguous array",
+    "c" : "Calling a membership test on a linear container inside the loop",
+    "d" : "Writing results into a preallocated buffer by index",
+    "correct" : "C",
+    "explanation" : "Each membership test walks the container, so nesting it inside the pass costs O(n^2) even though the code reads as one loop. Options A, B and D are the trap, since they share that single-loop shape without adding any per-element work.",
+    "difficulty" : "HARD"
+  } ]
+}

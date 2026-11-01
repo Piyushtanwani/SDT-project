@@ -138,17 +138,23 @@ export const HomePage = () => {
             </span>
             
             <div className="flex items-center">
-              <div className="flex mr-2" aria-hidden="true">
-                {[...Array(5)].map((_, i) => (
-                  <FaStar key={i} className="text-yellow-400 text-xs" />
-                ))}
-              </div>
-              <button 
+              {typeof course.rating === "number" && (
+                <span
+                  className="mr-3 inline-flex items-center text-xs font-medium text-gray-700 dark:text-gray-300"
+                  aria-label={`Average rating ${course.rating.toFixed(1)} out of 5`}
+                >
+                  <FaStar className="mr-1 text-yellow-500" aria-hidden="true" />
+                  {course.rating.toFixed(1)}
+                </span>
+              )}
+              <button
                 onClick={() => navigate(`/course/${course.id}/modules`)}
                 aria-label={`Open ${course.name.trim()} modules`}
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300"
+                className="flex h-11 w-11 items-center justify-center rounded-full"
               >
-                <FaArrowRight size={12} />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                  <FaArrowRight size={12} />
+                </span>
               </button>
             </div>
           </div>
@@ -173,7 +179,7 @@ export const HomePage = () => {
           
           <button 
             onClick={onClick}
-            className="mt-auto flex items-center justify-center py-2.5 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors duration-200"
+            className="mt-auto flex min-h-[44px] items-center justify-center px-4 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors duration-200"
           >
             {buttonText}
             <FaArrowRight className="ml-2 text-xs" />
@@ -183,7 +189,7 @@ export const HomePage = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="w-full min-h-screen">
       {/* Hero Section */}
       <section ref={heroRef} className="relative isolate -mt-16 overflow-hidden pt-28 pb-20 md:pb-24">
         <div
@@ -368,11 +374,11 @@ export const HomePage = () => {
               <h3 className="text-3xl font-bold text-gray-900 dark:text-white mb-5">Popular Learning Paths</h3>
             </div>
             <button
-              className="group flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
+              className="group inline-flex min-h-[44px] items-center rounded-full px-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium"
               onClick={() => navigate("/courses")}
             >
               <span className="mr-2">View All Courses</span>
-              <span className="w-6 h-6 flex items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+              <span className="w-7 h-7 flex items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-900/30 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
                 <FaArrowRight size={12} />
               </span>
             </button>
@@ -414,13 +420,11 @@ export const HomePage = () => {
         {/* Code Compiler Section */}
 <section className="mb-24 relative z-10">
   <div className="relative">
-    {/* Subtle background glow */}
-    
-    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col md:flex-row">
         {/* Content Side */}
         <div className="md:w-1/2 p-8 md:p-10">
-          <div className="inline-block text-base font-medium px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full mb-3">
+          <div className="inline-block text-base font-medium px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-3">
             Code Anywhere
           </div>
           <h3 className="text-2xl md:text-3xl font-bold mb-5 text-gray-900 dark:text-white">
@@ -433,7 +437,7 @@ export const HomePage = () => {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaCode size={16} />
               </div>
               <div className="ml-4">
@@ -443,7 +447,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaCheck size={16} />
               </div>
               <div className="ml-4">
@@ -453,7 +457,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaShareAlt size={16} />
               </div>
               <div className="ml-4">
@@ -465,7 +469,7 @@ export const HomePage = () => {
           
           <div className="inline-flex group">
             <button
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-all duration-200 flex items-center justify-center"
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center"
               onClick={() => navigate("/compiler")}
             >
               <BsCodeSquare className="mr-2" />
@@ -478,7 +482,7 @@ export const HomePage = () => {
         </div>
         
         {/* Visual Side */}
-        <div className="md:w-1/2 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 dark:from-blue-900/20 dark:to-indigo-900/20 p-8 md:p-10 flex items-center justify-center">
+        <div className="md:w-1/2 bg-indigo-50/70 dark:bg-white/5 p-8 md:p-10 flex items-center justify-center">
           <div className="relative code-editor-preview w-full max-w-md">
             <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-2xl">
               {/* Editor Top Bar */}
@@ -489,7 +493,7 @@ export const HomePage = () => {
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 </div>
                 <div className="flex items-center ml-4 space-x-2">
-                  <div className="px-2 py-0.5 rounded text-xs bg-blue-600 text-white">main.py</div>
+                  <div className="px-2 py-0.5 rounded text-xs bg-indigo-600 text-white">main.py</div>
                   <div className="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">utils.py</div>
                 </div>
               </div>
@@ -503,11 +507,11 @@ export const HomePage = () => {
                     ))}
                   </div>
                   <div className="text-sm">
-                    <div><span className="text-pink-400">def</span> <span className="text-blue-400">greet</span><span className="text-gray-400">(</span><span className="text-orange-300">name</span><span className="text-gray-400">):</span></div>
+                    <div><span className="text-pink-400">def</span> <span className="text-indigo-400">greet</span><span className="text-gray-400">(</span><span className="text-orange-300">name</span><span className="text-gray-400">):</span></div>
                     <div>    <span className="text-pink-400">return</span> <span className="text-green-300">f"Hello, {'{'}name{'}'}"</span></div>
                     <div></div>
                     <div><span className="text-green-400"># Test the function</span></div>
-                    <div><span className="text-blue-300">print</span><span className="text-gray-400">(</span><span className="text-blue-400">greet</span><span className="text-gray-400">(</span><span className="text-green-300">"Coder"</span><span className="text-gray-400">))</span></div>
+                    <div><span className="text-indigo-300">print</span><span className="text-gray-400">(</span><span className="text-indigo-400">greet</span><span className="text-gray-400">(</span><span className="text-green-300">"Coder"</span><span className="text-gray-400">))</span></div>
                     <div></div>
                     <div className="flex items-center">
                       <span className="text-green-400"># Output: Hello, Coder!</span>
@@ -533,12 +537,10 @@ export const HomePage = () => {
 {/* Find Coding Buddy Section */}
 <section className="mb-24 relative z-10">
   <div className="relative">
-    {/* Subtle background glow */}
-    
-    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col-reverse md:flex-row">
         {/* Visual Side */}
-        <div className="md:w-1/2 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-900/20 dark:to-emerald-900/20 p-8 md:p-10 flex items-center justify-center">
+        <div className="md:w-1/2 bg-indigo-50/70 dark:bg-white/5 p-8 md:p-10 flex items-center justify-center">
           <div className="buddy-finder-preview w-full max-w-md">
             {/* Connected Avatars */}
             <div className="buddy-graph relative h-48 flex items-center justify-center mb-4">
@@ -573,19 +575,19 @@ export const HomePage = () => {
               {/* Developer Avatars */}
               <div className="avatar-container absolute left-1/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
-                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-green-700 to-green-800 shadow-xl flex items-center justify-center text-white text-lg font-bold">JS</div>
+                  <div className="relative h-16 w-16 rounded-full bg-green-700 shadow-xl flex items-center justify-center text-white text-lg font-bold">JS</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-1/2 transform -translate-x-1/2 z-20">
                 <div className="relative">
-                  <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-xl flex items-center justify-center text-white text-xl font-bold">PY</div>
+                  <div className="relative h-20 w-20 rounded-full bg-indigo-600 shadow-xl flex items-center justify-center text-white text-xl font-bold">PY</div>
                 </div>
               </div>
               
               <div className="avatar-container absolute left-3/4 transform -translate-x-1/2 z-10">
                 <div className="relative">
-                  <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-pink-600 to-pink-700 shadow-xl flex items-center justify-center text-white text-lg font-bold">GO</div>
+                  <div className="relative h-16 w-16 rounded-full bg-pink-600 shadow-xl flex items-center justify-center text-white text-lg font-bold">GO</div>
                 </div>
               </div>
             </div>
@@ -595,7 +597,7 @@ export const HomePage = () => {
               {/* Active Card with Glow Effect */}
               <div className="relative group">
                 <div className="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-4 flex items-center shadow-md">
-                  <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 font-medium text-lg">A</div>
+                  <div className="flex-shrink-0 h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-700 dark:text-green-300 font-medium text-lg">A</div>
                   <div className="ml-4 flex-1">
                     <h4 className="font-medium text-gray-900 dark:text-white">Alice Johnson</h4>
                     <div className="flex items-center mt-1">
@@ -607,19 +609,19 @@ export const HomePage = () => {
                       </span>
                     </div>
                   </div>
-                  <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200" aria-hidden="true" tabIndex={-1}>
+                  <span className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
                     <FaUserPlus size={14} />
-                  </button>
+                  </span>
                 </div>
               </div>
               
               {/* Regular Card */}
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-4 flex items-center shadow-md hover:shadow-lg transition-shadow duration-200">
-                <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-300 font-medium text-lg">B</div>
+                <div className="flex-shrink-0 h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-medium text-lg">B</div>
                 <div className="ml-4 flex-1">
                   <h4 className="font-medium text-gray-900 dark:text-white">Bob Smith</h4>
                   <div className="flex items-center mt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1.5">Go</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 mr-1.5">Go</span>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200">React</span>
                     <span className="flex items-center ml-auto text-xs text-gray-500 dark:text-gray-400">
                       <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600 mr-1"></span>
@@ -627,9 +629,9 @@ export const HomePage = () => {
                     </span>
                   </div>
                 </div>
-                <button className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-green-600 hover:text-white dark:hover:bg-green-600 transition-colors duration-200" aria-hidden="true" tabIndex={-1}>
+                <span className="ml-2 flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                   <FaUserPlus size={14} />
-                </button>
+                </span>
               </div>
             </div>
           </div>
@@ -637,7 +639,7 @@ export const HomePage = () => {
         
         {/* Content Side */}
         <div className="md:w-1/2 p-8 md:p-10">
-          <div className="inline-block text-base font-medium px-3 py-1 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full mb-3">
+          <div className="inline-block text-base font-medium px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-3">
             Community
           </div>
           <h3 className="text-2xl md:text-3xl font-bold mb-5 text-gray-900 dark:text-white">
@@ -650,7 +652,7 @@ export const HomePage = () => {
           
           <div className="space-y-4 mb-8">
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaUserCheck size={16} />
               </div>
               <div className="ml-4">
@@ -660,7 +662,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaFilter size={16} />
               </div>
               <div className="ml-4">
@@ -670,7 +672,7 @@ export const HomePage = () => {
             </div>
             
             <div className="flex items-center">
-              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
+              <div className="flex-shrink-0 h-8 w-8 rounded-md bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300">
                 <FaLaptopCode size={16} />
               </div>
               <div className="ml-4">
@@ -682,7 +684,7 @@ export const HomePage = () => {
           
           <div className="inline-flex group">
             <button
-              className="px-6 py-3 bg-green-700 text-white rounded-lg shadow-md hover:bg-green-800 transition-all duration-200 flex items-center justify-center"
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center"
               onClick={() => navigate("/community")}
             >
               <FaUsers className="mr-2" />
@@ -701,9 +703,7 @@ export const HomePage = () => {
 {/* AI Assistant Section */}
 <section className="mb-24 relative z-10">
   <div className="relative">
-    {/* Subtle background glow */}
-    
-    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-800 relative">
       <div className="flex flex-col md:flex-row">
         {/* Content Side */}
         <div className="md:w-1/2 p-8 md:p-10">
@@ -752,7 +752,7 @@ export const HomePage = () => {
           
           <div className="inline-flex group">
             <button
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center"
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl shadow-md hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center"
               onClick={() => navigate("/ai")}
             >
               <FaRobot className="mr-2" />

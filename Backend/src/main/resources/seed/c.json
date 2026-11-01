@@ -1,0 +1,449 @@
+{
+  "name" : "C++",
+  "description" : "Deterministic resource management, the object model, templates and the sharp edges of undefined behaviour.",
+  "duration" : "7 weeks",
+  "rating" : 4.6,
+  "modules" : [ {
+    "title" : "Object Model and Lifetime",
+    "content" : [ "C++ ties resource lifetime to object lifetime through RAII: constructors acquire, destructors release. This makes smart pointers, locks and file handles safe across early returns and exceptions. The guarantee comes from lexical scope rather than from the programmer's vigilance, because destruction also runs while an exception unwinds the stack, releasing a held lock, a socket or a buffer whose function never reached its closing brace. The idiom fails only when it is applied halfway: an owning raw pointer stored in a plain member has no destructor that frees it, so nothing about the type tells you who is responsible, and the leak surfaces much later as memory pressure rather than as an error at the line that caused it.", "A base class that will be deleted through a base pointer needs a virtual destructor; otherwise the derived destructor never runs and the behaviour is undefined. The usual remedy is declaring the destructor virtual, which makes the class polymorphic, adds a vptr, and changes the object's size and layout. An alternative is to forbid base-pointer deletion by protecting the destructor and to store concrete types by value, in a vector of values, or in a variant. Leaving the destructor non-virtual and hoping is not an alternative: compilers are not obliged to diagnose the pattern, and later optimization of the destructor call turns it into heap corruption that appears far from the delete expression.", "The rule of five states that if a class defines any of destructor, copy constructor, copy assignment, move constructor or move assignment, it should usually define or delete all five. The reason is asymmetry rather than pedantry: declaring a destructor or either copy operation suppresses the implicit move operations, so a class whose only hand-written member is a cleanup destructor silently copies its resources on every move. Implementing the five is also where you decide what a moved-from object means, typically empty and cheap to destroy, and where you mark the move operations noexcept so containers are allowed to use them while relocating elements.", "Non-static data members are initialized in the order in which they are declared in the class body, and that order is fixed no matter how you arrange the mem-initializer list. Base subobjects are constructed before the members of the derived class, and virtual bases before everything else. A constructor whose initializer list mentions members out of declaration order looks entirely harmless and then reads a member that has not been built yet, producing results that shift with optimization level and with the addition of unrelated code. Compilers warn under -Wreorder, but the warning only fires when the compiler can see that the dependency is inverted, so a member initialized from a helper function's result escapes it and is a long-standing source of garbage values in real code.", "For scalar and aggregate members, the spelling of initialization decides whether you get a value at all: `int x;` default-initializes and leaves x indeterminate, `int x = int();` and `int x{};` zero-initialize, and a class with user-provided constructors does whatever those constructors say. The trap is that a class whose constructors do not mention a member inherits the same indeterminacy, so reading that member is undefined behaviour even though the object was constructed correctly. List-initialization additionally rejects narrowing conversions and prefers initializer-list constructors, which is exactly why `std::vector<int> v{5}` holds one element with value five while `std::vector<int> v(5)` holds five default-initialized zeros.", "A temporary bound to a const lvalue reference has its lifetime extended to the lifetime of the reference, but that extension is shallow and full of exceptions. It does not apply to a reference member, to a nested temporary reached through a converting constructor, or to a pointer or view extracted from the temporary, so a handle pulled out of a short-lived object dies with it. Non-owning views such as `std::string_view` and `std::span` extend nothing at all: their contract is that the referent outlives the view, which is why they are excellent parameter types and dangerous default return types. Returning a view over a local container typically reads memory that still contains the old bytes for many subsequent calls, and then changes behaviour the first time the allocation is reused.", "Objects with static storage duration inside a function are initialized the first time control passes through the declaration, and that initialization is thread-safe in current standards, which is why a locally declared static is a dependable singleton. Namespace-scope objects in different translation units, by contrast, have no defined relative initialization order, so a global whose constructor reads another global in a different file may observe a not-yet-constructed object. The reliable fixes are to make the dependency a function-local static, or to use a two-phase init function called explicitly, because relying on link order makes a program that works today fail after an unrelated change to the build.", "Deleting a pointer whose type is incomplete at the point of deletion is undefined behaviour, and the compiler may only issue a warning. This bites the common pattern of declaring a `std::unique_ptr<Impl>` member in a header while keeping `struct Impl;` forward-declared, because the enclosing class's destructor, and therefore the default deleter, is instantiated wherever it is needed and cannot know the size or how to destroy the object. The standard repair is to declare the destructor in the header and define it in the source file where Impl is complete, which also keeps the move operations generated in the same place as the destructor rather than silently falling back to copying." ]
+  }, {
+    "title" : "Generic and Modern C++",
+    "content" : [ "Templates provide compile-time polymorphism: the compiler instantiates a distinct version per type, unlike virtual dispatch which resolves at runtime through a vtable. Instantiation per specialization means the cost is code size and compile time, while the benefit is that the generated code can be inlined and tuned for the concrete type rather than paying for an indirect call. The subtlety is two-phase name lookup: names that do not depend on the template parameter are resolved where the template is defined, while dependent names are resolved at instantiation. That split is why qualifiers such as typename and template exist at all, and why an error in a template you never modified can surface in a header you only include.", "std::move does not move anything by itself; it casts an expression to an rvalue reference so that a move-aware constructor or assignment can take ownership of its resources. The moved-from object remains a live object of the same type that must be destructible and assignable, which is why a moved-from vector is empty rather than gibberish. Because the cast is unconditional, applying std::move to something you actually wanted to copy still compiles, and it silently selects a copy when the source is const. The visible symptom is therefore not an error but a lost optimization that is very hard to spot in a diff, and a source you assumed was empty after the call.", "Undefined behaviour is not the same as a crash: signed integer overflow, out-of-bounds access and use-after-free can appear to work while giving the optimizer freedom to change program meaning. The practical consequence is that a release build without sanitizers can pass every test and then fail once the compiler rewrites a loop it proved cannot overflow, or removes a null check that follows a dereference. Undefined behaviour is not a runtime property of your program but a licence the compiler takes to reinterpret your source, which is why sanitizers and a debug build belong in the same pipeline as the tests rather than in a separate nightly run.", "A forwarding reference is `T&&` only where the type is deduced, and it collapses to an lvalue reference for lvalue arguments, which is what makes perfect forwarding possible. The idiom has two failure modes that recur in review. Using std::forward twice on the same parameter hands the second callee whatever the first one left behind, which is a moved-from value if the first callee moved. Applying std::forward to a parameter that was never deduced, such as a `Widget&&` in a non-template signature, turns every argument into a forced move and quietly breaks callers who passed an object they intended to keep.", "Substitution failure is only a soft error when it happens in the immediate context of deduction; a failure deeper in the substituted template's body is a hard error, which is the whole reason classic detection idioms stuffed their test expressions into `decltype` and `std::void_t`. A requires clause expresses the same pruning declaratively, and its real payoff is a diagnostic that names the unsatisfied constraint instead of pages of instantiation notes. Constraints also change overload resolution mechanics: a template whose constraints are not satisfied is not a viable candidate at all, so the compiler ranks the remaining ones rather than rejecting one that already looked like a match.", "A lambda's closure stores each by-value capture as a data member copied when the lambda object is created, which means the closure is a snapshot rather than a live window on the surrounding scope; by-reference captures store references and therefore dangle exactly like a returned reference to a local would. Making the closure self-contained with an init-capture, or copying a shared_ptr rather than capturing an object by reference, is what allows it to be stored in a member, handed to another thread or returned from the function that created it. Marking it mutable grants the body write access to those copies, not to the originals.", "A function declared constexpr is a promise that it can be evaluated during compilation when given constant arguments; it is not a mandate, and the same function runs normally at runtime. `consteval` differs by requiring every call to be a constant expression, and `constinit` applies to a variable, guaranteeing constant initialization while leaving its later mutability alone, which is the standard defence against static-initialization order problems. Static assertions and constant contexts consume these values, so the practical rule is that constexpr documents an intent that the compiler may or may not act on, and code that must run at compile time should say so with the stricter keyword rather than hoping.", "Deduction shapes what you get from a generic parameter: plain auto deduces by value and drops both the reference and the top-level const, so `auto x = v;` over a const container produces a full copy, while `const auto& r = v;` borrows it. `auto&&` in a deducing context is a forwarding reference and binds to everything, including temporaries whose lifetime it then does not extend once you look through it. Structured bindings are not variables but aliases into the underlying object, so declaring one as a reference or applying std::move to one behaves surprisingly, and a defaulted comparison or swap on such an alias operates on the aliased object rather than on a copy." ]
+  }, {
+    "title" : "Move Semantics and the Rule of Five",
+    "content" : [ "Every expression is an lvalue, an xvalue or an rvalue, and the category selects which constructor or assignment overload is viable. A named object is an lvalue even when it was declared as an rvalue reference, so the body of `void f(X&& x)` holds an lvalue and must cast deliberately to move x onward. std::move produces an xvalue, which is movable like a temporary but addressable like a variable. Mixing these up is why a function that takes an rvalue reference and then passes its parameter to another function ends up copying, and why the same function compiles quietly while the resource is never actually transferred.", "A type that supports moving must leave the source in a valid but unspecified state, which means you may destroy it, assign to it, and call any operation that has no preconditions, but may not assume anything about what it holds. A moved-from vector is guaranteed empty by its own contract, a moved-from string may be empty or may hold a leftover small-string buffer, and a moved-from unique_ptr is null because that is written into its specification. Code that reads a moved-from value and treats the result as meaningful is relying on an implementation detail, and it is the reason a refactor that changes one standard container for another can alter behaviour without touching a single line of logic.", "Container growth relocates elements to new storage, and it prefers a move constructor that is declared noexcept. If the move may throw and the type is also copyable, growth copies instead, because copying can be rolled back and a throwing move half-way through relocation cannot, so the vector's exception guarantee would be lost. If the type is not copyable, the throwing move is used anyway and the guarantee quietly disappears. Marking move operations noexcept, or verifying the property with `std::is_nothrow_move_constructible_v`, is the step to check when a class gets slower after someone adds a destructor, since that destructor also suppresses the implicit moves.", "The five special members interact through a small set of suppression rules rather than independently. Declaring a copy operation or any destructor prevents the compiler from generating the move operations, and declaring a move operation prevents the copy operations from being generated at all, which makes the type move-only. Because a user-written destructor also suppresses moves, the most common accidental bug in this area is a class that is still copyable at enormous cost while every author believes it moves. Writing `= default` on the operations you want, and `= delete` on the ones you do not, is what makes the type's ownership intent legible in its declaration instead of buried in its implementation.", "Copy-and-swap assigns from a constructed temporary and then exchanges it with the target, which yields the strong exception guarantee because the acquisition happens before any non-throwing step, and self-assignment works without an explicit check. The cost is that the swap has to be genuinely cheap and must not throw, and the idiom does not compile for move-only types, which need separate overloads instead. Taking the parameter by value is the variant that reads cleanly but moves or copies once more than a reference parameter with an explicit copy in the body, so the choice should follow the type's move cost rather than a template you paste into every class.", "Ownership rules are encoded in the smart pointer's type rather than in comments. `std::unique_ptr<T>` has zero overhead over a raw pointer unless it carries a deleter, whose type becomes part of the pointer's signature, and its default deleter calls delete, so an array needs `std::unique_ptr<T[]>`. `std::make_shared` allocates object and control block together while a shared_ptr built from a new pointer makes two allocations, and the combined allocation keeps the object's memory alive as long as any weak reference remains. Reference counts are atomic even when a single shared_ptr object is used by one thread, and the operations that touch the control block are thread-safe while the managed object itself is not, so concurrent reads of one shared_ptr instance are fine and concurrent modification of that same instance is a data race.", "Never move a constructor's own template argument: doing so produces a forwarding reference bound to a temporary that dies at the end of the statement, and the resulting member reference dangles immediately. Returning a local by value needs no std::move either, because the standard allows elision and an explicit move can actually block it. The places where a cast really is required are narrow: passing a named object that you intend to empty, calling a member on an rvalue, and re-dispatching inside a perfect-forwarding function. Anywhere else, a std::move in the code is a signal to the reviewer that someone was guessing about overload selection rather than reading the signature." ]
+  }, {
+    "title" : "STL Containers, Iterators and Algorithms",
+    "content" : [ "Containers differ in where their elements live, and that difference is what the iterator invalidation rules are describing. A vector holds its elements contiguously, so any reallocation invalidates every iterator, pointer and reference into it, while growth that stays inside the existing capacity invalidates only positions at or after the insertion. A deque stores elements in blocks, so inserting at either end invalidates iterators but leaves references to the elements themselves valid. Node-based containers such as list, map and set keep an element at a fixed address for its whole life, which is why you may hold a reference into a map across many insertions and why splice operations move elements without invalidating anything.", "Removing from a sequence is a two-step business because algorithms and containers have different powers. `std::remove_if` rewrites the range through iterators, shifting survivors forward and returning the new logical end, but it cannot change the container's size, so the tail is left holding moved-from leftovers. The container's own erase is what destroys elements and adjusts size, which is why the idiom is `v.erase(std::remove_if(...), v.end())` and why a range-for loop that erases while iterating is undefined behaviour rather than merely awkward. In C++20 `std::erase` and `std::erase_if` wrap those two steps for the standard sequence containers, but they change nothing about the underlying mechanics.", "Iterator categories describe the operations an iterator supports, and algorithms are specified in terms of the weakest category they can work with. Random-access iteration is what lets std::sort divide a range in half, so list and forward_list, which are only bidirectional and forward respectively, must use their own merge-based member sorts. Advancing by an arbitrary amount is therefore not a property of containers in general, and `std::distance` on a bidirectional range walks it element by element, which turns an O(1) looking loop bound into quadratic code inside a nested traversal. The C++20 concepts subsume the old tag types, so a ranges algorithm can be constrained by the iterator concept it needs instead of by a traits class.", "Ordered associative containers find elements by repeated comparison and therefore require a strict weak ordering, which is a comparison where an element never compares as less than itself and the notion of incomparability is transitive. Passing a less-than that returns true for equal elements breaks that contract and corrupts the tree in ways that show up as inconsistent lookups rather than as an assertion. Unordered containers instead require a hash and equality, keep elements in buckets, and rehash when the load factor is exceeded; a rehash invalidates iterators but leaves references and pointers to elements valid, the opposite of vector. Default-constructing a value by mistake is the other hazard, because subscripting a map inserts while at throws.", "Views are lazy, composable range adapters: building `v | std::views::filter(p) | std::views::take(3)` performs no scanning and copies no elements until you iterate it, and composing views onto views costs nothing. Laziness is also the source of the two classic mistakes. A view stores references to its underlying sequence, so a view over a temporary or over a local container dangles the moment that container dies, and the compiler cannot warn you. A filtering predicate that is not pure is evaluated whenever the view is advanced, which may be several times, at unpredictable points, or not at all if the range is never iterated.", "The odd containers have sharp edges that are easy to mistake for bugs in unrelated code. `std::vector<bool>` is packed into bits and hands back a proxy rather than a reference, so a lambda or template expecting a real `bool&` fails, and the data is not addressable for APIs that want a pointer. `std::string` typically stores short strings inside the object, but any mutation, or even a capacity change, can move the buffer that c_str() pointed into. `std::array` is a value with no allocator and no indirection, so returning one by value copies it while returning a `std::span` over a local array dangles exactly like a view over any other dead object.", "Inserting into or erasing from a container while holding iterators obtained earlier is the most common way to break STL code in review, because the failure often looks like a wrong value rather than a crash. A cached position into a vector is invalidated by the next growth; an erased position must be re-taken from erase's return value; and a pointer into an unordered container survives a rehash but not the destruction of its element. When a design needs stable positions, the choice is between node-based containers, indices instead of iterators, or an intrusive structure, and that choice should be made before the code accumulates references to elements scattered through several modules." ]
+  }, {
+    "title" : "Concurrency and the C++ Memory Model",
+    "content" : [ "A data race has a precise definition: two accesses to the same memory location from different threads, at least one of them a write, neither of them atomic and neither ordered by synchronization. It is undefined behaviour, not a glitch that occasionally returns a stale value, and the compiler is free to hoist, split, cache in a register or delete the accesses involved. This is different from a logical race condition, where every operation is properly synchronized but the interleaving still produces the wrong result, and different from a deadlock, where the program is correct in its ordering but two threads each hold a lock the other needs. Confusing the three leads directly to fixes that cure the symptom and leave the defect.", "An atomic type guarantees that an individual access is not torn or lost; it does not by itself order the surrounding non-atomic memory. Each operation carries a memory order, and a release store pairs with an acquire load: every write that happened before the release on the publishing thread becomes visible to a thread whose acquire read that value or one later in the same modification order. Relaxed operations are atomic but offer no such pairing, which is enough for a counter whose value nobody depends on and wrong for a ready flag that publishes a structure. The default is the strongest ordering, and weakening it is a change that needs a reason and, ideally, a benchmark rather than intuition.", "Locks and atomics solve different problems. A mutex makes a critical section mutually exclusive, which is what a multi-step invariant needs: two atomics updated one after the other leave a window in which another thread sees one changed and the other not. A mutex also serializes memory access, which is the reason the simple case is safe and easy to reason about, while atomics let you build lock-free structures in exchange for a proof about orderings that no sanitizer will hand you. Choosing an atomic because it is called atomic, and then discovering the invariant it cannot protect, is one of the more expensive forms of that mistake.", "A lock is only one half of the discipline: which locks are held, in which order, and for how long decides whether the program deadlocks. Two threads acquiring the same two mutexes in opposite orders deadlock, and the fix is either to enforce a global acquisition order or to use a facility that locks several mutexes with a deadlock-free algorithm. Holding a lock across a callback, an I/O call or an unbounded wait widens the window for both deadlock and latency spikes, and the lock's cost is not only contention but also the serialized memory operations on every entry and exit. Recursively locking a non-recursive mutex from the same thread is undefined behaviour; reaching for a recursive mutex usually means the class invariants are spread across too many functions.", "A condition variable wait releases the mutex and suspends the thread atomically with respect to the lock, which is what creates the narrow window in which a notification can be lost: a producer that changes the state and notifies between the consumer's predicate check and its wait leaves the consumer sleeping on a condition that is already true. The repair is not an extra notify but a predicate that the wait re-checks under the lock every time it wakes, since spurious wakeups are also permitted. Notifications may be sent without holding the mutex, at which point the waiting predicate reads a value another thread may concurrently be writing, so it still has to be protected.", "A thread has a joinable std::thread object for as long as nobody joins or detaches it, and destroying a joinable one calls terminate on purpose, because neither blocking the caller nor abandoning the thread seemed like something a destructor should decide silently. Ownership of the handle moves, so the pattern is to move the thread into a manager that joins in its destructor, or to use the RAII thread type that joins automatically and can carry a stop request. Arguments passed to the thread constructor are copied before the new thread starts, so a reference parameter needs an explicit wrapper and the referred object must outlive the thread, which is the same dangling rule as returning a reference to a local with a longer delay before it hurts.", "Thread-local objects exist per thread and are destroyed as their thread exits, which means a static object holding a pointer into thread-local storage can outlive it by accident. Initialization of a function-local static is thread-safe, and a thread that arrives while another is still constructing it waits rather than observing a half-built object. `volatile` has nothing to do with any of this: it forbids caching an access in a register and eliding it, but it does not provide atomicity and the language's concurrency rules do not treat a volatile access as synchronization, so it is the wrong tool even though its name suggests exactly what you want." ]
+  }, {
+    "title" : "Compilation, Linkage and Undefined Behaviour",
+    "content" : [ "Each source file, with everything it includes, forms a translation unit that is compiled on its own and later joined by the linker. A namespace-scope name declared with static, or inside an anonymous namespace, has internal linkage, so every translation unit that declares it gets its own copy and no symbol is exported; a plain namespace-scope function or variable has external linkage and must have exactly one definition somewhere. Templates, inline functions and inline variables are the deliberate exceptions, permitted to appear in several translation units as long as the definitions are identical, which is what makes a header-only library possible without the linker complaining about duplicate symbols.", "The One Definition Rule demands that a class, a function with inline linkage or a template look the same in every translation unit that uses it, where sameness means the same token sequence ignoring whitespace and comments. The classic violation is not two files that disagree visibly, but the same header compiled with different flags: an assert toggled off by NDEBUG, a macro that adds a member, different packing pragmas, or two libraries built against different versions of a shared header. None of that is checked at link time. The objects simply have different sizes and different member offsets, and the corruption appears in whichever code happens to read the field that moved, which can be a module nobody changed.", "Template definitions must be visible at every point of use, because instantiation happens where the template is used rather than where it is written. Keeping the body of a template in a source file therefore produces undefined references for every specialization another file needs, and the usual repairs are defining it in the header or explicitly instantiating the specializations you plan to use and declaring them elsewhere so the compiler stops generating them a hundred times. Declarations, by contrast, can be repeated freely, which is why a header that forward-declares a class lets you name pointers and references to it while any use requiring its size or its members stays ill-formed until the definition is actually included.", "Initialization of namespace-scope objects across translation units is unordered, and the dependency graph usually hides behind constructor bodies, so a global that reads another global from a different file can observe an object that has not been constructed. Turning the dependency into a function-local static removes the problem, because initialization happens on first use and is thread-safe. Destruction runs in the reverse order of completed construction within a translation unit, and any use of a static after main returns or during shutdown is a separate hazard; the exit functions bypass ordinary destruction entirely, so objects with non-trivial destructors are not cleaned up by them and their finalization never runs.", "Undefined behaviour, implementation-defined behaviour and unspecified behaviour are three different promises. Undefined behaviour means the standard imposes nothing on an invalid program: the compiler may produce any result, and it may also assume the offending condition never occurs, which is what licenses removing a bounds check that provably cannot fail or ending a loop that would overflow. Implementation-defined behaviour has an actual result chosen by the implementation and required to be documented, such as the width of a type or the calling convention. Unspecified behaviour leaves a free choice without requiring documentation, like the order in which function arguments are evaluated, so any two runs may legitimately differ and the program stays correct. Conflating the three produces the stubborn bugs where a developer writes code that relies on a compiler's currently observable behaviour and calls it a port.", "Order-of-evaluation rules decide whether two modifications of the same scalar in one expression are unsequenced, and unsequenced modification plus access in the same expression without a sequencing relation is undefined behaviour, which is why `f(i++, i)` is a defect rather than a style problem. Sequencing does exist: the left operand of a comma, of an assignment, and of a chained overloaded stream insertion are sequenced before the right in current standards, and a full expression separates the statements around it. Function call arguments remain indeterminately sequenced with respect to each other, so a build where the evaluation order changes with a refactor is a build that was always relying on undefined behaviour, and only the diagnosis changed.", "Assertions exist to catch bugs during development and are compiled away when NDEBUG is defined, so an expression with side effects inside assert simply vanishes from the release build, and a check whose result the program depends on belongs in ordinary code. Debug versus release differences are usually the standard's freedom being exercised rather than a compiler fault: aliasing assumptions, inlining that removes a guard, uninitialized reads that happened to look sane in a debug binary. Address and undefined-behavior sanitizers instrument memory and behaviour to turn that freedom back into a report, and the thread sanitizer is a separate tool with separate rules, because it detects data races rather than memory errors and cannot tell you whether your lock discipline deadlocks.", "Include mechanics have correctness consequences too. A header without a guard or its pragma-once equivalent is included twice in one translation unit and the duplicated class definition becomes a hard error, while forward declaration plus a narrow include keeps compile-time dependencies off the critical path. Deleting through a pointer to an incomplete class type is undefined behaviour, so a pimpl held as a `std::unique_ptr<Impl>` with only a forward declaration requires the enclosing destructor to be defined in the file where Impl is complete, because that is where the deleter learns the size and the destruction of the members." ]
+  } ],
+  "questions" : [ {
+    "text" : "Why should a polymorphic base class declare a virtual destructor?",
+    "a" : "It allows deletion through a base pointer without undefined behaviour",
+    "b" : "It makes the destructor run twice for derived objects during cleanup chains",
+    "c" : "It is required for stack-allocated objects",
+    "d" : "It prevents further inheritance",
+    "correct" : "A",
+    "explanation" : "Without virtual dispatch the base destructor runs but the derived destructor is skipped, leaking derived resources and causing undefined behaviour.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which description matches RAII?",
+    "a" : "A feature that frees memory only at program exit",
+    "b" : "A garbage collector for C++",
+    "c" : "A macro-based exception handler",
+    "d" : "Binding resource lifetime to object lifetime",
+    "correct" : "D",
+    "explanation" : "Constructors acquire the resource and destructors release it, so scope exit provides deterministic cleanup.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does std::move(x) actually do?",
+    "a" : "Physically copies the object and immediately deletes the original source",
+    "b" : "Casts an expression to an rvalue reference so move semantics can apply",
+    "c" : "Works only on raw pointers",
+    "d" : "Guarantees the source is left unchanged",
+    "correct" : "B",
+    "explanation" : "std::move is an unconditional cast. Whether resources are transferred depends on the target constructor or assignment operator.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement about std::unique_ptr is correct?",
+    "a" : "It allows multiple owners with atomic reference counting",
+    "b" : "It cannot be returned from a function",
+    "c" : "It represents exclusive ownership and is movable but not copyable",
+    "d" : "It requires a manual delete",
+    "correct" : "C",
+    "explanation" : "Unique ownership is encoded in the type: copies are deleted and ownership is transferred with move.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Signed integer overflow in C++ is best described as:",
+    "a" : "Wrapping around predictably on all platforms",
+    "b" : "Throwing std::overflow_error",
+    "c" : "Undefined behaviour",
+    "d" : "Saturating at INT_MAX",
+    "correct" : "C",
+    "explanation" : "Unlike unsigned arithmetic, signed overflow is undefined; the optimizer may assume it never happens.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is the effect of push_back causing a std::vector reallocation?",
+    "a" : "It invalidates iterators and references to existing elements",
+    "b" : "It preserves all iterators but invalidates pointers",
+    "c" : "It is guaranteed never to happen",
+    "d" : "It only happens when shrink_to_fit is called",
+    "correct" : "A",
+    "explanation" : "Reallocation moves elements to new storage, so anything pointing into the old buffer dangles.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which set of operations does the rule of five cover?",
+    "a" : "Copy constructor and copy assignment only, because move operations are generated automatically",
+    "b" : "The destructor only",
+    "c" : "Destructor, copy constructor, copy assignment, move constructor and move assignment",
+    "d" : "Virtual destructor and friend functions",
+    "correct" : "C",
+    "explanation" : "The rule exists because declaring one special member can suppress or misalign the others, especially move operations.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does const int* p mean?",
+    "a" : "p cannot be reassigned, but *p can change",
+    "b" : "*p cannot change through p, but p can point elsewhere",
+    "c" : "Both p and *p are constant because const applies to the whole declaration",
+    "d" : "The declaration is invalid",
+    "correct" : "B",
+    "explanation" : "The pointee is const-qualified; the pointer itself remains assignable. int* const p would be the opposite.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What advantage do templates have over virtual functions?",
+    "a" : "They resolve at runtime through a vtable",
+    "b" : "They require heap allocation for each instance",
+    "c" : "They cannot accept class types",
+    "d" : "They provide compile-time polymorphism",
+    "correct" : "D",
+    "explanation" : "Template instantiation happens during compilation, which enables inlining and type-specific optimization at the cost of code size.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which situation is a memory leak?",
+    "a" : "Allocated memory that is no longer reachable and never freed",
+    "b" : "A buffer whose contents were written past the end of its allocation",
+    "c" : "A reference that outlives a stack object",
+    "d" : "A delete call on a smart pointer",
+    "correct" : "A",
+    "explanation" : "Losing the last pointer to heap memory makes the allocation unreachable while it still occupies memory; smart pointers exist to prevent this.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Given `const std::vector<int> v;` what does `auto x = v;` produce?",
+    "a" : "A reference into v that reflects later changes to the container",
+    "b" : "An independent copy whose own elements are modifiable",
+    "c" : "A compile error, because the source is const-qualified",
+    "d" : "A pointer to the buffer that survives reallocation",
+    "correct" : "B",
+    "explanation" : "Plain auto deduces by value and drops the reference and top-level const, so x is a fresh copy you can modify. A borrowed view needs const auto&.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What separates m[k] from m.at(k) for a std::map?",
+    "a" : "Both insert a default value when the key is not present already",
+    "b" : "at inserts the missing value while the subscript throws for it",
+    "c" : "The subscript yields a const reference that you cannot assign to",
+    "d" : "The subscript default-constructs a missing value; at throws out_of_range",
+    "correct" : "D",
+    "explanation" : "Subscripting is a mutating lookup that inserts a value-initialized element, while at never inserts and throws instead. Option B reverses the two behaviours.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What happens when a std::thread object is destroyed while still joinable?",
+    "a" : "std::terminate is called, so joining must precede the destruction",
+    "b" : "The thread is detached automatically and runs to completion quietly",
+    "c" : "The destructor blocks until the thread function has returned",
+    "d" : "The running thread's stack is unwound and its resources freed",
+    "correct" : "A",
+    "explanation" : "A joinable destructor calls terminate deliberately. Detaching, the tempting answer, is something the program must request explicitly.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which guarantee applies to an object after it has been moved from?",
+    "a" : "Its destructor becomes a no-op, so a moved-from object leaks",
+    "b" : "It keeps its old value, because moving only marks the source",
+    "c" : "It is valid but unspecified, so you may destroy or reassign it",
+    "d" : "Using it at all, including destruction, is undefined behaviour",
+    "correct" : "C",
+    "explanation" : "The source must stay destructible and assignable, and implementations typically empty it, but no operation may assume a particular value. Believing it keeps its old value is the classic use-after-move bug.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why does every header need an include guard or its pragma equivalent?",
+    "a" : "To make the header's symbols visible to the linker after compiling",
+    "b" : "To stop the preprocessor expanding macros across translation units",
+    "c" : "Because a template may never be declared twice in one program",
+    "d" : "To prevent duplicate definitions when the header is reached twice",
+    "correct" : "D",
+    "explanation" : "Guards make a header idempotent within one translation unit; repeated class definitions there are hard errors, while templates and inline functions may legally appear in many units.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does wrapping a function declaration in extern \"C\" change?",
+    "a" : "The compiler then compiles that header as C source code",
+    "b" : "Name mangling is disabled so the symbol matches the C ABI",
+    "c" : "The function becomes inlineable across every translation unit",
+    "d" : "The body's calling convention becomes that of the C runtime",
+    "correct" : "B",
+    "explanation" : "The specifier affects linkage and mangled names only; how the body compiles is unchanged, and calling convention is a separate implementation-specific attribute.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why is nullptr better than the literal 0 for a null pointer?",
+    "a" : "It is guaranteed to compare equal to an uninitialized pointer",
+    "b" : "It lets the optimizer delete redundant null checks on pointers",
+    "c" : "Its type converts to any pointer but never to an integer type",
+    "d" : "It is the only null spelling that works with smart pointers",
+    "correct" : "C",
+    "explanation" : "NULL and 0 are integers, so they can silently select an int overload, while std::nullptr_t converts only to pointer types. An uninitialized pointer holds an indeterminate value, not a null one.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which construct converts a pointer to an unrelated object type by reinterpreting its address?",
+    "a" : "reinterpret_cast, usable further only where aliasing rules permit it",
+    "b" : "static_cast, which also bridges unrelated class types safely",
+    "c" : "const_cast, since the difference is only one of qualification",
+    "d" : "dynamic_cast, because it inspects the object's runtime type first",
+    "correct" : "A",
+    "explanation" : "reinterpret_cast performs the address conversion, but reading the result through the wrong type violates the strict aliasing rules. dynamic_cast needs a polymorphic source and never invents a relation.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why is `for (std::size_t i = 0; i <= v.size() - 1; ++i)` wrong when v is empty?",
+    "a" : "size_t is always wider than the type of the loop counter used",
+    "b" : "The comparison involves unsigned values and is therefore unspecified",
+    "c" : "The loop variable overflows before the first test is evaluated",
+    "d" : "Unsigned wraparound turns size() - 1 into the largest value",
+    "correct" : "D",
+    "explanation" : "Unsigned arithmetic wraps modulo 2^N, so an empty size yields the maximum value and the loop walks past the end; the correct bound is i < v.size().",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "After v.clear() on a std::vector with a million elements, which property is unchanged?",
+    "a" : "The size, because clear only marks the elements as logically dead",
+    "b" : "The allocator state, because freed memory is returned immediately",
+    "c" : "The capacity: the storage remains allocated until it is shrunk",
+    "d" : "Nothing is unchanged, since the buffer is released right away",
+    "correct" : "C",
+    "explanation" : "clear destroys the elements and sets size to zero but keeps capacity, so memory usage stays high until shrink_to_fit, a smaller assignment or destruction.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A class declares `int b; int a;` in that order and initializes them `a(1), b(a)`. What does b contain?",
+    "a" : "One, because the mem-initializer list runs left to right",
+    "b" : "Zero, because uninitialized members are always cleared first",
+    "c" : "A compile error, since list order must match declaration order",
+    "d" : "An indeterminate value, because members init in declaration order",
+    "correct" : "D",
+    "explanation" : "Initialization follows declaration order, so b is built before a and reads a member that is not yet initialized. The code is well-formed, and -Wreorder is the only warning you tend to get.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Inside a function body, what does `std::function<void()> f();` declare?",
+    "a" : "A function named f taking no arguments and returning void",
+    "b" : "A default-constructed std::function object called f",
+    "c" : "An ill-formed declaration that every compiler rejects outright",
+    "d" : "A variable whose std::function target is initially empty",
+    "correct" : "A",
+    "explanation" : "The grammar prefers a function declaration, so this is the most vexing parse; braces or an explicit initializer name a variable instead.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A function returns a std::string_view naming a local std::string. What does the caller hold?",
+    "a" : "The view copies the characters into the caller's frame",
+    "b" : "An implicit conversion to std::string at the return point",
+    "c" : "A well-formed program, because the compiler rejects this",
+    "d" : "A view over freed storage, which is undefined behaviour",
+    "correct" : "D",
+    "explanation" : "A non-owning view extends nothing, and the local string dies with its scope. The bytes usually look right for a while, which is what makes this bug hard to find.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why must a dependent nested type be written as `typename T::value_type`?",
+    "a" : "Because nested types are private unless explicitly declared public",
+    "b" : "Because the compiler cannot assume that that name denotes a type",
+    "c" : "Because dependent names are looked up only at instantiation time",
+    "d" : "Because value_type is a name reserved for standard containers",
+    "correct" : "B",
+    "explanation" : "A qualified dependent name is not known to name a type, so typename resolves the parse; the same reasoning forces the template keyword for dependent member templates.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A lambda captures a counter by value; the counter is then incremented. What does the lambda see?",
+    "a" : "The current value, since by-value captures are references",
+    "b" : "A compile error, because the captured variable later changes",
+    "c" : "The value captured when the closure object was created",
+    "d" : "Zero, since by-value captures are default-initialized",
+    "correct" : "C",
+    "explanation" : "The closure holds a copy made at construction, so later mutations of the original are invisible to it. Capturing by reference would see the updates but can dangle.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What exactly does declaring a function constexpr commit the compiler to?",
+    "a" : "It can be evaluated in constant expressions given constant inputs",
+    "b" : "It is always evaluated while the program is compiled, never at runtime",
+    "c" : "Its parameters become constants that shadow any later use",
+    "d" : "It may only ever be called from within another constexpr function",
+    "correct" : "A",
+    "explanation" : "constexpr is a capability, not a mandate; the identical function still runs at runtime with runtime arguments, while consteval forces compile-time evaluation.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A class declares only a user-written destructor. Which special members does the compiler provide?",
+    "a" : "Both move operations, since moves are independent of the destructor",
+    "b" : "Both copy operations, while the move operations are not generated",
+    "c" : "Neither copy nor move, which makes the class uncopyable by accident",
+    "d" : "Only a move constructor, since move assignment requires a default",
+    "correct" : "B",
+    "explanation" : "A user-declared destructor suppresses the implicit move constructor and move assignment, leaving the copies, so every apparent move is actually a copy.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "In an erase loop over a std::vector, why is the body written `it = v.erase(it)`?",
+    "a" : "Erase hands back a copy of the element it just removed",
+    "b" : "The old iterator stays usable for exactly one more step",
+    "c" : "Erase takes an index, and the iterator must be converted",
+    "d" : "Erase invalidates it and returns the following position",
+    "correct" : "D",
+    "explanation" : "Erasing invalidates the erased iterator and everything after it, so the returned position is the only safe continuation; incrementing the old iterator is undefined behaviour.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "After `std::remove_if` matches three elements, what does the vector hold?",
+    "a" : "The same size, with moved-along leftovers at the tail",
+    "b" : "Three fewer elements, because remove erases them for you",
+    "c" : "A sorted range with all the matches grouped at the front",
+    "d" : "Nothing at all, since every matched element is destroyed",
+    "correct" : "A",
+    "explanation" : "Algorithms cannot resize a container, so remove_if shifts survivors forward and returns a new logical end; erase is what actually shortens the vector.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why does std::sort fail to compile for a std::list?",
+    "a" : "Because list nodes live on the heap and sort cannot copy them",
+    "b" : "Because std::sort needs random-access iterators that list lacks",
+    "c" : "Because std::sort is limited to containers of trivially copyable types",
+    "d" : "Because a list must be sorted before its allocator can be bound",
+    "correct" : "B",
+    "explanation" : "std::sort divides the range and needs random access; list provides only bidirectional iteration and must use its merge-based member sort, which also keeps iterators valid.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `std::scoped_lock lk(a, b);` add over locking a and then b manually?",
+    "a" : "It locks both in a fixed textual order at each separate call",
+    "b" : "It turns a lock-order inversion into a timed-out exception",
+    "c" : "It acquires both mutexes with a deadlock-free lock algorithm",
+    "d" : "It makes the whole critical section atomic for other threads",
+    "correct" : "C",
+    "explanation" : "The multi-lock avoids lock-order-inversion deadlock regardless of the order written at each call site. It does not make the section atomic: a third thread can still observe intermediate state when only one lock is held.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why must a condition variable wait always be given a predicate over the shared state?",
+    "a" : "Because calling notify_one without holding the mutex is illegal",
+    "b" : "Because the predicate lets you remove the mutex from the wait",
+    "c" : "Because a wait returns only after exactly one notification arrives",
+    "d" : "Because a wakeup may be spurious or the notify may be missed",
+    "correct" : "D",
+    "explanation" : "A notification arriving between the state check and the wait is lost, and spurious wakeups are allowed, so the predicate is re-evaluated under the lock on every wake.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the effect of defining a helper function in an anonymous namespace inside one .cpp?",
+    "a" : "It gains external linkage for every unit that links against it",
+    "b" : "It has internal linkage, so other files may reuse the same name",
+    "c" : "It is inlined at every call site anywhere across the program",
+    "d" : "It becomes a static member function of the enclosing class type",
+    "correct" : "B",
+    "explanation" : "The anonymous namespace gives internal linkage like a file-scope static, so each translation unit holds its own copy and no ODR clash occurs. Inlining is a separate optimization decision.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A function writes `assert(index < size && ++checked == expected);`. What breaks in a release build?",
+    "a" : "The whole expression vanishes, because NDEBUG compiles assert out",
+    "b" : "The assert still evaluates its argument but reports nothing",
+    "c" : "The program aborts, since a failing assert always terminates",
+    "d" : "The increment is evaluated twice, corrupting the counter value",
+    "correct" : "A",
+    "explanation" : "When NDEBUG is defined assert expands to nothing, so a side effect inside it disappears from the release build; any check the program depends on belongs in ordinary code.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "`struct P { int x; std::string s; };` What differs between `P a;` and `P b{};`?",
+    "a" : "Both leave x indeterminate, since P has no user constructor",
+    "b" : "Both zero-initialize, because aggregate initialization always does",
+    "c" : "a leaves x indeterminate while b initializes it to zero",
+    "d" : "a is ill-formed, because P lacks an accessible default constructor",
+    "correct" : "C",
+    "explanation" : "Default-initializing an aggregate gives uninitialized members indeterminate values, while empty braces value-initialize, zeroing x and default-constructing s. Reading a.x is undefined behaviour even when it looks fine.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Compare `const std::string& r = std::string(20, 'x');` with `std::string_view sv = std::string(20, 'x');`.",
+    "a" : "Neither is safe, since both bind to a temporary destroyed at once",
+    "b" : "Both are safe, because binding anything extends the temporary's life",
+    "c" : "Only sv is safe, because the view copies the characters it needs",
+    "d" : "Only r is safe, because its bound temporary lives as long as it",
+    "correct" : "D",
+    "explanation" : "A const lvalue reference extends the temporary it binds to, but a string_view is a value that merely points into a temporary buffer that dies at the end of the full expression.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why do C++20 requires clauses beat classic SFINAE for constraining a template?",
+    "a" : "Because they stop the body of the template from ever being compiled",
+    "b" : "Because they prune unviable candidates from overload resolution up front",
+    "c" : "Because they let a template be partially specialized without ambiguity",
+    "d" : "Because they make dependent names resolve at definition rather than use",
+    "correct" : "B",
+    "explanation" : "A constraint that is not satisfied makes the specialization non-viable, so the diagnostic names the constraint instead of a page of notes, and there is no need to force failures into the immediate context.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why does calling `std::forward<T>(t)` twice on one parameter usually surprise the second callee?",
+    "a" : "Forwarding is a cast, so the second call sees whatever the first left",
+    "b" : "The second call is ill-formed, since forward may appear only once",
+    "c" : "The argument is guaranteed empty before either callee is entered",
+    "d" : "The compiler makes a fresh copy for each argument it forwards",
+    "correct" : "A",
+    "explanation" : "If the first callee moved, the second receives the moved-from object; if T deduced to an lvalue reference, both receive the same live lvalue. Nothing resets the parameter between calls.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A type has a copy constructor and a throwing move constructor. What does vector growth do?",
+    "a" : "It copies the elements, since a throwing move cannot be undone",
+    "b" : "It moves them always, because a reallocation cannot fail midway",
+    "c" : "It refuses to compile for any container instantiated with it",
+    "d" : "It moves each element and rebuilds only the ones it destroyed",
+    "correct" : "A",
+    "explanation" : "Relocation must be rollback-able for the strong guarantee, so a possibly-throwing move is replaced by copying when a copy exists; a move-only type is moved and the guarantee is lost.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What happens when you apply std::move to a `const std::string` and use it to initialize another?",
+    "a" : "The program is ill-formed, since a const object has no move operations",
+    "b" : "A copy occurs, because the const rvalue matches the copy constructor",
+    "c" : "A move occurs, and the source is left in a valid empty state",
+    "d" : "A shallow borrow of the source buffer, which dangles on return",
+    "correct" : "B",
+    "explanation" : "The cast yields const std::string&&, which cannot bind to the move constructor's non-const rvalue reference, so overload resolution lands on a copy constructor taking an rvalue and no ownership transfers.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Which claim about copy assignment written as `X& operator=(X other) { swap(other); return *this; }` is true?",
+    "a" : "It mishandles self-assignment, since the copy aliases the target",
+    "b" : "It must be declared noexcept for the compiler to accept it",
+    "c" : "It cannot be used by classes that own memory with a raw pointer",
+    "d" : "It gives a strong guarantee because the swap step cannot throw",
+    "correct" : "D",
+    "explanation" : "The temporary acquires before anything can fail, and swapping a non-throwing resource commits the change, so the target stays intact on a throwing construction. Self-assignment is handled by the copy.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "An insertion forces a std::unordered_map to rehash. What remains valid afterwards?",
+    "a" : "Iterators survive, while pointers to elements are all invalidated",
+    "b" : "References and pointers to elements survive, iterators do not",
+    "c" : "Nothing survives, because elements are moved into new storage",
+    "d" : "Everything survives, because rehashing only relinks the containers",
+    "correct" : "B",
+    "explanation" : "The elements are nodes that stay in place while the bucket array changes, so iterators dangle but references and pointers remain usable. Vector behaves the opposite way.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Thread A writes `data = 42` and then releases a flag; thread B acquires that flag and reads data. What is guaranteed?",
+    "a" : "Nothing, because only a mutex can order two threads at all",
+    "b" : "The value 42 is visible, even if B never touches the flag",
+    "c" : "B's read sees 42, because release and acquire synchronize",
+    "d" : "A data race occurs, because data itself is not an atomic",
+    "correct" : "C",
+    "explanation" : "A release store paired with an acquire load on the same atomic establishes a happens-before edge that also orders the plain write. Option D misses that data is read only after the synchronization.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two threads increment one std::atomic counter with memory_order_relaxed, and the result is wrong. What does that tell you?",
+    "a" : "Relaxed operations are not atomic, so a mutex is mandatory",
+    "b" : "The counter needs a wider type so it cannot tear under load",
+    "c" : "Relaxed atomics work only on pointers, not on integral types",
+    "d" : "The bug is elsewhere, since relaxed still updates the value atomically",
+    "correct" : "D",
+    "explanation" : "Relaxed removes ordering guarantees, not atomicity, so a lost update cannot come from the increment itself; the real defect is usually a read of another variable that the relaxed operation does not synchronize.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Two threads each push and pop a shared std::vector under a mutex that every call locks. What is the defect?",
+    "a" : "A data race, since vector iterators are not thread-safe by type",
+    "b" : "A deadlock, because both threads contend for the very same mutex",
+    "c" : "An ODR violation between the two functions that touch the vector",
+    "d" : "A logic race the mutex cannot remove, because waiting is not done",
+    "correct" : "D",
+    "explanation" : "Every access is synchronized, so there is no data race, and one mutex used consistently cannot deadlock by itself; what is missing is waiting for a non-empty condition, which is a synchronization-free logic race.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is `f(i++, i)` undefined while `v.push_back(i++)` is fine?",
+    "a" : "Both are fine, and the two forms just differ in style",
+    "b" : "Function arguments are never sequenced before the function body",
+    "c" : "The modifications in one call are unsequenced against each other",
+    "d" : "Arguments are evaluated strictly left to right in every call here",
+    "correct" : "C",
+    "explanation" : "Two unsequenced side effects on one scalar in the same expression are undefined behaviour, while a single argument poses no such conflict. Current standards still leave argument evaluation orders indeterminately sequenced.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "A class layout changes because one library is built with NDEBUG and the rest of the program is not. What is the consequence?",
+    "a" : "A link-time error reports the mismatched class layout to you",
+    "b" : "An ODR violation, so member offsets disagree and memory corrupts",
+    "c" : "Implementation-defined behaviour that the manual documents",
+    "d" : "Unspecified evaluation order, which merely changes the program's speed",
+    "correct" : "B",
+    "explanation" : "Definitions of the same class must be token-identical across translation units; nothing checks this at link time, so each side computes different offsets and the result is undefined behaviour rather than a diagnostic.",
+    "difficulty" : "HARD"
+  } ]
+}

@@ -40,7 +40,7 @@ export const LeaderBoard = () => {
 
   const getScoreColor = (score) => {
     if (score >= 90) return "text-green-700 dark:text-green-400";
-    if (score >= 80) return "text-blue-600 dark:text-blue-400";
+    if (score >= 80) return "text-indigo-600 dark:text-indigo-400";
     if (score >= 70) return "text-yellow-700 dark:text-yellow-400";
     return "text-red-600 dark:text-red-400";
   };
@@ -117,7 +117,7 @@ export const LeaderBoard = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center">
+    <div className="w-full min-h-screen flex flex-col items-center">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 relative z-10">
         {/* Hero Section */}
         <motion.div
@@ -129,7 +129,7 @@ export const LeaderBoard = () => {
           <h2 className="inline-block text-lg font-medium px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full mb-4">
             Celebrate Excellence
           </h2>
-          <h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 mb-6">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             🏆 Leaderboard
           </h1>
           <p className="text-lg text-gray-700 dark:text-gray-300 max-w-xl mx-auto">
@@ -374,7 +374,7 @@ export const LeaderBoard = () => {
               >
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                    <tr className="bg-indigo-600 text-white">
                       <th scope="col" className="p-4 text-left font-semibold">Rank</th>
                       <th
                         scope="col"
@@ -467,7 +467,7 @@ export const LeaderBoard = () => {
                                   student.score >= 90
                                     ? "bg-green-500 dark:bg-green-400"
                                     : student.score >= 80
-                                    ? "bg-blue-500 dark:bg-blue-400"
+                                    ? "bg-indigo-500 dark:bg-indigo-400"
                                     : student.score >= 70
                                     ? "bg-yellow-500 dark:bg-yellow-400"
                                     : "bg-red-500 dark:bg-red-400"
@@ -565,7 +565,7 @@ export const LeaderBoard = () => {
                           student.score >= 90
                             ? "bg-green-500 dark:bg-green-400"
                             : student.score >= 80
-                            ? "bg-blue-500 dark:bg-blue-400"
+                            ? "bg-indigo-500 dark:bg-indigo-400"
                             : student.score >= 70
                             ? "bg-yellow-500 dark:bg-yellow-400"
                             : "bg-red-500 dark:bg-red-400"
@@ -621,22 +621,6 @@ export const LeaderBoard = () => {
         </motion.div>
       </div>
 
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.8;
-          }
-        }
-
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };

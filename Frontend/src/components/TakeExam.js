@@ -20,12 +20,16 @@ export const TakeExam = () => {
   
   // Exam states
   const [questions, setQuestions] = useState([]);
+  const [drawToken, setDrawToken] = useState(null);
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(40 * 60);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [noQuestions, setNoQuestions] = useState(false);
+  // A rejected draw token cannot be fixed by submitting again; it needs a fresh question set.
+  const [needsNewDraw, setNeedsNewDraw] = useState(false);
 
   const apiUrl = useMemo(() => 
     process.env.REACT_APP_ENV === "production"
@@ -54,13 +58,20 @@ export const TakeExam = () => {
         const response = await fetch(`${apiUrl}/api/exams/course/${courseId}/random`, {
           headers: { ...getAuthHeaders() },
         });
-        
+
         if (!response.ok) {
           throw new Error(`Server responded with status ${response.status}`);
         }
-        
+
+        // The server signs the set it serves and re-checks that token on submit, so a refresh
+        // keeps the same questions and every new attempt gets a different draw from the bank.
         const data = await response.json();
-        setQuestions(data);
+        const served = Array.isArray(data?.questions) ? data.questions : [];
+        setQuestions(served);
+        setDrawToken(data?.drawToken ?? null);
+        if (served.length === 0) {
+          setNoQuestions(true);
+        }
       } catch (err) {
         console.error("Error fetching exam questions:", err);
         setError("Failed to load exam questions. Please try again.");
@@ -95,24 +106,34 @@ export const TakeExam = () => {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
-        body: JSON.stringify({ userId, courseId, answers: completedAnswers }),
+        body: JSON.stringify({ userId, courseId, answers: completedAnswers, drawToken }),
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Server responded with status ${response.status}`);
+        let reason = `Server responded with status ${response.status}`;
+        try {
+          const body = await response.json();
+          if (body && body.message) reason = body.message;
+        } catch {
+          // No JSON body to explain the failure; keep the status text.
+        }
+        throw new Error(reason);
       }
-      
+
       const data = await response.json();
       document.body.style.overflow = "auto";
       setIsModalOpen(false);
       navigate(`/result/${data.id}`);
     } catch (err) {
       console.error("Error submitting exam:", err);
-      setError("Failed to submit exam. Please try again.");
+      setError(err.message || "Failed to submit exam. Please try again.");
+      if (/could not be graded|expired|invalid/i.test(err.message || "")) {
+        setNeedsNewDraw(true);
+      }
       setSubmitting(false);
       submittedRef.current = false;
     }
-  }, [apiUrl, userId, courseId, answers, navigate, submitting, questions]);
+  }, [apiUrl, userId, courseId, answers, drawToken, navigate, submitting, questions]);
 
   // Timer interval effect (BUG-01)
   useEffect(() => {
@@ -278,7 +299,7 @@ export const TakeExam = () => {
   };
 
   return (
-    <div className="relative w-full min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 dark:from-gray-950 dark:to-indigo-950 flex flex-col items-center justify-center p-4">
+    <div className="relative w-full min-h-screen flex flex-col items-center justify-center p-4">
       {/* Fullscreen Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 dark:bg-opacity-85 z-50 flex items-center justify-center">
@@ -297,7 +318,7 @@ export const TakeExam = () => {
             aria-labelledby="modal-title"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-700 p-4 flex justify-between items-center">
+            <div className="bg-indigo-600 dark:bg-indigo-700 p-4 flex justify-between items-center">
               <h1 id="modal-title" className="text-2xl font-bold text-white">Online Examination</h1>
               
               {/* Timer display */}
@@ -314,8 +335,9 @@ export const TakeExam = () => {
                 )}
                 
                 <button
+                  type="button"
                   onClick={handleCloseAttempt}
-                  className="text-white bg-red-500 dark:bg-red-600 hover:bg-red-700 dark:hover:bg-red-800 rounded-full p-1"
+                  className="h-11 w-11 flex items-center justify-center text-white bg-red-500 dark:bg-red-600 hover:bg-red-700 dark:hover:bg-red-800 rounded-full"
                   aria-label="Close exam"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -335,6 +357,16 @@ export const TakeExam = () => {
                     <li className="flex items-start">
                       <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
                       <span className="text-gray-800 dark:text-gray-300">You have <strong>40 minutes</strong> to complete the exam.</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
+                      <span className="text-gray-800 dark:text-gray-300">
+                        {loading
+                          ? "We are choosing your questions now."
+                          : questions.length === 0
+                            ? "This course has no question bank yet, so there is nothing to draw."
+                            : <>This attempt has <strong>{questions.length} questions</strong>, drawn fresh from the course bank — a retake gives you a different set.</>}
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <span className="mr-2 mt-1 text-green-700 dark:text-green-400" aria-hidden="true">✓</span>
@@ -364,17 +396,24 @@ export const TakeExam = () => {
                     <p className="text-sm mb-3">{error}</p>
                     <button
                       onClick={() => window.location.reload()}
-                      className="px-5 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
+                      className="min-h-[44px] px-5 py-2 bg-red-600 dark:bg-red-700 text-white rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-800 transition-colors"
                     >
                       Reload the exam
                     </button>
                   </div>
                 )}
 
+                {noQuestions && !error && (
+                  <div className="max-w-2xl mb-6 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 p-4 rounded-lg text-center">
+                    <p className="font-medium mb-1">This course has no exam yet</p>
+                    <p className="text-sm">An administrator needs to add questions before you can be assessed.</p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleStartExam}
-                  disabled={loading || !!error}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
+                  disabled={loading || noQuestions || !!error}
+                  className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
                 >
                   Start Exam
                 </button>
@@ -385,7 +424,7 @@ export const TakeExam = () => {
                 {/* Progress bar */}
                 <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-6">
                   <div 
-                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-600 dark:to-indigo-600 rounded-full transition-all duration-300"
+                    className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                     role="progressbar"
                     aria-valuenow={progress}
@@ -397,7 +436,7 @@ export const TakeExam = () => {
                 {/* Loading state */}
                 {loading ? (
                   <div className="flex-grow flex justify-center items-center">
-                    <div className="w-16 h-16 border-4 border-indigo-500 dark:border-indigo-400 border-t-purple-500 dark:border-t-purple-400 rounded-full animate-spin" aria-label="Loading"></div>
+                    <div className="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" aria-label="Loading"></div>
                   </div>
                 ) : error ? (
                   /* Error state */
@@ -409,18 +448,19 @@ export const TakeExam = () => {
                       <p className="text-lg font-medium mb-2">Your exam was not submitted</p>
                       <p>{error}</p>
                     </div>
-                    <button 
-                      onClick={submitExam}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-800 text-white rounded-lg font-semibold"
+                    <button
+                      type="button"
+                      onClick={needsNewDraw ? () => window.location.reload() : submitExam}
+                      className="min-h-[44px] px-6 bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-800 text-white rounded-lg font-semibold"
                     >
-                      Try submitting again
+                      {needsNewDraw ? "Load a new question set" : "Try submitting again"}
                     </button>
                   </div>
                 ) : submitting ? (
                   /* Submitting state */
                   <div className="flex-grow flex flex-col items-center justify-center">
                     <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 border-4 border-indigo-500 dark:border-indigo-400 border-t-purple-500 dark:border-t-purple-400 rounded-full animate-spin mb-4" aria-label="Submitting"></div>
+                      <div className="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin mb-4" aria-label="Submitting"></div>
                       <p className="text-xl font-semibold text-gray-700 dark:text-gray-300">Submitting your exam...</p>
                       <p className="text-gray-500 dark:text-gray-400 mt-2">Please wait, don't close this window.</p>
                     </div>
@@ -437,7 +477,7 @@ export const TakeExam = () => {
                             onClick={() => goToQuestion(idx)}
                             className={`w-full h-10 flex items-center justify-center rounded-md font-medium transition-all
                               ${currentQuestionIndex === idx 
-                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-600 dark:to-indigo-700 text-white ring-2 ring-offset-2 ring-blue-300 dark:ring-blue-500 dark:ring-offset-gray-800' 
+                                ? 'bg-indigo-600 text-white ring-2 ring-offset-2 ring-indigo-300 dark:ring-indigo-500 dark:ring-offset-gray-800' 
                                 : answers[q.id] 
                                   ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-300 dark:border-green-600' 
                                   : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
@@ -479,7 +519,7 @@ export const TakeExam = () => {
                           className={`w-full py-3 text-white rounded-lg font-semibold transition-colors
                             ${Object.keys(answers).length === questions.length
                               ? "bg-green-700 hover:bg-green-800"
-                              : "bg-blue-600 hover:bg-blue-700"}`}
+                              : "bg-indigo-600 hover:bg-indigo-700"}`}
                           onClick={submitExam}
                         >
                           {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}
@@ -511,13 +551,13 @@ export const TakeExam = () => {
                               key={option}
                               className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-800
                                 ${answers[currentQuestion.id] === option
-                                  ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300 shadow-sm"
+                                  ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-600 text-indigo-800 dark:text-indigo-300 shadow-sm"
                                   : "bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-300"}`}
                               htmlFor={`question-${currentQuestion.id}-option-${option}`}
                             >
                               <div className={`w-6 h-6 flex items-center justify-center rounded-full mr-3 border-2
                                 ${answers[currentQuestion.id] === option
-                                  ? "bg-blue-500 dark:bg-blue-600 border-blue-500 dark:border-blue-600 text-white"
+                                  ? "bg-indigo-500 dark:bg-indigo-600 border-indigo-500 dark:border-indigo-600 text-white"
                                   : "border-gray-300 dark:border-gray-500"}`}>
                                 {answers[currentQuestion.id] === option && (
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -563,7 +603,7 @@ export const TakeExam = () => {
                               className={`px-8 py-3 text-white rounded-lg font-semibold transition-all shadow hover:shadow-md
                                 ${Object.keys(answers).length === questions.length
                                   ? "bg-green-700 hover:bg-green-800"
-                                  : "bg-blue-600 hover:bg-blue-700"}`}
+                                  : "bg-indigo-600 hover:bg-indigo-700"}`}
                               onClick={submitExam}
                             >
                               {Object.keys(answers).length === questions.length ? "Submit Exam" : `Submit (${questions.length - Object.keys(answers).length} unanswered)`}
@@ -575,7 +615,7 @@ export const TakeExam = () => {
                           className={`px-6 py-3 rounded-lg font-semibold transition-all shadow hover:shadow-md
                             ${currentQuestionIndex === questions.length - 1
                               ? "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                              : "bg-blue-600 dark:bg-blue-700 hover:bg-blue-800 dark:hover:bg-blue-900 text-white"}`}
+                              : "bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-800 dark:hover:bg-indigo-900 text-white"}`}
                           onClick={nextQuestion}
                           disabled={currentQuestionIndex === questions.length - 1}
                           aria-label="Next question"
@@ -615,7 +655,7 @@ export const TakeExam = () => {
         <p className="text-gray-600 dark:text-gray-400 text-center mb-8">Please wait while we prepare your examination...</p>
         
         <div className="flex justify-center">
-          <div className="w-12 h-12 border-4 border-blue-500 dark:border-blue-400 border-t-purple-500 dark:border-t-purple-400 rounded-full animate-spin"></div>
+          <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
         </div>
       </div>
     </div>

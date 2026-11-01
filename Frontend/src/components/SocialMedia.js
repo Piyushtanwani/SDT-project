@@ -10,7 +10,7 @@ const networks = [
 
 export const SocialMedia = () => {
   return (
-    <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="w-full min-h-screen">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-white dark:bg-gray-900 rounded-xl p-8 md:p-12 ring-1 ring-gray-200/50 dark:ring-gray-800 text-center">
           <div className="flex justify-center mb-6">

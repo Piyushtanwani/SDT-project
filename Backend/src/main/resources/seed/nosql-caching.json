@@ -1,0 +1,566 @@
+{
+  "name": "NoSQL & Caching",
+  "description": "MongoDB document design, Redis data structures and the cache patterns that keep read-heavy services fast.",
+  "duration": "5 weeks",
+  "rating": 4.5,
+  "modules": [
+    {
+      "title": "Document and Key-Value Modeling",
+      "content": [
+        "MongoDB stores BSON documents. Embed data that is read together and bounded; reference data that grows without limit or is shared across documents. The choice follows the read path rather than a purity rule: an article carrying its last five comments inside the same document is served by one fetch, while an article with millions of comments needs its own collection and a paged lookup. Embedding is not free, though, because a write to any field rewrites the document, so a hot embedded array that changes on every request becomes a write amplifier even when it stays well under the 16 MB limit. Broken modeling shows up as documents that only ever grow: an appended array eventually costs more to move between pages than the query saved, while a fan of pure references turns an ordinary page render into N+1 round trips stitched together in application code.",
+        "Redis is a data-structure server: strings, hashes, lists, sets and sorted sets each solve a different problem. Sorted sets are the natural fit for leaderboards because scores order members in O(log n). That ordering is the whole trick, since ZREVRANGE returns the top of the board and ZREVRANK returns one player's position without materializing a ranking table anywhere. The same structure backs sliding-window rate limits, where members older than a cutoff are trimmed with ZREMRANGEBYSCORE, and delay queues scored by run time. The common mistake is defaulting to a JSON blob in a string for everything: you then lose field-level commands such as HINCRBY, re-serialize the whole object to change one attribute, and turn two concurrent read-modify-write cycles into a silently lost update.",
+        "A compound MongoDB index can serve queries that use its prefix fields, but a query on a later field alone cannot use it efficiently. The index is a sorted structure over the tuple, so field order matters as much as membership: equality on the leading field plus a sort on the next one is the ideal shape, while an equality on the trailing field alone forces a scan unless a separate index exists. Sort direction can be satisfied by walking the index backwards, but a field missing from the prefix cannot be skipped over. The largest single win is a covered query, where the index already holds every field the projection reads, so the server answers without touching documents and latency collapses to an index walk.",
+        "A key-value store has exactly one query, which is give me this key, so every other access pattern must be written out as an extra key at the moment the data changes. That is why healthy Redis code looks wasteful: the user object lives in a hash, the username-to-id lookup lives in a string, and a sorted set of recent ids exists only to serve the feed page. The break happens when someone needs a query nobody modeled and reaches for KEYS, which walks the whole keyspace on the single server thread and stalls every other client while it runs. SCAN with MATCH and COUNT is the survivable version, but it returns results in no order, may repeat entries, and still leaves filtering to the caller, so an ad-hoc query in Redis quietly becomes either a full keyspace walk or a feature ticket.",
+        "MongoDB validates nothing unless you ask it to, which means the freedom to add a field on one deploy and rename it on the next is real only until a query silently matches nothing. Schema validators attach to a collection and reject writes that fail the rule, with a level of off, strict or moderate that controls whether existing bad documents still update, and the operator default is usually off because validators cost throughput on every write. The practical substitute is discipline in the document itself: store a version field, widen reads to accept both shapes, and treat a rename as a two-write migration you run explicitly. The failure mode people meet is a one-sided migration, where new code writes a renamed field, old documents keep the old name, and a dashboard reports zero for a week while every query still succeeds.",
+        "Modeling a one-to-many relationship in a document store is a budget question rather than a philosophy question, because the limit is bytes and update cost rather than joins. A bounded child set that is always read with its parent, such as the address on an order or the options on a question, belongs inside the parent document and costs one fetch. An unbounded set that is queried, paged or updated on its own, such as messages in a thread or events on a device, belongs in its own collection with the parent id indexed as the leading field of a compound index. Reversing the two decisions produces the two classic outages: the growing embedded array that eventually exceeds the document size limit and fails writes outright, and the fully normalized model where each page render performs a dozen lookups that the driver cannot batch.",
+        "A key's shape in Redis is a contract with the operations that touch it, because one key always lives on one slot and one slot always lives on one node. Prefixing with a colon per entity plus a version number gives you predictable SCAN patterns, while embedding a shard hint in braces such as a user id makes several related keys land on the same slot so a transaction or a multi-key script can touch them at all on a cluster. Two habits break this: an unversioned prefix, which forces you to evict live data during a rollout, and a giant key, a hash or set with hundreds of thousands of members that is unshardable, impossible to delete without a long blocking command, and a monster for a replica backlog. Big keys are deleted with UNLINK or rebuilt incrementally rather than with DEL on the hot path."
+      ]
+    },
+    {
+      "title": "Caching and Scale",
+      "content": [
+        "In cache-aside, the application reads the cache, falls back to the database on a miss, and populates the cache. Invalidation strategy matters more than the cache itself. The mechanics are simple enough that people underestimate them: the cache is never authoritative, so a lost entry costs latency rather than data, and the sizing question becomes the hit ratio times the origin latency rather than raw capacity. What actually decides whether the pattern is safe is what you do on the write path, because cache-aside leaves the stale value sitting there with no owner unless you delete it, replace it, or bound it with a TTL. The classic break is a delete that races a read, where a reader loads the old row and repopulates after the writer's eviction, leaving stale data for the whole TTL window.",
+        "Redis can persist with RDB snapshots, an append-only file, or both. RDB is compact and point-in-time; AOF records writes and can be replayed with different fsync policies. The policies are where the durability trade becomes concrete, because appendfsync always asks the operating system to flush before the command is acknowledged, everysec accepts losing roughly the last second of accepted writes in exchange for throughput, and no leaves flushing to the operating system entirely. Stock redis.conf ships snapshots enabled and appendonly disabled, which surprises teams who assume a Redis cache is durable, so verify the settings of your own version instead of inheriting folklore. A crash then restores an hour-old cache rather than a warm one, and every dependent service discovers cold misses at once. Running both forms the safety net Redis recommends, with the AOF rewritten periodically so its length does not grow without bound.",
+        "CAP says that during a network partition a distributed system must choose between consistency and availability; the useful engineering question is what the business can tolerate. Partition tolerance is not optional once nodes talk over a network, so the honest wording is that a system picks a side when the network fails, and both sides cost something: a consensus store refuses writes until a majority is reachable, while an eventually consistent store accepts writes that later reconcile. PACELC extends the question to the normal case, asking what latency and consistency you accept while nothing is partitioned, which is why an available store still has a tail of slow quorum reads. The engineering artifact is a per-endpoint decision written down somewhere, such as a payment balance that must be serialized against a product page that may serve a stale price for a few seconds.",
+        "Cache stampede and cache breakdown are usually confused, and the fix depends on which one you have. A breakdown is one very hot key expiring and releasing a wave of concurrent origin reads; a stampede is many keys expiring together, typically because a fleet wrote them with identical TTLs during a warm-up. A cold key that does not exist at all, queried with random ids by a crawler or an attacker, is cache penetration, and no warm-up helps because there is nothing to warm. Mitigations differ accordingly: single-flight or a short lock reloads one hot key while other requests wait briefly, jittered TTLs stop synchronized expiry, negative caching of empty results absorbs penetration, and refresh-ahead moves the reload off the request path entirely. Applying lock-based protection to hundreds of independently expiring keys just serializes unrelated requests and adds latency without removing the herd.",
+        "Write-through and write-back caching look like variants of the same idea and are not, because they differ in who holds durability. Write-through sends the write to the store and the cache together before answering the caller, so the cache never contains data the origin lacks and a restart is merely cold rather than wrong; it pays for that with higher write latency. Write-back answers as soon as the cache holds the value and flushes to the origin later, sometimes coalesced and batched, which hides origin latency beautifully and loses anything not yet flushed when the process dies. The same split appears one layer down in the storage engine as write-behind or delayed flushing, which is why a cache that absorbs writes must either be treated as a database, with persistence and replication configured as seriously as the primary store, or restricted to values that can be recomputed.",
+        "Correct invalidation is mostly about ordering and about who reads a replica. When a writer deletes a cache key while readers are still loading the old row from a lagging replica, the readers repopulate the cache with pre-write data, and it survives until the TTL expires; delayed double delete works because a second eviction a moment later removes whatever a slow reader wrote back. A cache generation or version key avoids the race differently, since the writer bumps the prefix and every old entry becomes unreachable in one operation, which suits bulk changes and is wasteful for a single hot row. Change-data-capture driven eviction from the write path scales better than scattered delete calls in service code, and the TTL remains mandatory regardless, because a missed invalidation message is a routine failure rather than an impossible one.",
+        "Caching is a hierarchy with different physics at each level, and most production surprises come from assuming the levels behave alike. A CDN or edge cache removes network distance but serves a shared audience and cannot see your per-user session state; a browser cache is cheap and private but dies on logout and multi-device use; an in-process cache in front of Redis eliminates a round trip and costs you a fleet where every node holds a slightly different copy of the same key. That last difference is the one that produces heisenbugs, because an invalidation broadcast rarely reaches every process before the next read, and a two-level cache without a shared expiry story is really a cache with a configurable staleness budget nobody budgeted for.",
+        "Multi-level caching and eviction interact in ways that dashboards hide. A shared Redis layer keeps one copy per key and one eviction decision, so a hit ratio of ninety percent means what you think it means, while an in-process layer multiplies memory across replicas and evicts independently, so the effective staleness becomes the sum of both TTLs and the miss traffic to the shared layer drops far below what the origin load suggests. Monitoring compounds the confusion, since a cache that reports high hit ratio while every hit is a stale row still damages correctness, and a fallback path that silently swallows timeouts looks identical to a working cache in the metrics."
+      ]
+    },
+    {
+      "title": "MongoDB Modeling and the Aggregation Pipeline",
+      "content": [
+        "An aggregation pipeline is a list of stages that take the documents of a collection, transform them one stage at a time, and emit documents that need not resemble the input at all. Each stage is a function over a stream, so a $match filters, a $group collapses, and a $project reshapes, and the order you list them is literally the order MongoDB executes them. That property is what makes pipelines fast or catastrophic, because filtering early shrinks every later stage while grouping first destroys the ability to use an index. Pipelines run in the server, not the driver, so they also avoid shipping a whole collection across the network to sum a field in application memory, which is the first refactor most slow report endpoints need.",
+        "Stage placement decides whether an aggregation uses an index at all, and $match is the stage that can start an index scan. Putting the date and tenant filters first lets the planner bind them to an index, and a $sort immediately after $match can then be served by the index order instead of a memory sort. Once a $group has collapsed documents, the output no longer maps onto any stored index, so every later $match is evaluated document by document. The related trap is a computed field in the predicate, such as filtering on a value produced by $addFields or by applying a function to an indexed field, which reads naturally and quietly guarantees a full collection scan at three in the morning.",
+        "Projection stages rewrite documents rather than filtering them, and the difference leaks into both cost and bugs. $project keeps, adds or removes fields and can compute expressions, $addFields and its alias $set merge new fields into whatever already exists, and $unset drops fields without restating the ones you kept. By default $project also carries _id forward, so a projection that lists three fields returns four, which breaks strict deserializers and doubles payload size for nothing. Because $set replaces only the named paths, a document missing an optional field keeps missing it rather than gaining a null, which is exactly why later $match on that field must handle absence as well as null.",
+        "The $group stage collapses a stream by a key expression and needs the whole group in memory or spilled to disk, which is why its keys are written as an object and why the key can be a computed date bucket rather than a stored field. Accumulators compose: $sum adds 1 or a field, $push and $addToSet collect arrays, $first and $last take positional documents whose meaning depends entirely on the incoming order, and $avg is not $sum divided by count when some documents carry a missing field, because it counts only the documents that have a number. Silent wrongness lives here, since a pipeline can look perfectly reasonable and still report a null average because the field was renamed last week.",
+        "The $unwind stage emits one document per element of an array, which makes it a multiplication rather than a filter, and that fact is the source of most aggregation arithmetic bugs. A document with eight array entries becomes eight documents, so grouping for a total after $unwind counts elements instead of documents, and the fix is usually to aggregate before unwinding or to count distinct ids rather than rows. Empty arrays and missing fields make the document vanish, which surprises people who expected a zero, so preserveNullAndEmptyArrays keeps the row with the field absent, and includeArrayIndex adds the position when order inside the array matters. $facet runs several sub-pipelines over the same input in one stage, $bucket and $dateTrunc build histogram buckets, and both let you answer a dashboard question in one pass instead of five.",
+        "$lookup performs a left outer join inside the pipeline by matching a local field against a foreign field, and it uses an index on the joined collection when that field is indexed, which is the single biggest factor in its cost. On a sharded cluster it also requires the two collections to be sharded so that matching documents land on the same shard, which pushes teams toward colocating related data rather than joining across the cluster. $graphLookup walks references recursively to answer tree or reachability questions and is expensive on purpose, since it explores every path up to the depth limit; $merge writes the pipeline result into a collection, which is the sane way to precompute a nightly rollup instead of re-aggregating billions of events per request.",
+        "Aggregations are memory-limited by design, and the limits are version dependent, so check your deployment rather than trusting a blog post. Modern MongoDB caps a blocking in-memory stage at a hundred megabytes per document and offers the same ceiling to the whole pipeline, with allowDiskUse letting blocking stages spill to temporary files instead of erroring, though that option is ignored inside a transaction and stages such as $graphLookup, $facet and $bucket cannot spill at all. The explain output for a pipeline shows stage-by-stage node types, so a $collScan under a $group tells you where the plan went wrong. Indexes only help the stages before the first blocking stage, and on a sharded cluster filtering stages are pushed to the shards only when they reference the shard key.",
+        "Pipeline performance is mostly bookkeeping about where documents shrink and where they multiply. A $limit before an expensive $lookup bounds the number of joins but does nothing if the $sort feeding it had to order everything first, and $skip exists for paging even though it still reads and discards the skipped documents, so deep pages cost linearly. Fields carried through every stage are copied per document, so an unnecessary embedded array can dominate both memory and network, which is why a $project early in the pipeline is a performance tool as much as a shape tool. When a pipeline grows past a dozen stages, split it at a natural boundary, persist the intermediate result with $merge, and let the second pipeline run against something indexed and small."
+      ]
+    },
+    {
+      "title": "Redis Data Structures, Persistence and Eviction",
+      "content": [
+        "Redis picks an internal representation per key and switches it as the value grows, which is why two datasets of identical shape can differ by a factor of five in memory. Small hashes, lists, sets and sorted sets are stored as compact contiguous layouts that scan linearly but cost almost nothing per member, and past thresholds set by the server they convert into general hash tables with per-entry overhead. Those max-entries and max-value-length settings are the practical memory dial in a hash-heavy workload, because a collection hovering just above the threshold pays the conversion everywhere, and the conversion is one-way: shrinking an element back below the limit does not return the compact encoding. Reading the encoding with OBJECT ENCODING is how you find out whether a slow command is slow because of the type or because of the size.",
+        "Sorted sets keep two views of the same data, a skip list for ordering and a hash table for membership, which is why an insert is logarithmic but a lookup by member is constant time. Redis keeps a single score per member and breaks ties lexicographically, so a leaderboard that orders equal scores by name has to encode that into the score or the member rather than hope for a stable ordering. Lists store elements in insertion order and are cheap at both ends, so a bounded log or queue uses LPUSH with LTRIM to cap length, and the historical linked-list encoding was replaced by quick-list structures built from compact nodes. The caution for either type is size rather than shape, since a sorted set with millions of members is one unshardable key whose commands can dominate the event loop.",
+        "RDB persistence is a snapshot of the whole dataset, written by a forked child so the parent keeps serving commands while the child serializes a consistent image. The fork itself is where the cost lands: with copy-on-write, every page the server modifies afterwards is duplicated, so a busy instance can temporarily need a large fraction of its memory again, and some deployments disable transparent huge pages precisely because the fork stalls while the kernel defragments memory. Scheduled saves such as the stock rules that trigger after a number of writes within a window give you point-in-time recovery only at the granularity you configured, and a forced BGSAVE on a remote disk can turn into seconds of blocked clients while the write competes for I/O bandwidth.",
+        "The append-only file records write commands and is replayed at startup, which gives finer durability than snapshots and a bigger file to compact. Its fsync policy is the durability knob, with always flushing per command, everysec accepting about a second of loss, and no leaving it to the operating system, and the file is rewritten in a background child that buffers new writes during the rewrite and appends them afterwards. Redis 7 replaced the single rewritten file with a multi-part design of a base file plus incremental manifests, which makes the sequence auditable and easier to keep intact on restart. The operational trap is size and drift: AOF grows while writers are busy, and an aggressive rewrite threshold plus a slow disk turns rewrites into a recurring latency spike.",
+        "Eviction only happens once maxmemory is reached, and the default policy in a standalone Redis is noeviction, which refuses writes with an out-of-memory error rather than dropping anything. That default is exactly wrong for a pure cache, where allkeys-lru or allkeys-lfu is usually intended, and right for a store holding computed state you cannot rebuild, so the first question in any incident about failed writes is which policy is loaded on that instance. Volatile variants such as volatile-lru consider only keys that carry a TTL, so if none do, the server errors instead of evicting a key you forgot to expire, and that behavior silently couples memory safety to whether every writer remembered EXPIRE. Sampling makes the policies approximations rather than exact algorithms, which is the trade for not keeping a global recency structure over millions of keys.",
+        "Expiration in Redis is a policy applied by three mechanisms rather than a timer attached to a key. Passive checking rejects an expired key when a command touches it, an active background cycle samples a slice of the expire dictionary roughly ten times a second and deletes what it finds, and a key with an TTL is also removed on the primary as a deletion that replicates to replicas. The consequence is that an expired key may still occupy memory for a short while and that DEL with an expired key behaves like a no-op, so tests asserting instant disappearance are flaky by construction. Deleting many keys frees values but does not shrink the underlying dictionary or return memory to the operating system, and a Redis that once held a huge keyspace keeps that footprint until a restart, which is why bulk expiry is a capacity event.",
+        "Redis executes every command from every client on a single thread, which is what makes each command atomic without locks and what makes one careless command a global outage. INCR, HINCRBY, SADD and ZINCRBY are therefore safe concurrent updates, and a Lua script or a MULTI/EXEC block runs its commands with nothing interleaved between them, so counter patterns that would need a database transaction are ordinary Redis commands. The same property means a script that loops over a large collection, or an O(N) command such as a full HGETALL on a huge hash, delays every other client for its duration, and timeouts in client libraries then produce retries that amplify the stall. Transactions differ from a database in a way that surprises people, because Redis has no rollback: a command that fails inside the block leaves the earlier commands applied.",
+        "Redis adds structures above the plain key-value primitives for specific jobs. Streams append entries with ids that never collide, hand them to consumer groups where each consumer acknowledges its own messages, and keep them in memory until trimmed, so they serve lightweight job queues but not durable messaging unless you configure persistence and limits deliberately. Publish/subscribe delivers only to clients connected at that moment, so a subscriber that reconnects has missed everything, which is the distinction people discover the hard way when an event disappears under a redeploy. Bitmaps turn a string into per-offset flags used for daily activity counters, and HyperLogLog gives a fixed-size distinct count with a standard error of about 0.81 percent, so it answers how many unique visitors but can never answer whether one specific visitor was seen."
+      ]
+    },
+    {
+      "title": "Partitioning, Replication and Consistency Trade-offs",
+      "content": [
+        "Partitioning, or sharding, splits a dataset across machines so that neither storage nor throughput sits on one node, and there are two families of scheme with very different failure modes. Range partitioning keeps neighboring keys together, so a scan for a day of events touches few partitions and reads sequentially, but a monotonically increasing key concentrates every write on the final partition until it splits. Hash partitioning scatters keys across fixed buckets, which flattens write load and makes point reads cheap, at the price of destroying ordering so any range scan becomes a query to every partition. Choice follows your dominant query, not the schema, and the reason shard-key advice is repeated so often is that the scheme is a bet about tomorrow's traffic that is expensive to unwind.",
+        "MongoDB shards by range over the shard key, and the balancer migrates chunks of that range between shards while mongos routes each operation using the key values in the query. A query that names the shard key targets one shard; a query that does not is broadcast to every shard, executed in parallel and merged in the router, which multiplies a cheap index scan by the size of the cluster and breaks sort and limit semantics unless each shard does its own work first. Hashed shard keys exist precisely to defuse monotonically increasing keys by scattering writes over ranges, and they can be chosen at creation time or applied later with a resharding command, though resharding copies the collection and consumes real throughput. The shard key is also part of a document's identity for uniqueness, since a unique index only guarantees uniqueness within a shard unless the indexed key includes the shard key.",
+        "A MongoDB replica set elects one primary with a majority vote and streams writes to secondaries through the oplog, a capped collection that acts as the replication log. Members heartbeat every two seconds, and a secondary that cannot reach the primary for ten seconds begins an election, which is the arithmetic behind the roughly twelve-second failover you see in dashboards; a member without enough votes steps down rather than serving two writers. Read preference decides who answers a read, with primary the default and nearest or preferred secondaries buying throughput and locality in exchange for data that may lag. Durability comes from the combination of write concern, which counts acknowledging replicas, and journaling, which is enabled by default in recent versions, so a write acknowledged by one node with no journal is the only case that is genuinely volatile.",
+        "The oplog bounds how far a replica can fall behind, and that window is an operational constraint people discover during a restore. A secondary that loses connectivity longer than the oplog window cannot catch up incrementally and must perform an initial sync, copying the whole collection set and rebuilding indexes, which takes hours on a large cluster and leaves the node unusable as a failover target throughout. That is why the oplog is sized by expected write volume and outage tolerance rather than by disk convenience, and why backup tooling exists separately from replica sets: a replica protects against a node dying, not against a dropped collection, a bad deploy, or a ransom, all of which replicate faithfully to every member.",
+        "Quorum-style stores such as Cassandra let you pick consistency per operation, with a replication factor of three and both read and write consistency levels at quorum guaranteeing that the read and write replica sets overlap, so a coordinator sees the most recent write it was told about. That guarantee is subtler than it first looks, because it holds only while all replicas for that partition are consistent enough to respond, and it says nothing about a repair that has not happened, a lightweight transaction that timed out, or a write that landed on a node excluded from the count. Cassandra's default consistency level is LOCAL_QUORUM, which is genuinely strong within one datacenter and deliberately not across datacenters. Setting ALL gives linearizable behavior and becomes unavailable when any single replica is down, which is the trade stated plainly rather than a tuning detail.",
+        "Replication lag is invisible until it meets a cache or a read-after-write requirement, and then it produces wrong data rather than errors. A reader that loads a lagging replica and populates a cache with the old row pins that stale value for the lifetime of the entry, which is why the invalidation path must never be fed by a replica that has not caught up, and why read-your-own-writes in a document store is achieved by reading your own writes from the primary or by a session that carries the write's cluster time forward. The pattern to look for in code review is any endpoint that writes to the primary and then serves a list built from secondary reads: it is correct in a single request and wrong under concurrency, which is the worst possible combination of properties for a bug.",
+        "Multi-region systems give up cross-region serialization for availability and latency, and the recovery semantics are worth knowing before you rely on them. A conflict between two replicas that both accepted writes is resolved by last-writer-wins using timestamps, which silently drops the losing change and produces clocks-drift bugs when machines disagree, while counters must be stored as commutative data types so concurrent increments merge instead of overwrite. MongoDB offers multi-datacenter replica sets with a majority spanning regions, so any write needs a cross-region round trip and a region cut in half by a partition blocks writes until a majority reforms. DynamoDB global tables converge asynchronously in a background replication stream, with an eventual-consistency read of a remote region showing a deleted-then-reinserted item as still missing, because tombstones propagate like any other write.",
+        "Hot partitions and rebalancing are the same problem seen from two sides, and secondary indexes make both worse. A key whose writes concentrate, such as a tenant id, a date, or a product that just went on sale, consumes one partition's throughput while the rest of the cluster idles, and splitting by hash does not help when the hot value is one single key, which is why the standard mitigations are buffering writes behind a queue, sharding the key into sub-counters, or serving that key from a cache. A global secondary index in a partitioned store writes to partitions chosen by the index key rather than the item key, so it can hot-spot independently of the base table. Every store studied here pays for rebalancing during a scale event, so capacity planning is measured in how gracefully the cluster absorbs a node leaving, not only a node joining."
+      ]
+    },
+    {
+      "title": "Choosing the Store: Search, Wide-Column and Managed Key-Value",
+      "content": [
+        "Search engines earn their place by answering questions a B-tree cannot, which is free text, tolerance for typos and synonyms, relevance scoring and faceting across many fields at once. An inverted index maps each analyzed term to the list of documents containing it, so a query over a tokenized field is a set intersection over precomputed posting lists rather than a scan with a pattern match, and the analysis chain that tokenizes, lowercases and stems on index must be the same chain applied at query time or the matches simply will not happen. That same machinery is why a text field cannot be used for exact ordering or aggregation until it gains a keyword sub-field, since the analyzed value no longer resembles the input. The inverted index is a derived structure, and its cost is a second copy of your data plus the pipeline that keeps it honest.",
+        "Elasticsearch is near-real-time rather than real-time, which is a property of how visibility works rather than a bug to route around. A document written to a shard sits in an in-memory buffer and in the translog until the shard refreshes, on a default interval around one second, at which point a searchable segment is created and the document can match a query. A direct GET by id sees the document immediately because it consults the buffer, so the classic confused report is that the write succeeded, the fetch returns it, and the search does not. Nothing about that makes the engine a source of truth: a bulk import that fails halfway is hard to reason about, there are no relational constraints to violate, and version conflicts on concurrent updates surface as errors you must retry rather than as transactions that roll back.",
+        "Mapping is a search engine's schema, and the default dynamic mapping is a convenient trap. A string field is indexed as text plus a keyword sub-field, an integer becomes long, and a value that arrives as a date string in one document and an epoch in another produces a mapping that rejects writes later rather than never, because mapping for an existing field cannot be changed in place and requires a reindex. Analyzers decide tokenization per field and matter most for languages without spaces, where a naive whitespace analyzer reports no results for correct queries. Paging is the other structural limit: from and size are bounded because every coordinating node must gather the depth from every shard, so deep paging uses search_after over a stable sort, while scroll exists for exhaustive batch export rather than user-facing pages.",
+        "Wide-column stores such as Cassandra and ScyllaDB organize data by partition key plus clustering columns, which means the physical layout is chosen by the questions you will ask and the table cannot answer questions nobody modeled. There are no joins, no ad-hoc predicates without an index, and no cross-partition transactions, so a feature needing two access patterns becomes two tables written in the same application path, with the denormalization done deliberately rather than by a view engine. Secondary indexes exist and are cheap to add, which is exactly the problem, because an index over a low-cardinality column turns one read into a scatter across many partitions. Lightweight transactions give a compare-and-set against a partition using consensus, at a cost of several round trips and a strong dependency on enough replicas being reachable, so they are reserved for genuine locks rather than used as ordinary conditionals.",
+        "DynamoDB is the managed answer to the same modeling discipline: a table is keyed by a partition key plus an optional sort key, an item may not exceed 400 KB, and a Query must supply the partition key. Point reads return in single-digit milliseconds and scale predictably, which is why it suits session stores, catalogs and high-cardinality counters, and why it resists analytics: there is no join, no range scan without the key, and an aggregation over the whole table is a parallel full scan you pay for by provisioned capacity or per-request bytes. Global secondary indexes let you query an alternate key but write to partitions chosen by that key, so an index whose first component is a status or a date can hot-spot independently of the base table. Conditional writes are cheap optimistic concurrency, transactions cost extra capacity and touch up to four items, and TTL removal is a background delete with no guarantee of promptness.",
+        "Managed caches come with the same trade-off between operations and control. ElastiCache for Redis gives you failover replicas, automatic multi-AZ promotion, backups and a Global Datastore that replicates across regions asynchronously, but the eviction policy, key design and durability settings remain yours, and a failover promotes a replica that may not have applied the last writes. Memcached remains a simpler and often faster pure cache because it is multithreaded and holds no persistence, replication or eviction subtleties, at the cost of losing everything on a node restart and offering no data types beyond opaque values. A cache sitting in front of a durable store rarely needs durability at all, which is why the honest configuration for many services is a cache with a rebuildable contents and no AOF, rather than a hedge that quietly turns Redis into an unmanaged database.",
+        "Store selection is mostly a list of questions answered in order. Is the access pattern known in advance, because partitioned and wide-column stores require it and a document store forgives changing your mind? Do you need cross-row transactions or joins, because no system here offers them at relational strength and a partial substitute costs you availability? Is the query full text or faceted, because that is an inverted index and nothing else? How large is the working set and how often is it touched, because Redis pays for itself only when latency dominates cost? Teams reach for these stores when a single relational server stops fitting the load, and the common way a project fails is choosing one before deciding which of those questions actually describe the workload."
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "text": "When is referencing preferable to embedding in MongoDB?",
+      "a": "Embedding is always preferred for large, unbounded arrays",
+      "b": "MongoDB cannot store arrays",
+      "c": "When child data is large or unbounded",
+      "d": "$lookup is mandatory for every read",
+      "correct": "C",
+      "explanation": "Unbounded arrays push documents toward the 16 MB limit and make updates expensive; references keep documents small.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Which Redis structure is the best fit for a real-time leaderboard?",
+      "a": "Lists",
+      "b": "Hashes",
+      "c": "Sorted sets",
+      "d": "HyperLogLogs",
+      "correct": "C",
+      "explanation": "Sorted sets keep members ordered by score with O(log n) inserts and efficient range queries by rank.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "How does the cache-aside pattern work?",
+      "a": "Read cache, load on a miss, populate",
+      "b": "The database writes to the cache automatically",
+      "c": "The cache is never invalidated",
+      "d": "Writes go only to the cache",
+      "correct": "A",
+      "explanation": "The application owns cache population, which keeps the database as the source of truth.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "What is the difference between RDB and AOF persistence in Redis?",
+      "a": "RDB is an append-only log of every write",
+      "b": "AOF logs writes while RDB takes point-in-time snapshots",
+      "c": "Redis cannot persist data",
+      "d": "Both are off by default and unrelated to durability",
+      "correct": "B",
+      "explanation": "RDB snapshots are compact; AOF trades file size for finer-grained durability.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A collection has the compound index {team: 1, score: -1}. Which query can use it efficiently?",
+      "a": "A filter on score alone, because it is the second index field",
+      "b": "A query with no filter",
+      "c": "A sort by name",
+      "d": "A filter on team, or on team plus score",
+      "correct": "D",
+      "explanation": "Compound indexes are ordered by their prefix. Filtering only on score skips the leading team field.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "What makes a good MongoDB shard key?",
+      "a": "Low cardinality keys distribute data evenly",
+      "b": "A monotonically increasing key prevents hotspots",
+      "c": "The shard key can be changed after the first insert without downtime",
+      "d": "High cardinality aligned with common query filters avoids hotspots",
+      "correct": "D",
+      "explanation": "A good shard key has high cardinality, low frequency and is present in most queries; monotonic keys concentrate writes.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "What does the allkeys-lru eviction policy do?",
+      "a": "Evicts the least recently used keys under memory pressure",
+      "b": "Deletes random keys immediately",
+      "c": "Prefers keys without a TTL",
+      "d": "Provides exact LRU with no approximation or sampling overhead",
+      "correct": "A",
+      "explanation": "Redis samples keys and approximates LRU; allkeys-lru considers every key, unlike volatile-lru which only considers keys with a TTL.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "What happens to a Redis key with a TTL?",
+      "a": "It is removed by lazy or active expiry once the time passes",
+      "b": "TTL is only supported for strings",
+      "c": "It is deleted at the exact millisecond boundary in every configuration",
+      "d": "Setting a TTL deletes the key immediately",
+      "correct": "A",
+      "explanation": "Expiry is passive on access plus an active sampling cycle, so removal is logically guaranteed but not instant.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "What does CAP require during a network partition?",
+      "a": "A system can guarantee consistency, availability and partition tolerance simultaneously",
+      "b": "The system must trade off consistency or availability",
+      "c": "Partition tolerance is optional in practice",
+      "d": "CAP applies only to SQL databases",
+      "correct": "B",
+      "explanation": "Partition tolerance is unavoidable in distributed systems, so the real choice is between rejecting requests and serving possibly stale data.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "What does MongoDB write concern control?",
+      "a": "The replication factor of the collection across all shards and regions",
+      "b": "Read isolation only",
+      "c": "How many nodes acknowledge a write before it is considered successful",
+      "d": "The size of the WiredTiger cache",
+      "correct": "C",
+      "explanation": "Majority write concern waits for most replica-set members, trading latency for durability.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "Why does every MongoDB document carry an _id field?",
+      "a": "It is the collection's unique key, indexed automatically on creation",
+      "b": "It marks the shard where the document is physically stored",
+      "c": "It only needs to be unique when a validator is attached",
+      "d": "It is a driver convention used for logging and nothing else",
+      "correct": "A",
+      "explanation": "_id is mandatory and uniquely indexed by default, which is what lets updates target one document. Option B confuses it with the shard key, which is a separate field you choose and cannot be _id unless you make it so.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "Which Redis command reports the type stored at a key?",
+      "a": "OBJECT ENCODING on that key",
+      "b": "COMMAND DOCS for the key's value",
+      "c": "TYPE applied to the key name",
+      "d": "DUMP serialized into the reply",
+      "correct": "C",
+      "explanation": "TYPE returns string, hash, list, set or zset for a key. OBJECT ENCODING reports the internal representation such as listpack, which is a different question and the tempting near-miss.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "What does the $match stage do in an aggregation pipeline?",
+      "a": "It reshapes each document before it reaches the output",
+      "b": "It filters documents the way a find query does",
+      "c": "It joins the input collection to a second one",
+      "d": "It orders documents so that a later stage can group them",
+      "correct": "B",
+      "explanation": "$match is the pipeline's filter and can start an index scan when it names indexed fields. Reshaping is $project and joining is $lookup, both of which sit in the same stage family.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "A document's array field is empty when it reaches $unwind with no options. What happens to it?",
+      "a": "It is emitted once with the field replaced by null",
+      "b": "The stage raises an error and aborts the pipeline",
+      "c": "It passes through unchanged to the next stage",
+      "d": "It is removed from the pipeline's output entirely",
+      "correct": "D",
+      "explanation": "$unwind multiplies documents per element, so an empty or missing array produces none and the row vanishes before a later $group counts it. Keeping it requires preserveNullAndEmptyArrays, which option A describes.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "A service must read fifty cache keys with one round trip to Redis. Which command does that?",
+      "a": "MGET with the key names as arguments",
+      "b": "MULTI followed by fifty GETs and EXEC",
+      "c": "SCAN with a MATCH pattern per key",
+      "d": "KEYS with the fifty key names listed",
+      "correct": "A",
+      "explanation": "MGET returns all values in a single command, and on a cluster it works only when every key maps to one slot. MULTI batches atomically but still returns each reply separately, and KEYS matches patterns rather than fetching values.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "In DynamoDB, what does an item's partition key determine?",
+      "a": "The order items appear in the results of a range query",
+      "b": "Which physical partition stores the item and must be supplied by a query",
+      "c": "How long the item survives before the TTL background delete removes it",
+      "d": "The provisioned throughput allocated to each global secondary index",
+      "correct": "B",
+      "explanation": "The partition key decides placement and is required for GetItem-style access, which is why hot keys hurt. Ordering inside a partition is the sort key's job, and TTL is a separate attribute.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "How do you confirm that a MongoDB query used an index rather than scanning the collection?",
+      "a": "Compare the collection's storageSize against its document count",
+      "b": "Run db.currentOp with the activeOnly flag set to true",
+      "c": "Read the winningPlan in explain output at executionPlanner verbosity",
+      "d": "Inspect the validate result for the collection that was queried",
+      "correct": "C",
+      "explanation": "explain reports the plan the selector chose, so a COLLSCAN stage reveals a scan despite an existing index. currentOp shows in-flight operations, and validation checks on-disk integrity rather than query plans.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "What does creating a TTL index on a MongoDB collection do?",
+      "a": "It keeps the collection documents physically ordered by their insertion time",
+      "b": "It times out any read that blocks longer than the index threshold",
+      "c": "It caps the collection so the oldest documents roll off automatically",
+      "d": "It removes documents whose indexed date falls outside the allowed span",
+      "correct": "D",
+      "explanation": "A TTL index makes a background task delete documents by comparing a date field against now. A capped, size-bounded collection is declared at creation time as option C describes, not by an index.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "In most architectures, what role does Elasticsearch play?",
+      "a": "A derived search index fed from an authoritative store",
+      "b": "A transactional replacement for the primary database",
+      "c": "A durable commit log replicated with quorum writes",
+      "d": "An exact-count analytics warehouse for operational data",
+      "correct": "A",
+      "explanation": "Documents are usually reindexed from a system of record because the engine has no relational constraints or rollback. Treating it as a source of truth leaves partial imports unrecoverable, and its aggregations approximate counts for speed.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "A Redis instance has reached maxmemory with the noeviction policy and receives a new SET. What happens?",
+      "a": "The oldest access is evicted quietly to make room for the write",
+      "b": "The command fails with an out-of-memory error and nothing is evicted",
+      "c": "Redis triggers a snapshot and only accepts the write afterwards",
+      "d": "The write is queued in a backlog until another client frees memory",
+      "correct": "B",
+      "explanation": "noeviction protects data over availability, so writes error while reads keep working, which is a bad default for a cache. Option A describes allkeys-lru, and queued writes are not a Redis concept outside replication buffering.",
+      "difficulty": "EASY"
+    },
+    {
+      "text": "A pipeline computes daily totals over one month of a large orders collection. Where should the date filter live?",
+      "a": "In a $match stage first, so the pipeline can bind to an index",
+      "b": "After $group, so that totals are filtered once they exist",
+      "c": "Inside $project, since computed fields are cheaper to test",
+      "d": "In $sort, because ordering narrows the range the planner reads",
+      "correct": "A",
+      "explanation": "Only stages before the first blocking stage can use an index, so filtering early shrinks everything downstream. A $match after $group tests aggregated values one document at a time, which is the trap in option B.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A $group stage fails because it exceeded the per-stage in-memory limit. What is the standard remedy?",
+      "a": "Increase the WiredTiger cache so the stage has more room to grow",
+      "b": "Pass allowDiskUse so blocking stages may spill to temporary files",
+      "c": "Move the whole aggregation into application code and sum it there",
+      "d": "Lower the write concern so the group is not blocked by replication",
+      "correct": "B",
+      "explanation": "allowDiskUse lifts the spill restriction for blocking stages, trading disk for a completed answer. The storage-engine cache does not raise the per-stage cap, and write concern has no bearing on grouping.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A $lookup from orders to customers is slow on large collections. What do you check first?",
+      "a": "That the aggregation was given allowDiskUse when it was declared",
+      "b": "That the pipeline runs against a secondary rather than the primary",
+      "c": "That the foreign field being joined on carries an index",
+      "d": "That $lookup appears before every $match stage in the pipeline",
+      "correct": "C",
+      "explanation": "The join performs a lookup per input document, so an unindexed foreign field makes it a nested scan. Reordering $lookup later so fewer rows are joined also helps, while read preference changes load, not the join's cost.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A Lua script loops over a very large Redis collection. What is the operational risk?",
+      "a": "Every other client waits, because commands run on one thread",
+      "b": "The script is aborted at the first yield and requeued by the server",
+      "c": "Other clients keep running in parallel inside their own sandbox",
+      "d": "The script rolls back its writes when it exceeds the time budget",
+      "correct": "A",
+      "explanation": "Script execution is atomic and single-threaded, so a long script freezes the instance and triggers client timeouts that retry into it. There is no rollback and no parallel sandbox; both options describe database behavior Redis does not have.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Inside a MULTI/EXEC block, the third command fails while the first two succeeded. What does Redis do?",
+      "a": "It undoes the two applied commands so the block is atomic",
+      "b": "It leaves the first two applied and reports only the failed command",
+      "c": "It refuses the block before EXEC, so nothing is ever applied",
+      "d": "It pushes the failed command onto a retry queue for later execution",
+      "correct": "B",
+      "explanation": "Redis queues commands for atomicity of interleaving, not for all-or-nothing durability, so there is no rollback. Parse-time errors are the case option C describes, which rejects the whole transaction before any command runs.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A warm-up job writes one hundred thousand cache entries with an identical 300-second TTL within one second. What does that cause?",
+      "a": "Fragmentation in the keyspace that forces an expensive rewrite later",
+      "b": "Repeated eviction of keys that carry no TTL under memory pressure",
+      "c": "An AOF growth spike that permanently slows every later rewrite",
+      "d": "A recurring thundering herd of origin reads at the expiry moment",
+      "correct": "D",
+      "explanation": "Synchronized TTLs make misses synchronized, so the origin takes a wave of load every five minutes. Jittering expiry times per entry is the fix; eviction policy has nothing to do with scheduled expiry.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Millions of Redis keys expire within a single minute. What happens to the memory they occupied?",
+      "a": "Values are freed lazily and on the active cycle, while overhead lingers",
+      "b": "The server hands the freed pages back to the operating system at once",
+      "c": "Expiry halts all writes until every key has been visited by the scan",
+      "d": "A snapshot is forced, and the reclaimed space is reused after loading it",
+      "correct": "A",
+      "explanation": "Deletion happens passively on access and through a sampling background cycle, so reclamation trails the expiry time. Redis rarely returns memory to the OS, which is why an instance that once held a large keyspace keeps its footprint.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Memory usage climbs sharply on a busy 8 GB Redis instance while an RDB snapshot is being written. What explains it?",
+      "a": "Eviction is suspended for the duration of the snapshot by design",
+      "b": "The child process buffers the whole dataset in memory before writing the snapshot to disk",
+      "c": "AOF rewriting always runs at the same instant, because that pairing is the shipped default",
+      "d": "The forked child shares pages that copy-on-write duplicates as the server mutates them",
+      "correct": "D",
+      "explanation": "BGSAVE forks, and every page the parent mutates afterwards is duplicated, so write-heavy workloads can nearly double peak memory. The child streams its snapshot to disk instead of buffering it entirely, and AOF rewrite is a separate schedule.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "An app writes to a MongoDB primary and immediately reads its own change through a read preference of secondary, seeing the old value. What is the cause?",
+      "a": "The secondary has not yet applied that entry from the oplog",
+      "b": "The primary rolled the write back during a recent election",
+      "c": "The WiredTiger cache evicted the document before the read arrived",
+      "d": "Causal consistency sessions are disabled and cannot be enabled here",
+      "correct": "A",
+      "explanation": "Replication is asynchronous, so secondaries serve data that can lag the primary by an unbounded amount. Reading your own writes requires the primary or a session that carries the write timestamp forward, not cache or journal state.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "On a sharded MongoDB cluster, a query filter omits the shard key completely. What does the router do?",
+      "a": "It rejects the query unless the collection allows unsharded scans",
+      "b": "It routes the query to whichever shard owns the oldest chunk",
+      "c": "It fetches the full chunk ranges from the config servers first",
+      "d": "It broadcasts the query to every shard and merges the replies",
+      "correct": "D",
+      "explanation": "Without the shard key the target shard is unknown, so the operation fans out and every shard pays for it, including sorts and limits applied per shard first. Config servers are consulted for chunk maps, but they never execute user queries.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A document indexed into Elasticsearch is not matched by a search issued a few milliseconds later. Why?",
+      "a": "The document must first be copied from its primary shard to every replica in the cluster",
+      "b": "Shard visibility depends on a refresh, which defaults to around one second",
+      "c": "The mapping must be updated before the new field becomes queryable",
+      "d": "Segment merging reorders recently indexed documents on every write",
+      "correct": "B",
+      "explanation": "Indexed documents live in a buffer until the shard refreshes into a searchable segment, making the engine near-real-time. A GET by id still sees the document immediately, and neither replication nor mapping governs search visibility.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Which property argues for Memcached rather than Redis as a pure object cache?",
+      "a": "It offers richer types plus Lua scripting for the same workload",
+      "b": "It replicates items across the cluster nodes so that one node restarting loses nothing",
+      "c": "It persists to disk, so the cache comes back warm after a crash",
+      "d": "It is multithreaded, so one large node uses many cores without sharding",
+      "correct": "D",
+      "explanation": "Memcached trades features and durability for straightforward multi-core scaling on a single node. Options B and C describe capabilities it deliberately lacks, since a restart empties it and no replication exists.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "Random non-existent ids are queried thousands of times a second and every one reaches the database. Which cache change helps most?",
+      "a": "Extend the TTL on existing entries so the cache stays warmer longer",
+      "b": "Shard the cache so that these misses spread across more nodes",
+      "c": "Store the empty result for a short TTL as well as real rows",
+      "d": "Warm every key from the database during each service restart",
+      "correct": "C",
+      "explanation": "Cache penetration defeats warm-up because the missing keys were never worth caching, so caching the negative answer absorbs the traffic. Warming existing keys cannot help, which is the intuition option D relies on.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "How do Redis Streams differ from raw publish/subscribe for background work?",
+      "a": "Streams deliver to any client that is connected at that instant",
+      "b": "Streams keep entries until trimmed and track acknowledgment per consumer group",
+      "c": "Streams guarantee that a message reaches exactly one consumer, always",
+      "d": "Streams store their entries on disk, so a restart with the shipped defaults loses nothing",
+      "correct": "B",
+      "explanation": "Consumer groups let workers claim entries and re-deliver unacknowledged ones, while pub/sub drops everything for an offline subscriber. Delivery is at-least-once rather than exactly once, and durability still depends on persistence settings.",
+      "difficulty": "MEDIUM"
+    },
+    {
+      "text": "A writer deletes a cache key after updating the database, yet the stale value reappears and survives its TTL. Which technique targets that race directly?",
+      "a": "Raising the cache's eviction sample count while the write is in flight",
+      "b": "Switching the eviction policy from volatile-lru to allkeys-lfu instead",
+      "c": "Deleting the key once, then scheduling a second delete a moment later",
+      "d": "Shortening the TTL so that any stale entry becomes irrelevant quickly",
+      "correct": "C",
+      "explanation": "The race is a slow reader repopulating from a lagging source after the first eviction, so a delayed second delete removes what it wrote back. A shorter TTL merely bounds the damage, and eviction policy has nothing to do with correctness here.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "Why is Redis's LRU eviction described as an approximation of LRU rather than exact LRU?",
+      "a": "It samples a bounded number of keys instead of tracking recency for all",
+      "b": "It can only consider keys that already carry an expiration time",
+      "c": "It needs a secondary recency index that is rebuilt on every eviction",
+      "d": "It falls back to removing keys purely in insertion order whenever memory gets tight",
+      "correct": "A",
+      "explanation": "Tracking exact recency per key would cost too much memory, so maxmemory-samples bounds the candidate set. Considering only keys with a TTL is volatile-lru's rule, and insertion order describes the no-relevance FIFO policy.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "A MongoDB deployment needs a write acknowledged by a majority of the replica set. What does that guarantee during an election?",
+      "a": "The document is readable from every secondary the moment it is written",
+      "b": "The write is journaled on all members, so elections become impossible",
+      "c": "A primary that loses the vote cannot have committed a conflicting value",
+      "d": "The oplog window is extended so no replica can ever need to resync",
+      "correct": "C",
+      "explanation": "Majority acknowledgment means the write exists on enough members to survive an election, so it will not be rolled back. Secondaries still apply it asynchronously, so the read is not immediate, which is the assumption embedded in option A.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "An events collection sharded on a monotonically increasing timestamp has one overloaded shard. What is the most direct structural fix?",
+      "a": "Add an index on the timestamp so the hot shard answers faster",
+      "b": "Reshard the collection onto a hashed key so writes spread over shards",
+      "c": "Move the collection to a second database inside the same cluster",
+      "d": "Increase the write concern so that fewer writers are admitted at once",
+      "correct": "B",
+      "explanation": "Range sharding on an increasing value sends every insert to the last chunk, so a hashed key redistributes them. An index helps reads on that shard but leaves write concentration untouched, and a second database is still the same shards.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "In Cassandra, why do consistency levels where reads plus replicas written exceed the replication factor deliver strong consistency?",
+      "a": "The coordinator forwards the write to every node present in the ring",
+      "b": "The commit log is fsynced on each replica before any reply is sent",
+      "c": "Reads then block until a background repair has finished for the row",
+      "d": "The read and write replica sets must intersect, so a read sees the write",
+      "correct": "D",
+      "explanation": "Quorum overlap guarantees at least one replica holding the newest write answers the read. Durability of the commit log is a separate concern and does not itself make a read see a recent write.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "What is the real cost of requesting a strongly consistent read from DynamoDB?",
+      "a": "It cannot answer from a lagging replica, so it costs more capacity and can fail outright",
+      "b": "It forces the table to materialize a global secondary index before the read can be served at all",
+      "c": "It requires a matching conditional write on the item, which consumes one transaction capacity unit",
+      "d": "It raises the 400 KB item limit for that partition while the strongly consistent read is running",
+      "correct": "A",
+      "explanation": "Strong reads cannot be answered by any lagging replica or eventually consistent cache, so throughput is lower and the operation can fail during replication. Conditional writes gate updates rather than reads and consume no capacity for a read.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "A screen must page far into a search result set. Why does from plus size fail and search_after work?",
+      "a": "The per-shard result window must be raised, and deep pages then break other queries on it",
+      "b": "from gathers that depth on every shard, while search_after seeks with a sort value",
+      "c": "Scroll cursors are the documented way to page an interactive user interface one batch at a time",
+      "d": "Deep pages must first be materialized by a terms aggregation sized to cover the whole result set",
+      "correct": "B",
+      "explanation": "Each shard must produce from plus size hits for the coordinator to merge, so cost grows linearly with depth, while search_after starts from the previous sort key. Scroll is meant for exhaustive export rather than interactive paging.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "In a wide-column store, what does a lightweight transaction provide and at what price?",
+      "a": "A cross-partition transaction that is atomic when the replication factor is high",
+      "b": "An isolated snapshot read of a partition taken without touching the replicas",
+      "c": "A conditional update against one partition, settled through consensus round trips",
+      "d": "A deferred batch of writes that a compaction applies later in the background",
+      "correct": "C",
+      "explanation": "LWT gives compare-and-set semantics within a single partition by running Paxos, which costs several round trips and needs enough replicas alive. It never spans partitions, so option A describes something the model does not offer.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "A Lua script on Redis Cluster must update a user hash and a counter together. What does the key design have to satisfy?",
+      "a": "Both keys must live in database 0, which is the only one clusters expose",
+      "b": "Both keys must be written in the same slot using a MULTI block first",
+      "c": "Both keys must be replicated to the cluster's seed nodes before running",
+      "d": "Both keys must map to one slot, which hash tags in the names achieve",
+      "correct": "D",
+      "explanation": "A script may only touch keys in a single slot, so a brace-delimited hash tag forces them together. Every cluster node offers just database 0, but that fact does not make a cross-slot script legal, which is the confusion in option A.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "What does PACELC add to the CAP framing?",
+      "a": "It asks what consistency and latency you accept while there is no partition",
+      "b": "It argues that eventual consistency is always the cheaper correct choice",
+      "c": "It replaces the partition term with the durability of the commit log",
+      "d": "It limits the theorem to stores that replicate synchronously only",
+      "correct": "A",
+      "explanation": "CAP describes behavior during a network split, while most of a system's life is unpartitioned and still trades latency against consistency. Option B reads it as a recommendation, though it is a taxonomy of trade-offs.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "A service needs to read back its own write from a secondary. How does MongoDB deliver that reliably?",
+      "a": "By setting the write concern to acknowledged and reading from the nearest node",
+      "b": "By opening a read transaction at snapshot isolation on the replica set",
+      "c": "By using a session that carries the write's cluster time to that read",
+      "d": "By pinning every read of that collection to a hidden sync member",
+      "correct": "C",
+      "explanation": "Causal consistency sessions hand the server an operation time and the read waits until the replica has applied it. The session must be the same one for both operations, and nearest with an unspecified session still races replication lag.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "Two regions both accept writes to the same record in a conflict-free replicated setup. What decides the surviving value?",
+      "a": "The record's vector clock is merged so both edits survive together",
+      "b": "The last write wins by timestamp, and a concurrent edit is dropped",
+      "c": "The quorum read recomputes both changes and returns the union of them",
+      "d": "A distributed lock serializes the two writers and retries the loser",
+      "correct": "B",
+      "explanation": "Last-writer-wins registers resolve conflicts silently, so clock skew between regions can erase a real update. Counters need a purpose-built merge type, and option A describes a conflict-resolution scheme that plain replication does not perform for you.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "An analytics job scans every partition of a wide-column table through a low-cardinality secondary index. What is the cost?",
+      "a": "The index turns one request into a scatter across many partitions, so reads amplify",
+      "b": "The coordinator materializes the index into a real table before the scan can run at all",
+      "c": "The query is refused outright, because a secondary index cannot be used for a full scan",
+      "d": "The cluster rebuilds that index on every replica before it will answer the scan at all",
+      "correct": "A",
+      "explanation": "An index partitioned by its own low-cardinality value spreads a single logical read across the whole cluster, which is why hot keys wreck it. Materializing the result is the application's problem, and the query is allowed but slow rather than rejected.",
+      "difficulty": "HARD"
+    },
+    {
+      "text": "A document store is used as the source of truth while a search cluster holds the same records. What breaks when the two diverge?",
+      "a": "Nothing breaks, since the search engine reindexes the store on every write",
+      "b": "The engine's transaction log replays the difference at the next refresh",
+      "c": "Reads that trust the search index can show rows the source no longer has",
+      "d": "The source of truth rolls back the write once the index rejects it",
+      "correct": "C",
+      "explanation": "Replication to the index is asynchronous and derived, so a failed pipeline leaves ghosts or missing rows that users see in listings. There is no shared transaction, and a refresh makes buffered documents visible rather than reconciling pipelines.",
+      "difficulty": "HARD"
+    }
+  ]
+}

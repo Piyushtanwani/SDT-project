@@ -1,0 +1,458 @@
+{
+  "name" : "Rust",
+  "description" : "Ownership, borrowing and traits: the rules that let Rust guarantee memory safety without a garbage collector.",
+  "duration" : "7 weeks",
+  "rating" : 4.7,
+  "modules" : [ {
+    "title" : "Ownership and Borrowing",
+    "content" : [ "Every value has exactly one owner. When the owner goes out of scope the value is dropped, which makes resource cleanup deterministic and eliminates double frees. That single invariant is what lets Rust free memory without a collector: nothing else can be holding the value when the scope closes, so the compiler can emit the deallocation at the exact line where the binding ends. Code that would double-free or use-after-free in C simply cannot be written, because two bindings cannot own the same buffer in the first place.", "Borrowing follows one rule: at any moment you may have either any number of shared references or exactly one mutable reference, never both. The two halves of the rule exist for one reason, since aliasing plus mutation is exactly the shape of a data race and an iterator invalidation bug. So you can read a vector from ten places at once, or you can push to it from one place, and the compiler decides which of those you are allowed to write down.", "Lifetimes are annotations that tell the compiler how long references remain valid. They describe relationships; they do not change runtime behaviour or allocate memory. A signature such as `fn longest<'a>(x: &'a str, y: &'a str) -> &'a str` is not a runtime contract, it is a constraint handed to the borrow checker so it can reject a call where one argument dies before the returned value is read.", "Scalar types such as integers, `bool`, `char` and shared references implement `Copy`, so assigning them duplicates bits and both bindings stay usable; `Vec`, `String` and most user-defined types do not, so assignment, passing to a function and returning from one all move ownership. After a move the old binding is not dangling and not freed, it is simply unusable, and using it is a compile error. This is why a helper that only inspects a collection takes a borrow instead of the value.", "Moving out of only part of a value works when the type is not `Copy` and does not implement `Drop`, which is called a partial move: `let p = point; let x = p.x;` leaves `p` half-consumed and only `p.y` usable. As soon as a struct owns a heap buffer and carries custom drop glue, moving a field out is rejected, because the destructor would otherwise run on a value whose fields have already been freed.", "The moment a borrow is last used, rather than the end of its block, is the moment it expires, and that behaviour has been standard since the non-lexical lifetimes work. Two shared borrows in sequence are fine even though their blocks overlap, because the first is dead once its value is printed. A mutable borrow taken between two uses of a shared borrow still conflicts, because the earlier borrow is demonstrably live again later, so the answer is to end the first borrow, take the mutable one, and then reborrow.", "Closure captures are inferred from how the body uses them, so a function that only reads a captured `Vec` implements `Fn`, while one that calls `push` requires `FnMut` and one that consumes it requires `FnOnce`. Changing a single line inside the body can change which trait the closure implements and break the caller that asked for `&dyn Fn(i32)`. Writing `move` forces the captures into the closure by ownership, which is what you need for threads but is a silent trap when it is added out of habit.", "The borrow checker rejects borrowing a value while it is being iterated: a `for` loop holds a borrow of the collection for every iteration, so calling `push` inside the loop is refused whether the loop borrow is shared or mutable. The usual fix is to collect the new items separately and append after the loop, or to iterate over indices and mutate through them, which trades compile-time proof for a runtime bounds check you must keep honest." ]
+  }, {
+    "title" : "Types and Abstraction",
+    "content" : [ "Option<T> models presence or absence without a null pointer, and the compiler forces callers to handle the None case before using the value. Because the type carries the value inside it, absence cannot be confused with a legitimate sentinel such as zero, and a function signature that returns `Option<usize>` tells a reader something `usize` never could.", "String owns a growable UTF-8 buffer on the heap; &str is a borrowed view into string data. Functions that only read should accept &str so callers keep ownership. The `String` and `&str` split follows the same ownership logic as `Vec<T>` and `[T]`, and neither type offers a length in characters, because indexing into UTF-8 only makes sense in bytes.", "Traits define shared behaviour and can be implemented for foreign types under the orphan rules. dyn Trait enables runtime dispatch through a vtable when a heterogeneous collection is needed. A concrete `impl Trait` bound still calls the same method, but the compiler knows the receiving type at each call site and can inline and specialise it, while `dyn` pays an indirection to keep the collection monomorphic in size.", "Newtypes turn illegal states into type errors: wrapping a `u32` in `struct UserId(u32)` stops a `UserId` being passed where an `OrderStatus` was expected, and the wrapper compiles away to nothing. The same trick gives you a place to implement formatting, parsing or validation for a type you do not own, which is why `struct` with one tuple field appears constantly in real Rust codebases.", "Iteration in Rust is lazy and driven by `next()`, so an adapter chain like `iter().filter(..).map(..)` allocates nothing and runs no closure until a consumer such as `collect`, `sum` or `for` pulls values through it. This is why building an iterator in one function and returning it works, and why forgetting the consumer leaves the compiler unable to infer some of the element types.", "A slice `&[T]` is a fat pointer to a contiguous run of elements, and `&str` is the same pair with a UTF-8 validity guarantee attached. Functions that take `&[u8]` accept a `&Vec<u8>`, a byte array and a subslice without conversion thanks to deref coercion, which is why accepting slices rather than vectors in your public signatures makes the API usable by more callers.", "Zero-sized types are real and useful: `struct Marker;` costs no bytes, so a `Vec<Marker>` stores only its length, and a `Result<(), E>` costs at most one tag byte beyond its payload. `Option<&T>` is the same size as `&T`, because the null bit pattern is reinterpreted as the `None` variant. Problems appear when a ZST is placed next to another ZST in a tuple or struct, where two zero-sized fields may legitimately share the same address.", "Enums become the state machine of a module when each variant carries its own payload, because the compiler will not let you read a field that only exists in some variants without a `match` first. That single restriction turns a whole class of flag-checking bugs into type errors, and it is the reason Rust code prefers `enum` over a struct of optional fields whenever exactly one of several shapes can be live at a time." ]
+  }, {
+    "title" : "Traits, Generics and Dynamic Dispatch",
+    "content" : [ "A trait declares behaviour, and generic bounds such as `T: Display + Clone` promise that the caller can supply a type implementing both. The promise is enforced at every call site, so the error message points at the caller rather than at the trait, which is why a missing `derive` surfaces far from the code you are editing. Bounds are checked statically, so a value that fails to satisfy one never reaches the function.", "Monomorphisation means a generic function is recompiled per concrete type argument, giving specialised code with no vtable and no per-call indirection. The cost is code bloat and longer builds, and the reason a private helper used only from one module can still be compiled several times, once for each set of type arguments that reaches it. Sharing one instantiation deliberately requires putting it behind a function pointer or a trait object.", "`impl Trait` in argument position is sugar for a fresh generic parameter, which lets a caller pass any concrete type that implements the trait, and each distinct type produces its own machine code. In return position it is the opposite: the function commits to exactly one concrete type that the caller cannot name, so returning two different implementors from two branches is an error and the abstraction only hides the name, not the type.", "`dyn Trait` erases the concrete type into a pointer to a vtable, so a vector of boxes can hold several different implementors side by side. That flexibility costs an indirect call per method and defeats most inlining, and it only works when the trait is dyn compatible. Choosing between the two is a decision about whether the set of types is known at the call site or only at runtime.", "Object safety, now described as dyn compatibility, is what stops `dyn Trait` from being used for every trait. A method that returns `Self`, takes `self` by value, uses a generic type parameter, or relies on `async` desugaring cannot be dispatched through a vtable, because the return or argument size is not known once the concrete type is erased. The usual escape hatch is a companion trait or an explicit `Box<Self>` receiver, not a cast.", "Extension behaviour comes from blanket impls: `impl<T: Read> MyExt for T` gives every reader the method without touching the standard library. That power is exactly the hazard, because once a blanket impl exists, no other crate can implement the trait for a type that later satisfies the bound, so adding an impl for one specific type can be rejected as a conflicting overlap even though nothing actually collides today.", "Associated types name one output of a trait per implementation, as with `Iterator::Item`, and that is what distinguishes them from generic trait parameters. A generic parameter would let one type implement `Parser<Json>` and `Parser<Yaml>` at once, while an associated type forces exactly one choice, which is the semantics a collection or a cursor almost always wants. This is why the generic form is reserved for traits that describe a conversion rather than a capability.", "Trait objects are not free abstractions: storing `Box<dyn Any>` keeps a type identifier beside the data pointer, and recovering the concrete type means `downcast_ref` compares that identifier before it reinterprets the bits. Asking for the wrong type returns `None` rather than a garbled value, so the failure is quiet, and the compiler cannot warn about a downcast that was always wrong. This mechanism underpins `dyn Error` type checks and plugin registries." ]
+  }, {
+    "title" : "Error Handling with Result and ?",
+    "content" : [ "`Result<T, E>` says a function can fail for reasons the caller must see, because the error type is part of the signature and matching on the result is compulsory. Unlike an exception, nothing unwinds silently past a frame that forgot to look: a `Result` that is dropped on the floor produces an `unused_must_use` warning, which is the compiler's way of refusing to let failure evaporate. The cost is verbosity, which the `?` operator exists to absorb.", "The `?` operator takes the `Ok` value out of an expression and, on `Err`, returns early from the enclosing function with the error, after converting it through `From::from`. That conversion is why a function returning a custom error type can use `?` on an `io::Result`, provided the `From` impl exists; without it the code fails to compile with a confusing mismatch between the two error types rather than a missing trait bound.", "A `Box<dyn Error>` return type erases the concrete error into a heap allocation with a vtable, which is convenient in a `main` or a test where nobody branches on the variant. In a library it is the wrong default, because callers lose the ability to distinguish a missing file from a permission problem, and the public type becomes an opaque string that cannot be extended without changing signatures. Custom enums with `#[from]` cost less and communicate more.", "`unwrap`, `expect` and `panic!` all abort the normal flow and unwind, so they are only defensible when the failure truly cannot happen or when the program has no way to continue meaningfully. In a binary's entry point, or in a test where a `Result` failure should be loud, they are idiomatic. In a long-running server they turn one bad request into a crashed worker, which is why library code returns errors and only the application layer decides what a panic means.", "Chaining combinators keeps happy paths readable: `map`, `and_then` and `ok_or` reshape `Option` and `Result` without nesting `match` blocks, and `unwrap_or_else` computes a fallback only on the failure branch while `unwrap_or` builds it eagerly whether or not it is needed. That distinction matters when the default costs an allocation, a file read or a clock query, and the eager form is a quiet performance bug rather than a correctness one.", "`From` and `Into` turn many small error enums into one larger one, and the pattern is what lets `?` work at all in a function that aggregates failures from parsing, IO and serialisation. Hand-written conversions make the important cases explicit and let you attach context, while derive helpers only forward the inner error. Attaching the filename or the line number is precisely the information that a bare `From` throws away.", "Context belongs on the way out, not on the way in: a low-level function reports what failed in its own terms, and each caller adds what it was attempting. This is why an error type is usually an enum whose variants wrap other errors, and why printing the whole chain at the top with a `source()` walk gives a stack trace without paying unwinding costs. Libraries that report user-facing prose in the error type make that composition impossible.", "`panic = \"abort\"` in the release profile removes unwinding tables, so a panic ends the process immediately instead of running destructors up the stack. Builds get smaller and sometimes faster, and `catch_unwind` stops being able to rescue anything. That choice interacts with any code that relies on drop running after a panic, including lock guards, temporary directories and transactional cleanup, so it has to be a deliberate decision rather than a build flag copied from a template." ]
+  }, {
+    "title" : "Concurrency, Send, Sync and Async Runtimes",
+    "content" : [ "`Send` marks a type whose ownership may move to another thread, and `Sync` marks one whose shared reference `&T` may cross threads; the two are related by the rule that `&T` is `Send` exactly when `T` is `Sync`. Both are auto traits, inferred from fields, so a single `Rc` or raw pointer inside a struct removes them and makes the whole type thread-local. Debugging a missing bound therefore means finding which field caused it.", "`Arc<T>` counts with atomics so clones may live on several threads, and `Mutex<T>` guards a value so that only one holder of the guard touches it at a time. Wrapping in `Arc` alone gives shared read access, not shared mutation, which is a common misconception. `Mutex` protects every access only if every access goes through the guard, so leaking a `&mut T` out of the critical section defeats the entire design.", "Rust's promise about data races is scoped carefully: safe code with the borrow checker, `Send` and `Sync` cannot produce them, and `thread::spawn` will not accept a closure whose captures might die before the thread does. What the guarantees do not include is deadlock, logical races between two separately locked values, or panics from a poisoned mutex, all of which compile perfectly and show up only under load.", "A `MutexGuard` is not `Send`, so holding one across an `.await` makes the enclosing future non-`Send` and breaks a `tokio::spawn` that requires one, while the same code compiles happily in single-threaded tests. The fix is a scoped block that releases the lock before the await, or an async-aware mutex whose guard is designed to move. Because the failure appears late and in the executor's bound, teams that adopt async usually add a lint for it.", "Async Rust is pull-based: an `async fn` compiles to a state machine, and calling it produces an inert value that runs nothing until a runtime polls it. Awaiting inside the body registers a wakeup and returns control to the executor, so a task is only ever using a thread while it is not suspended. This is why futures must be polled again, why dropping one abandons work silently, and why the runtime is not part of the language.", "Blocking a thread inside a task steals capacity from every other task parked on that worker, so `std::thread::sleep`, `std::fs`, or a CPU-heavy loop can stall an event loop that looks correctly written. Runtimes do not detect it for you. Long work belongs on a dedicated thread pool, or behind the runtime's blocking helper, and the reasoning is the same whether or not the code contains the word async.", "Shared mutation without a lock needs a different shape: channels move ownership of a message to a single receiver, and atomics restrict operations to those the hardware can perform unbroken. `Arc` plus atomics is appropriate for counters, flags and rings, while `Mutex` remains the right default for anything with an invariant spanning several fields. Code that reaches for lock-free structures to protect a hash map usually pays in correctness reviews what it saves in nanoseconds.", "`std::sync::Mutex` returns a `PoisonError` when the lock is reacquired after a thread panicked while holding it, because the guard's data may have been left half-updated. `unwrap` on that result keeps the panic going, which is nearly always the safe behaviour, whereas ignoring poison and carrying on is a decision you must justify per field. Runtimes that spawn many tasks make poisoning ordinary rather than exotic, so a program that never handles it is quietly assuming nothing ever fails." ]
+  }, {
+    "title" : "Cargo, Crates and Honest Use of unsafe",
+    "content" : [ "`crate` is a compilation unit and `package` is a directory with a `Cargo.toml`; one package may hold a library crate, several binaries under `src/bin`, integration tests and, in modern manifests, several library targets. Modules are not crates and are not separate compilations: they are namespaced files inside one crate, so `mod` declares where the file lives while `use` only creates a path alias to something already compiled.", "Semver in Rust is narrower than a compatibility promise and wider than a number: Cargo treats a major bump as a new, unrelated dependency, so two majors can be linked into one binary and their types are not interchangeable. That is why `cargo tree` sometimes lists three copies of the same crate, and why a trait impl in one version cannot satisfy a bound from the other. Cargo\u0027s unit of compatibility is the major version, not the crate name.", "`Cargo.lock` records the exact resolved graph, including transitive dependencies, so a binary that commits it produces the same build everywhere. A library normally leaves the lock file out, because its own resolution is irrelevant to the downstream application that decides. When a lock file is committed, `cargo update` becomes a real code change that should be reviewed, since the transitive versions it moves are the ones you did not choose yourself.", "`unsafe` changes exactly one thing: inside an unsafe block the compiler allows operations that require human judgement, such as dereferencing raw pointers, calling unsafe functions, accessing mutable statics and implementing unsafe traits. It does not switch off borrow checking or type checking, and it does not make the surrounding code unchecked. Every unsafe block is a claim that the invariants cannot be expressed in the type system, and it should name the invariant it relies on.", "Unsafe does not promise that your code is correct, only that the compiler will stop verifying a specific list of rules. The typical obligations are that a pointer is aligned, non-null, derived from a live allocation, points at an initialised value of the right type, and is not aliased by another mutable reference for the lifetime of any reference you create from it. Break one and the failure is not a clean segfault but miscompilation, because optimiser passes are entitled to assume uniqueness that you violated.", "Aliasing is the part of the model that most often breaks working unsafe code: `&mut T` asserts unique access, so creating a second mutable reference to the same location while the first is live, or reading through an old raw pointer after a write through a new one, is undefined behaviour even when the program appears to produce the right numbers. Trees with parent pointers and hand-rolled arenas fail here most often, which is why the standard advice is to prefer indices into a vector over pointers between nodes.", "`MaybeUninit<T>` exists because declaring an uninitialised value as `T` is already undefined behaviour for most types, even before you read it. It defers validity until you call `assume_init`, at which point you have promised that every bit pattern the type requires holds. Reading a field that was never written, or assuming an enum discriminant is one of your variants, is the mistake this type is designed to make visible rather than silent.", "Casting through `as` between pointer types is checked and narrow, while `transmute` reinterprets any value as any other with no constraint on size or validity, so mismatched sizes are a compile error but mismatched bit patterns are a runtime disaster. Adding a repr hint changes which of those two you get: `#[repr(C)]` fixes field order and padding so a C header can be mirrored, whereas the default `#[repr(Rust)]` layout is explicitly unspecified, so byte offsets computed by hand against it are unsound even when they work today." ]
+  } ],
+  "questions" : [ {
+    "text" : "Which ownership statement is correct?",
+    "a" : "Multiple mutable owners are allowed",
+    "b" : "Each value has exactly one owner at a time",
+    "c" : "Values are reclaimed by a garbage collector",
+    "d" : "Ownership transfers only when clone is called",
+    "correct" : "B",
+    "explanation" : "Ownership moves on assignment unless the type is Copy; the original binding becomes invalid after a move.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Which borrowing combination does the compiler allow?",
+    "a" : "Any number of mutable references",
+    "b" : "One shared reference plus one mutable reference at the same time",
+    "c" : "References are always mutable",
+    "d" : "Either one mutable reference or any number of shared references",
+    "correct" : "D",
+    "explanation" : "This rule prevents data races and iterator invalidation at compile time.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does Option<T> provide?",
+    "a" : "A representation of absence without a null pointer",
+    "b" : "A numeric wrapper only",
+    "c" : "A value that panics when it is matched with the wrong pattern",
+    "d" : "A garbage-collected box",
+    "correct" : "A",
+    "explanation" : "The compiler requires matching both Some and None, so null-style mistakes become type errors.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does calling unwrap() on an Option or Result do?",
+    "a" : "Returns a default value",
+    "b" : "Panics if the value is None or Err",
+    "c" : "Is rejected at compile time",
+    "d" : "Converts Result to Option",
+    "correct" : "B",
+    "explanation" : "unwrap is fine when failure is impossible; otherwise prefer match, ?, or unwrap_or for recoverable paths.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What distinguishes String from &str?",
+    "a" : "String is a borrowed view; &str owns the data",
+    "b" : "Both are fixed-size arrays",
+    "c" : "String owns its data; &str borrows a slice",
+    "d" : "&str can be mutated in place",
+    "correct" : "C",
+    "explanation" : "String can grow and owns its allocation; &str borrows existing UTF-8 and cannot be resized.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "When is Rc<RefCell<T>> appropriate?",
+    "a" : "For thread-safe shared mutation across multiple worker threads in parallel",
+    "b" : "For single-threaded shared ownership with interior mutability",
+    "c" : "As a lock-free queue",
+    "d" : "Only for types that implement Send",
+    "correct" : "B",
+    "explanation" : "Rc is not thread-safe; RefCell enforces borrow rules at runtime, panicking on conflicting borrows.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What happens when a match expression is not exhaustive?",
+    "a" : "A wildcard arm is mandatory",
+    "b" : "Arms are evaluated in parallel",
+    "c" : "The code fails to compile",
+    "d" : "Match works only on enums",
+    "correct" : "C",
+    "explanation" : "Exhaustiveness is checked by the compiler, which is why adding an enum variant surfaces every match that must be updated.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What is the purpose of dyn Trait?",
+    "a" : "Runtime dispatch through a vtable",
+    "b" : "Inheritance between structs",
+    "c" : "Static dispatch only",
+    "d" : "Automatic cloning of trait objects",
+    "correct" : "A",
+    "explanation" : "dyn Trait stores a data pointer and a vtable pointer, enabling heterogeneous collections at the cost of dynamic dispatch.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What do lifetime annotations describe?",
+    "a" : "Garbage collection hints that tell the runtime when to free memory",
+    "b" : "How long references remain valid relative to each other",
+    "c" : "Heap allocation sizes",
+    "d" : "Ownership transfer timing",
+    "correct" : "B",
+    "explanation" : "Lifetimes are compile-time validity constraints; they disappear from the generated code.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why commit Cargo.lock for a binary crate?",
+    "a" : "To pin transitive dependency versions for reproducible builds",
+    "b" : "Because Cargo ignores it for applications",
+    "c" : "Because it lists only direct dependencies",
+    "d" : "Because it is regenerated on every build regardless of content",
+    "correct" : "A",
+    "explanation" : "For applications, a committed lock file makes builds reproducible; libraries often leave it out for downstream flexibility.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "With `let mut v: Vec<i32> = Vec::new(); let r = &v; v.push(1); println!(\"{}\", r.len());` what happens?",
+    "a" : "It prints 1, because the shared borrow expires the moment `push` begins",
+    "b" : "It fails: `r` is still live when `push` starts, so the shared borrow conflicts",
+    "c" : "It prints 1, because `Vec` is reallocating and `r` follows the new address",
+    "d" : "It fails only because `push` needs ownership of the vector rather than a borrow",
+    "correct" : "B",
+    "explanation" : "Non-lexical lifetimes end a borrow at its last use, and here that use is the `println!` after the mutable borrow, so the conflict is real. Option A is the misconception: NLL shortens lifetimes, it never permits shared and mutable borrows to overlap.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `s.clone()` do for a `String`?",
+    "a" : "It copies the pointer and length, so both values share one buffer",
+    "b" : "It demotes the string to a `&str` view of the same bytes",
+    "c" : "It allocates a second buffer and deep-copies the bytes into it",
+    "d" : "It wraps the buffer in a reference count so owners can share it",
+    "correct" : "C",
+    "explanation" : "`Clone` for `String` performs a real allocation and byte copy. Option A describes `Copy` semantics, which `String` deliberately does not implement precisely so that this cost is visible.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why can `trait Registry { fn make() -> Self; }` not be used as `Box<dyn Registry>`?",
+    "a" : "Because a method returning `Self` has an unknown return size once the type is erased",
+    "b" : "Because any method that borrows `self` automatically makes a trait not dyn compatible",
+    "c" : "Because associated and bare `Self` types require the `?Sized` bound on every impl",
+    "d" : "Because constructors without a `self` receiver are never placed in a vtable",
+    "correct" : "A",
+    "explanation" : "`dyn` dispatch needs a fixed calling convention, and returning `Self` by value is impossible when the concrete type is unknown. Option B is the trap: taking `&self` alone is fine, it is the `Self`-sized result that breaks object safety.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What separates `fn handle(c: impl Codec)` from a `Vec<Box<dyn Codec>>`?",
+    "a" : "Both monomorphise, because the compiler can always see which types flow in",
+    "b" : "The argument monomorphises per type, while `dyn` erases each element behind one fat pointer",
+    "c" : "`dyn` needs a `Sized` bound, while `impl Trait` accepts any unsized implementor",
+    "d" : "`impl Trait` boxes the argument first, which is what makes a heterogeneous vector of it legal",
+    "correct" : "B",
+    "explanation" : "Argument-position `impl Trait` is a fresh generic that generates one code path per concrete type, whereas `dyn Codec` stores a data pointer plus a vtable pointer. Option D reverses the truth: you cannot build a vector out of an opaque `impl Trait` type.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `if let Some(n) = optional { }` do when `optional` is `None`?",
+    "a" : "It binds `n` to the default value of the inner type and enters the block",
+    "b" : "It panics at runtime, because the pattern had no explicit reject arm",
+    "c" : "It refuses to compile, because the pattern does not cover every variant",
+    "d" : "It skips the block and continues with the statement after the `if let`",
+    "correct" : "D",
+    "explanation" : "`if let` is deliberately non-exhaustive, which is what makes it readable for single-arm cases. Option C confuses it with `match`, where exhaustiveness really is a hard compile-time requirement.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "For a struct with a custom `Drop` impl and fields `a` then `b`, what runs when the value goes out of scope?",
+    "a" : "The fields in reverse declaration order, then the `Drop::drop` body of the struct",
+    "b" : "Only the `Drop::drop` body, because fields need an explicit `drop` call to be released",
+    "c" : "The `Drop::drop` body, then the fields in declaration order as drop glue",
+    "d" : "The fields and the body interleaved, in an order the optimiser is free to choose",
+    "correct" : "C",
+    "explanation" : "Your own destructor runs first while the fields are still intact, then the compiler-generated glue drops each field in declaration order. Option A is the intuitive mistake: nested values are dropped outermost-first, not innermost-first.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "On a 64-bit target, what is `std::mem::size_of::<&str>()`?",
+    "a" : "8, because a string slice reference stores the address of its first byte",
+    "b" : "It depends on the byte length of the string the slice points at",
+    "c" : "24, because the capacity field of the original `String` is copied along",
+    "d" : "16, because `&str` is a fat pointer of an address plus a length",
+    "correct" : "D",
+    "explanation" : "A slice reference must carry its own length, so it is two words wide regardless of how long the text is. Option C is the trap: `&str` has no capacity, that field belongs only to the owning `Vec` or `String`.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which statement about the `Send` and `Sync` markers is accurate?",
+    "a" : "`Send` means a value may be shared by reference between threads and `Sync` means it may be moved",
+    "b" : "`&T` is `Send` only when `T` is `Sync`, which is why a borrow of `Rc` cannot cross threads",
+    "c" : "Both markers are aliases, so any `Send` type is automatically `Sync` as well",
+    "d" : "A closure is `Send` whenever its body compiles, independently of what it captured",
+    "correct" : "B",
+    "explanation" : "`Sync` is defined through `Send` on the shared reference, and `Rc` is neither, so borrowing one poisons the reference too. Option A swaps the two definitions, and option D ignores that a closure inherits its auto traits from its captures.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why does `thread::spawn` require its closure to be `'static`?",
+    "a" : "Because the scoped variants of `thread` were dropped from the standard library, so no borrow of the parent stack can ever be handed to a thread",
+    "b" : "Because `'static` is only a stylistic annotation that the borrow checker forgets after type checking",
+    "c" : "Because every spawned thread is guaranteed to outlive `main`, so short borrows are impossible",
+    "d" : "Because the new thread may outlive the caller's frame, so any captured borrow needs an unbounded lifetime",
+    "correct" : "D",
+    "explanation" : "The runtime can move the thread beyond the scope that owns the data, so the compiler insists on captured values that do not borrow. Option A is the trap: `thread::scope` exists precisely because that proof can be supplied another way.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "A task holds a `std::sync::MutexGuard` across an `.await`. What is the practical consequence?",
+    "a" : "The guard is not `Send`, so the future stops being `Send` and `tokio::spawn` refuses it",
+    "b" : "The guard is not `Sync`, so the mutex unlocks itself while the task is suspended",
+    "c" : "It works, because the lock inside a `Mutex` is atomic, so its guard can travel between threads along with the task",
+    "d" : "Nothing changes, since a shared borrow of the guard is automatically thread-safe",
+    "correct" : "A",
+    "explanation" : "A `MutexGuard` holds `&mut T`, so it is not `Send`, and any future awaiting while holding one inherits that. Option C is the trap: the atomicity of the lock says nothing about whether the guard may cross a thread boundary.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why is `std::thread::sleep` inside a Tokio task considered a bug?",
+    "a" : "Because the compiler rejects calls to blocking functions inside any `async fn` body",
+    "b" : "Because it parks the worker thread and stalls every other task scheduled on that thread",
+    "c" : "Because blocking functions panic whenever a runtime is installed for the thread",
+    "d" : "Because only the entry-point task of an async program may make syscalls at all, and the runtime enforces that rule",
+    "correct" : "B",
+    "explanation" : "Tasks share a small pool of worker threads, so blocking one thread withholds it from the scheduler while nothing detects this. Option A is the comforting myth: async Rust does not forbid blocking, it just makes the damage invisible.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Using `?` on `std::fs::read(\"app.toml\")` inside `fn load() -> Result<Config, LoadErr>` requires what?",
+    "a" : "Nothing, since `?` boxes any error into `Box<dyn Error>` automatically",
+    "b" : "A `Try` impl for `io::Error`, which every user of the operator must add",
+    "c" : "`LoadErr: From<io::Error>`, because the operator converts before returning early",
+    "d" : "Nothing, because every standard library error type converts into every other one",
+    "correct" : "C",
+    "explanation" : "The `?` operator calls `From::from` on the error, so the code compiles only when `LoadErr: From<io::Error>` exists. Option D is the trap: conversions are opt-in per error type, which is why this bound is the usual first compile failure when wrapping IO errors.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What separates `panic!` from returning `Err(e)`?",
+    "a" : "A panic unwinds the stack and skips the destructors of every frame it passes through on the way out",
+    "b" : "A panic marks a bug and unwinds or aborts, while `Err` is a value the caller must act on",
+    "c" : "Returning `Err` terminates the process in the same way, just with a different type",
+    "d" : "The compiler catches every panic at build time, so unreachable code is rejected instead",
+    "correct" : "B",
+    "explanation" : "Panics are for broken invariants and stop the current flow; `Result` keeps the failure inside the type system for the caller. Option A is the misconception to avoid: unwinding runs destructors on the way out, which is what makes RAII work.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why is `catch_unwind` not a substitute for returning `Result`?",
+    "a" : "Because it only intercepts panics raised inside the same crate that installs it",
+    "b" : "Because the release profile of Cargo sets `panic = \"abort\"` by default, so no unwind tables are emitted",
+    "c" : "Because a panic may leave state half-updated, so continuing the thread is unsound in general",
+    "d" : "Because unwinding is only enabled for `no_std` targets that opt in with a feature flag",
+    "correct" : "C",
+    "explanation" : "Unwinding stops invariants from being finished, so resuming normal code assumes nothing was corrupted, which is a promise panic cannot make. Option B is false but convincing: both profiles unwind by default, and `abort` is a choice you opt into.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does `unwrap_or_else` give you that `unwrap_or` does not?",
+    "a" : "It computes the fallback lazily, so an expensive default is never built on success",
+    "b" : "It replaces the panic path with a compile-time proof that the value is present",
+    "c" : "It lets the closure repair the original `Option` or `Result` in place",
+    "d" : "It converts an `Option` into a `Result` on your behalf, so the caller never has to name an error type anywhere",
+    "correct" : "A",
+    "explanation" : "The `_else` variants take a closure that runs only on the failure branch, which matters when the default allocates or reads a file. Option D describes `ok_or` and `ok_or_else`, which is exactly the sibling people confuse with it.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which description of `cargo add serde` is right?",
+    "a" : "It records the resolved dependency in `Cargo.lock`, since `Cargo.toml` is hand-written",
+    "b" : "It scaffolds a new crate directory named after the dependency you requested",
+    "c" : "It freezes the current version forever and refuses to resolve anything newer",
+    "d" : "It writes the requirement into `Cargo.toml` and refreshes the lock file",
+    "correct" : "D",
+    "explanation" : "The command edits the manifest with a caret semver range and then updates the lock, so both files change. Option A is the persistent myth: `Cargo.lock` is generated bookkeeping, and the manifest is the source of truth.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does wrapping a pointer in `Pin<P>` actually promise?",
+    "a" : "That the pointee will not be moved again, a rule safe code keeps by convention",
+    "b" : "That the allocator freezes the address at runtime, making self-referential structs movable",
+    "c" : "That the inner pointer is `Unpin`, so the value can no longer be borrowed mutably",
+    "d" : "That the value leaks, because a `Pin` owns its contents and has no way to release them",
+    "correct" : "A",
+    "explanation" : "`Pin` restricts the API so that safe code cannot move or swap the pointee out of the pointer, which is what makes `poll` on a future legal. Option D is wrong in a revealing way: `Pin<Box<T>>` can still drop the value, it just cannot move it out.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What changes for `debug_assert!` when you build with `--release`?",
+    "a" : "Nothing at all, because assertions are emitted in every profile regardless",
+    "b" : "The macro expands to a block marked `unchecked`, which the optimiser may reorder",
+    "c" : "The check disappears, because `debug_assertions` is off in that profile",
+    "d" : "It keeps running, but aborts the process instead of unwinding as a panic",
+    "correct" : "C",
+    "explanation" : "`debug_assert!` is gated on the `debug_assertions` configuration, which release turns off by default, so the comparison is never evaluated. Option A conflates it with `assert!`, which stays live and can also be silenced only via overflow-checks settings for arithmetic.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which file is the crate root of a library in a Cargo package?",
+    "a" : "`src/lib.rs` for the library target, while `src/main.rs` is the default binary",
+    "b" : "`src/main.rs` always, because a package can only compile one root",
+    "c" : "Cargo compiles the first file listed in `src`, so the root depends on the directory",
+    "d" : "The root is chosen by the `edition` field written into `Cargo.lock`",
+    "correct" : "A",
+    "explanation" : "Library targets default to `src/lib.rs` and the single binary defaults to `src/main.rs`, and a package may hold both plus `src/bin`. Option C is the trap: targets come from the manifest conventions, never from a directory listing.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What does marking a function `unsafe fn` actually communicate?",
+    "a" : "The compiler validates the documented invariants and refuses an unsound body",
+    "b" : "That the function is excluded from inlining so failures stay debuggable",
+    "c" : "That calls must be explicit, since `unsafe fn` is only a doc comment",
+    "d" : "Callers must write an `unsafe` block and own the preconditions it documents",
+    "correct" : "D",
+    "explanation" : "The keyword moves the safety burden to the call site, where a human asserts the pointer, alignment and aliasing rules hold. Option A is the dangerous reading: nothing in the compiler checks that an unsafe body is sound.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Which situation is a real soundness violation, even though it often appears to work?",
+    "a" : "Aliasing two raw pointers to a boxed value and reading from both before either is freed",
+    "b" : "Forming a `&mut T` from a raw pointer while another `&mut T` to it is still live",
+    "c" : "Dereferencing a raw pointer obtained from `Box::into_raw` before calling `Box::from_raw`",
+    "d" : "Calling an `unsafe fn` inside an `unsafe` block without repeating the block",
+    "correct" : "B",
+    "explanation" : "`&mut` asserts unique access, so two live exclusive references to one location is undefined behaviour whatever the program prints. Option A is the near-miss: two shared reads through raw pointers are fine as long as nothing mutates while they are live.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why does calling `sum(&v)` work for a function declared as `fn sum(v: &[i32])`?",
+    "a" : "Because `Vec<i32>` is `Copy`, so the callee receives an independent buffer",
+    "b" : "Because slices own the elements they view, so passing one transfers the data",
+    "c" : "Because deref coercion turns `&Vec<i32>` into `&[i32]` with no copy",
+    "d" : "Because the compiler inserts a `clone` whenever an argument type is not an exact match",
+    "correct" : "C",
+    "explanation" : "`Vec<T>` derefs to `[T]`, so a reference to the vector coerces to a slice reference pointing at the same allocation. Option B states the ownership backwards: a slice never owns, which is what makes the coercion cheap.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "A parent `Rc` points at a child whose field points back at the parent. Why is memory leaked?",
+    "a" : "Because `RefCell` disables borrow tracking, so the release order is undefined",
+    "b" : "Because a guard held during destruction makes the drop order of the fields vary",
+    "c" : "Because each side keeps the other's strong count above zero, so neither reaches zero",
+    "d" : "Because reference counts live in thread-local slots that the allocator never reclaims",
+    "correct" : "C",
+    "explanation" : "Reference counting only frees a node when its last owner dies, and a cycle means every owner is inside the cycle. Option B describes a real hazard for a different design: it is about borrow guards, not about counts that never fall to zero.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why would you reach for `Arc<T>` rather than `Rc<T>`?",
+    "a" : "`Arc` may be coerced for FFI and passed by pointer, while `Rc` refuses such conversions",
+    "b" : "`Arc` counts with atomics so clones may live on other threads, where `Rc` stays cheaper",
+    "c" : "`Arc` is what you must use when the inner value is unsized",
+    "d" : "`Arc` hands out exclusive interior access, so a `Mutex` around it would be redundant",
+    "correct" : "B",
+    "explanation" : "The atomic counter is what makes `Arc` both `Send` and `Sync`, at the price of a locked increment per clone and drop. Option D is the misconception that causes most accidental races: sharing a pointer does not give you permission to mutate.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `cargo check` actually do?",
+    "a" : "It compiles, links and runs the binary, reporting the first panic it sees",
+    "b" : "It resolves names, infers types and runs borrow checking without full codegen",
+    "c" : "It runs the formatter and reports style problems without consulting the type checker",
+    "d" : "It resolves the dependency graph and rewrites every range in `Cargo.toml` to the newest",
+    "correct" : "B",
+    "explanation" : "The subcommand stops before generating machine code, which is why it is much faster than `cargo build` for the same crate. Option D describes a mixture of `cargo update` and `cargo add`, neither of which is implied by checking.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "With `struct LocalId(u32)` in your crate, which impl does the orphan rule accept?",
+    "a" : "`impl Display for Vec<String>`, because a container holding foreign types still counts as a local type",
+    "b" : "Neither, because both `From` and `String` belong to the standard library",
+    "c" : "`impl From<String> for String`, because both types are in scope at the impl",
+    "d" : "`impl From<LocalId> for String`, because a local type is a generic argument of the trait",
+    "correct" : "D",
+    "explanation" : "The rule demands a local type somewhere in the impl, and a covered local type argument of the trait satisfies it even when `Self` is foreign. Option A is the trap: `Vec<String>` contains nothing local, so the impl would be a coherence violation.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "With a live `let g = cell.borrow();`, what does a later `cell.borrow_mut()` do?",
+    "a" : "It panics at runtime, because `RefCell` counts borrows and forbids aliasing",
+    "b" : "It is rejected by the compiler, exactly as a second borrow of a `&Cell` would be",
+    "c" : "It returns a second guard, and the two accesses race without any warning",
+    "d" : "It ends `g` implicitly, since a mutable borrow always supersedes shared ones",
+    "correct" : "A",
+    "explanation" : "`RefCell` moves the borrow rule from compile time to runtime, so the conflicting borrow is a panic rather than a type error. Option B is the intuition to defeat: interior mutability is legal to write precisely because checking happens later.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "On a 32-bit target, how large is `usize`?",
+    "a" : "Always 64 bits, because indexing arithmetic must never overflow",
+    "b" : "Four bytes, matching the size of a `char` in Rust",
+    "c" : "The pointer width of the target, so 32 bits there",
+    "d" : "A signed index whose width the optimiser picks per function",
+    "correct" : "C",
+    "explanation" : "`usize` is defined as the same width as a pointer on the target, so it shrinks with the address space. Option B confuses it with `char`, which is four bytes regardless of the platform's word size.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What has happened after `let it = v.iter().filter(|x| **x % 2 == 0);` runs but nothing consumes `it`?",
+    "a" : "The vector was walked once and the matching elements copied into a buffer",
+    "b" : "Nothing has run yet, because adapters only advance when a consumer polls them",
+    "c" : "The iterator was cloned, so each later consumer receives its own cursor",
+    "d" : "The closure was evaluated once to fix the element type for the borrow checker",
+    "correct" : "B",
+    "explanation" : "Iterator adapters build a description of a computation, and only `collect`, `for`, `sum` and friends pull elements through it. Option A is the mental model inherited from eager languages, which is why `filter` never reserves anything.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Why does `Box<dyn Any>` need `downcast_ref::<T>()` rather than a plain cast?",
+    "a" : "Because boxing a value as `dyn Any` discards the data pointer and leaves only the vtable to inspect",
+    "b" : "Because downcasting is permitted only for types that also implement `Clone`",
+    "c" : "Because `dyn Any` is unsized, so a cast would have to know a length",
+    "d" : "Because the object carries a `TypeId` that must be compared before reinterpreting",
+    "correct" : "D",
+    "explanation" : "`Any` requires `'static`, so each value knows its concrete type id, and the downcast returns `None` when the id does not match. Option B is the invented rule people guess at: no `Clone` bound is involved in downcasting at all.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "Why does calling an `async fn` without awaiting or spawning it do nothing?",
+    "a" : "Because the body is allocated on the heap only when the first `.await` is reached",
+    "b" : "Because the compiler inserts a hidden spawn, so a runtime thread runs it eventually",
+    "c" : "Because the call only builds a state machine value that a runtime has to poll",
+    "d" : "Because awaiting inside the body suspends the current thread until the value is ready",
+    "correct" : "C",
+    "explanation" : "`async fn` desugars to a function returning an inert `Future`, and progress happens only when something drives it forward. Option D is the blocking mental model: an await yields to the executor rather than parking the thread.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `mut` on a binding give you, and what does it withhold?",
+    "a" : "It permits assigning a value of some other type to the same name further down the same block",
+    "b" : "It makes the value safe for concurrent writes from other threads",
+    "c" : "It is required in order to read the value through a shared reference",
+    "d" : "It allows rebinding the name, but not mutating through a shared reference",
+    "correct" : "D",
+    "explanation" : "Binding mutability is about the variable, while mutating the data it holds needs an exclusive borrow or interior mutability. Option A is the trap: types are fixed per binding, so a `mut` variable cannot switch from `String` to `Vec`.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "Why is `fn longest<'a>(x: &'a str, y: &str) -> &'a str { if x.len() > y.len() { x } else { y } }` rejected?",
+    "a" : "Returning `y` is rejected, since its own lifetime may be shorter than `'a`",
+    "b" : "A signature may not reuse one named lifetime parameter across several arguments",
+    "c" : "It works, because `&str` arguments are automatically promoted to `'static`",
+    "d" : "It works, because an elided argument lifetime inherits the first declared one",
+    "correct" : "A",
+    "explanation" : "The promise `'a` on the result demands that every returned path live that long, and a borrowed `y` with an unrelated lifetime cannot guarantee it. Option D is the elision rule people half-remember, which applies only to arguments without their own annotations.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What is the difference between `cargo new app` and `cargo init` in an existing directory?",
+    "a" : "`cargo init` builds a workspace manifest for several crates, while `cargo new` adds a module",
+    "b" : "They are aliases, and only the shell completion scripts differ",
+    "c" : "`cargo new` creates the project directory; `cargo init` turns the current one into a package",
+    "d" : "`cargo new` insists on an existing `Cargo.lock` to copy resolved versions from",
+    "correct" : "C",
+    "explanation" : "The first expects an absent directory and lays out a fresh package, the second adopts files that are already there. Option A inflates `init` into a workspace command, which it is not unless you add members yourself.",
+    "difficulty" : "EASY"
+  }, {
+    "text" : "What makes reading a `static mut` from two threads unsound?",
+    "a" : "Because statics are placed in read-only pages, so writes trap at runtime",
+    "b" : "Because a `static mut` cannot contain a type that owns a heap buffer",
+    "c" : "Because statics are destroyed before `main` starts, so any later read is after free",
+    "d" : "Because nothing orders the accesses, so two live `&mut` to the same address is UB",
+    "correct" : "D",
+    "explanation" : "The compiler cannot prove exclusive access across threads, so the uniqueness requirement of `&mut` is broken by construction. Option B is a guess people make: a static may well hold a `Vec`, and the problem is aliasing rather than the field type.",
+    "difficulty" : "HARD"
+  }, {
+    "text" : "What does `#[non_exhaustive]` on an enum change for downstream crates?",
+    "a" : "Their matches must keep a catch-all arm, because variants may be added later",
+    "b" : "It hides variants from the defining crate too, so even local code needs `_ =>`",
+    "c" : "The enum may no longer implement any trait besides `Debug`",
+    "d" : "The enum's discriminant layout becomes unstable between builds",
+    "correct" : "A",
+    "explanation" : "The attribute signals that the set of variants is open, so external exhaustive matching stops being a breaking change. Option B overstates it: the defining crate still sees every variant and keeps writing exhaustive matches.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "Two dependencies require different major versions of the same crate. What does Cargo do?",
+    "a" : "It resolves the clash by choosing the newer major version and reusing it everywhere with one warning",
+    "b" : "The build fails until a `[patch]` entry redirects the older major version",
+    "c" : "Both majors are compiled, since different majors are treated as distinct crates",
+    "d" : "It merges them into one crate by taking the union of their public APIs",
+    "correct" : "C",
+    "explanation" : "A version bump means an incompatible API, so the resolver happily links both and their types do not interconvert. Option A is the assumption inherited from other package managers, and it would silently break one of the two dependents.",
+    "difficulty" : "MEDIUM"
+  }, {
+    "text" : "What does `pub(crate)` on an item mean?",
+    "a" : "It is part of the public API, so any crate that depends on this one can name it",
+    "b" : "It is visible only inside the module that declares the item itself",
+    "c" : "It is exported to the linker but hidden from the type checker of other modules",
+    "d" : "It is visible everywhere in this crate, and nowhere outside it",
+    "correct" : "D",
+    "explanation" : "The restriction narrows `pub` to the current crate, which is how libraries share internals without committing to them. Option B describes a bare private item, which is the level below `pub(crate)` rather than the same thing.",
+    "difficulty" : "EASY"
+  } ]
+}

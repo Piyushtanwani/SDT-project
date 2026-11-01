@@ -127,7 +127,7 @@ export const AdminSkillPanel = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
+    <div className="flex min-h-screen transition-colors duration-300">
       <Sidebar />
       <div className="flex-1 flex flex-col p-6">
         <h1 className="text-3xl font-bold text-center text-indigo-600 dark:text-indigo-400 mb-8">
@@ -143,7 +143,7 @@ export const AdminSkillPanel = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search skills…"
               aria-label="Search skills"
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 dark:bg-gray-800 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
+              className="min-h-[44px] w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 dark:bg-gray-800 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
             />
           </div>
           <button
@@ -153,7 +153,7 @@ export const AdminSkillPanel = () => {
               setModalError("");
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 py-2 px-4 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+            className="min-h-[44px] flex items-center gap-2 py-2 px-4 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
           >
             <Plus size={18} />
             Add skill
@@ -180,15 +180,16 @@ export const AdminSkillPanel = () => {
                 </h2>
               </div>
 
-              <div className="absolute top-2 right-2 flex">
+              <div className="absolute top-2 right-2 flex gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setEditSkillId(skill.id);
                     setEditSkillName(skill.name);
                     setModalError("");
                     setIsModalOpen(true);
                   }}
-                  className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center mr-2"
+                  className="h-11 w-11 rounded-full bg-indigo-500 text-white flex items-center justify-center"
                   aria-label={`Edit ${skill.name}`}
                   title={`Edit ${skill.name}`}
                 >
@@ -196,12 +197,13 @@ export const AdminSkillPanel = () => {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedSkillId(skill.id);
                     setConfirmError("");
                     setIsConfirmOpen(true);
                   }}
-                  className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center"
+                  className="h-11 w-11 rounded-full bg-red-500 text-white flex items-center justify-center"
                   aria-label={`Delete ${skill.name}`}
                   title={`Delete ${skill.name}`}
                 >
@@ -219,7 +221,7 @@ export const AdminSkillPanel = () => {
                   </p>
                   <button
                     onClick={fetchSkills}
-                    className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                    className="min-h-[44px] px-4 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
                   >
                     Try again
                   </button>
@@ -231,7 +233,7 @@ export const AdminSkillPanel = () => {
                   </p>
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
+                    className="min-h-[44px] px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 font-medium border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                   >
                     Clear search
                   </button>
@@ -248,7 +250,7 @@ export const AdminSkillPanel = () => {
                       setModalError("");
                       setIsModalOpen(true);
                     }}
-                    className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                    className="min-h-[44px] px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
                   >
                     Add skill
                   </button>
@@ -296,14 +298,14 @@ export const AdminSkillPanel = () => {
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
+                    className="min-h-[44px] px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={editSkillId ? handleUpdateSkill : handleCreateSkill}
                     disabled={isSaving}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="min-h-[44px] px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isSaving ? "Saving…" : editSkillId ? "Save changes" : "Add skill"}
                   </button>
@@ -335,14 +337,14 @@ export const AdminSkillPanel = () => {
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setIsConfirmOpen(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
+                    className="min-h-[44px] px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 dark:hover:text-white"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDeleteSkill}
                     disabled={isDeleting}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="min-h-[44px] px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {isDeleting ? "Deleting…" : "Delete"}
                   </button>

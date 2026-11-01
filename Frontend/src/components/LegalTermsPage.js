@@ -223,7 +223,7 @@ const LegalTermsPage = () => {
                 Most web browsers allow you to control cookies through their settings preferences. However, if you limit the ability of 
                 websites to set cookies, you may impact your overall user experience. To find out more about cookies, including how to see 
                 what cookies have been set and how to manage and delete them, visit{' '}
-                <a href="https://www.allaboutcookies.org" className="text-blue-600 dark:text-blue-400 hover:underline">
+                <a href="https://www.allaboutcookies.org" className="text-indigo-600 dark:text-indigo-400 hover:underline">
                   www.allaboutcookies.org
                 </a>.
               </p>
@@ -241,7 +241,7 @@ const LegalTermsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-gray-50 dark:bg-gradient-to-b dark:from-gray-950 dark:to-gray-900">
+    <div className="min-h-screen">
       {/* Add custom animation keyframes */}
       <style>
         {`
@@ -326,10 +326,10 @@ const LegalTermsPage = () => {
 
       <div className="max-w-5xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16 header-animation">
-          <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 sm:text-5xl mb-3 inline-block bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500">
+          <h1 className="text-4xl font-extrabold text-gray-900 dark:text-gray-100 sm:text-5xl mb-3 inline-block">
             Legal Terms & Policies
           </h1>
-          <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400 mx-auto mt-2 mb-6 rounded-full"></div>
+          <div className="w-20 h-1 bg-indigo-500 mx-auto mt-2 mb-6 rounded-full"></div>
           <p className="mt-4 text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
             Please review our legal terms and policies to understand your rights and responsibilities.
           </p>
@@ -346,8 +346,8 @@ const LegalTermsPage = () => {
                 aria-selected={activeTab === index}
                 aria-controls={`policy-panel-${activeTab}`}
                 onClick={() => handleTabChange(index)}
-                className={`tab-item flex-1 py-5 px-4 text-center font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
-                  activeTab === index ? 'active bg-blue-50 dark:bg-indigo-900/30 text-blue-700 dark:text-blue-400 font-semibold' : ''
+                className={`tab-item flex-1 py-5 px-4 text-center font-medium text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
+                  activeTab === index ? 'active bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-semibold' : ''
                 }`}
                 style={{
                   animation: activeTab === index ? 'pulse 2s infinite' : 'none',
@@ -362,7 +362,7 @@ const LegalTermsPage = () => {
                 >
                   {tab}
                   {activeTab === index && (
-                    <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-blue-500 dark:bg-blue-400 transform origin-left"></span>
+                    <span className="absolute -bottom-1 left-0 w-full h-0.5 bg-indigo-500 dark:bg-indigo-400 transform origin-left"></span>
                   )}
                 </span>
               </button>
@@ -384,15 +384,15 @@ const LegalTermsPage = () => {
             If you have any questions about our policies, please contact us at{' '}
             <a
               href="mailto:legal@yourelearning.com"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline relative inline-block transition-all duration-300"
+              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline relative inline-block transition-all duration-300"
             >
               legal@yourelearning.com
-              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-400 dark:bg-blue-300 transform scale-x-0 transition-transform duration-300 origin-left hover:scale-x-100"></span>
+              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-400 dark:bg-indigo-300 transform scale-x-0 transition-transform duration-300 origin-left hover:scale-x-100"></span>
             </a>
           </p>
 
           <div className="mt-8">
-            <button className="px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white font-medium rounded-lg shadow-md hover:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-opacity-50 transition-all duration-300 transform hover:-translate-y-1">
+            <button className="px-6 py-3 bg-indigo-600 dark:bg-indigo-700 text-white font-medium rounded-lg shadow-md hover:bg-indigo-700 dark:hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:ring-opacity-50 transition-all duration-300 transform hover:-translate-y-1">
               Download All Policies
             </button>
           </div>

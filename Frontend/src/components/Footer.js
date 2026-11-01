@@ -1,15 +1,7 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FaFacebook, FaLinkedin, FaTwitter, FaYoutube } from "react-icons/fa";
 
 export const Footer = () => {
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitted(true);
-  };
-
   return (
     <footer className="bg-slate-900 text-white border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
@@ -18,18 +10,18 @@ export const Footer = () => {
           {/* Learn */}
           <div className="space-y-3">
             <h3 className="text-base font-semibold text-white tracking-wider uppercase">Learn</h3>
-            <ul className="space-y-2 text-slate-400 text-sm">
+            <ul className="space-y-1 text-slate-400 text-sm">
               <li>
-                <Link to="/courses" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Courses</Link>
+                <Link to="/courses" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Courses</Link>
               </li>
               <li>
-                <Link to="/compiler" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Online Compiler</Link>
+                <Link to="/compiler" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Online Compiler</Link>
               </li>
               <li>
-                <Link to="/ai" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">AI Learning Assistant</Link>
+                <Link to="/ai" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">AI Learning Assistant</Link>
               </li>
               <li>
-                <Link to="/community" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Community Hub</Link>
+                <Link to="/community" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Community Hub</Link>
               </li>
             </ul>
           </div>
@@ -37,15 +29,15 @@ export const Footer = () => {
           {/* Company */}
           <div className="space-y-3">
             <h3 className="text-base font-semibold text-white tracking-wider uppercase">Company</h3>
-            <ul className="space-y-2 text-slate-400 text-sm">
+            <ul className="space-y-1 text-slate-400 text-sm">
               <li>
-                <Link to="/contact" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Contact</Link>
+                <Link to="/contact" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Contact</Link>
               </li>
               <li>
-                <Link to="/leaderboard" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Leaderboard</Link>
+                <Link to="/leaderboard" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Leaderboard</Link>
               </li>
               <li>
-                <Link to="/credential-verify" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Verify Certificate</Link>
+                <Link to="/credential-verify" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Verify Certificate</Link>
               </li>
             </ul>
           </div>
@@ -53,15 +45,15 @@ export const Footer = () => {
           {/* Legal */}
           <div className="space-y-3">
             <h3 className="text-base font-semibold text-white tracking-wider uppercase">Legal</h3>
-            <ul className="space-y-2 text-slate-400 text-sm">
+            <ul className="space-y-1 text-slate-400 text-sm">
               <li>
-                <Link to="/terms?tab=1" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Terms of Service</Link>
+                <Link to="/terms?tab=1" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Terms of Service</Link>
               </li>
               <li>
-                <Link to="/terms?tab=2" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Privacy Policy</Link>
+                <Link to="/terms?tab=2" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Privacy Policy</Link>
               </li>
               <li>
-                <Link to="/terms?tab=3" className="inline-flex min-h-[28px] items-center hover:text-indigo-400 transition-colors">Cookie Policy</Link>
+                <Link to="/terms?tab=3" className="inline-flex min-h-[44px] items-center hover:text-indigo-400 transition-colors">Cookie Policy</Link>
               </li>
             </ul>
           </div>
@@ -70,30 +62,22 @@ export const Footer = () => {
           <div className="space-y-3">
             <h3 className="text-base font-semibold text-white tracking-wider uppercase">Stay Updated</h3>
             <p className="text-sm text-slate-400">
-              Get weekly curated coding challenges and free learning resources.
+              Weekly curated coding challenges and free learning resources are shared in the community hub.
             </p>
-            {submitted ? (
-              <p className="text-emerald-400 text-sm font-medium" role="status">Thank you for subscribing!</p>
-            ) : (
-              <form
-                className="flex items-center border border-slate-700 focus-within:border-indigo-500 rounded-lg overflow-hidden text-sm bg-slate-800/80 transition-all"
-                onSubmit={handleSubmit}
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <Link
+                to="/community"
+                className="inline-flex min-h-[44px] items-center text-sm font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
               >
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  aria-label="Email address for the newsletter"
-                  className="flex-1 px-3 py-2 bg-transparent text-white placeholder-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 text-sm"
-                  required
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 transition-all text-white font-medium text-sm"
-                >
-                  Subscribe
-                </button>
-              </form>
-            )}
+                Join the community
+              </Link>
+              <Link
+                to="/contact"
+                className="inline-flex min-h-[44px] items-center text-sm font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
+              >
+                Email us your question
+              </Link>
+            </div>
           </div>
         </div>
 

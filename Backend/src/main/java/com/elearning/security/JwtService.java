@@ -8,14 +8,26 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
+
+    /**
+     * The questions a candidate was actually served for one attempt. Grading a submission
+     * against this list is what keeps the score denominator honest when the exam draws a
+     * subset of a much larger question bank.
+     */
+    public record ExamDrawClaims(Long userId, Long courseId, List<Long> questionIds) {
+    }
+
+    private static final String DRAW_TOKEN_TYPE = "exam-draw";
 
     private final String secretKey;
     private final long expirationTime;
@@ -109,5 +121,56 @@ public class JwtService {
         } catch (Exception e) {
             return true;
         }
+    }
+
+    /**
+     * Signs the exact set of question ids served for one exam attempt. The client carries the
+     * token but cannot forge it, so the server still decides both the draw and its size.
+     */
+    public String generateExamDrawToken(Long userId, Long courseId, List<Long> questionIds, long ttlMillis) {
+        String joined = String.join(",", questionIds.stream().map(String::valueOf).toList());
+        Date now = new Date();
+        return Jwts.builder()
+                .setSubject(DRAW_TOKEN_TYPE)
+                .claim("typ", DRAW_TOKEN_TYPE)
+                .claim("uid", userId)
+                .claim("cid", courseId)
+                .claim("qids", joined)
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + ttlMillis))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /**
+     * @throws IllegalArgumentException when the token is missing, forged, expired, a different
+     *                                  token type, or carries a malformed question id list.
+     */
+    public ExamDrawClaims parseExamDrawToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("Exam draw token is missing.");
+        }
+        Claims claims = getAllClaimsFromToken(token);
+        if (!DRAW_TOKEN_TYPE.equals(claims.get("typ", String.class))) {
+            throw new IllegalArgumentException("Token is not an exam draw token.");
+        }
+        Number uid = claims.get("uid", Number.class);
+        Number cid = claims.get("cid", Number.class);
+        String qids = claims.get("qids", String.class);
+        if (uid == null || cid == null || qids == null || qids.isBlank()) {
+            throw new IllegalArgumentException("Exam draw token is incomplete.");
+        }
+        List<Long> ids = new ArrayList<>();
+        for (String part : qids.split(",")) {
+            try {
+                ids.add(Long.parseLong(part.trim()));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Exam draw token is malformed.");
+            }
+        }
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("Exam draw token contains no questions.");
+        }
+        return new ExamDrawClaims(uid.longValue(), cid.longValue(), List.copyOf(ids));
     }
 }

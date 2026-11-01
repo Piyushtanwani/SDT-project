@@ -60,11 +60,11 @@ export const AdminCoursePanel = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800">
+    <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col p-4 sm:p-6">
         {/* Header */}
-        <h1 className="text-3xl sm:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-700 dark:from-blue-400 dark:to-purple-400 mb-6 sm:mb-8">
+        <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 dark:text-white mb-6 sm:mb-8">
           Admin Course Panel
         </h1>
 
@@ -74,7 +74,7 @@ export const AdminCoursePanel = () => {
             onClick={() => setIsModalOpen(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="py-3 px-6 rounded-lg text-white font-medium bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)]"
+            className="py-3 px-6 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 shadow-sm hover:shadow-md"
           >
             + Add course
           </motion.button>
@@ -121,7 +121,7 @@ export const AdminCoursePanel = () => {
                   setIsLoading(true);
                   fetchCourses();
                 }}
-                className="px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                className="min-h-[44px] px-4 py-2 rounded-lg text-white font-medium bg-indigo-600 hover:bg-indigo-700 transition-colors"
               >
                 Try again
               </button>
@@ -135,12 +135,12 @@ export const AdminCoursePanel = () => {
           {courses.map((course, index) => (
             <motion.div
               key={course.id}
-              className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-2xl overflow-hidden shadow-lg hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-300"
+              className="relative bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-md ring-1 ring-gray-200/70 dark:ring-white/10"
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: index * 0.1 }}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ y: -4 }}
+              whileTap={{ scale: 0.98 }}
             >
               <img
                 src={course.thumbnailUrl || "/default-thumbnail.svg"}
@@ -156,7 +156,7 @@ export const AdminCoursePanel = () => {
                   {course.description}
                 </p>
                 <div className="mt-4 flex justify-between items-center">
-                  <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  <span className="text-sm font-medium text-indigo-700 dark:text-indigo-400">
                     ⏳ {formatDuration(course.duration)}
                   </span>
                   <span className="text-sm font-medium text-yellow-800 dark:text-yellow-400">
@@ -166,21 +166,19 @@ export const AdminCoursePanel = () => {
               </div>
               {/* Delete Button */}
               <motion.button
+                type="button"
                 onClick={() => {
                   setSelectedCourseId(course.id);
                   setDeleteError("");
                   setIsConfirmOpen(true);
                 }}
-                className="absolute top-2 right-2 bg-red-600/95 text-white p-2 rounded-full hover:bg-red-700 transition-all duration-300 shadow-sm"
+                className="absolute top-2 right-2 flex h-11 w-11 items-center justify-center bg-red-600/95 text-white rounded-full hover:bg-red-700 transition-all duration-300 shadow-sm"
                 aria-label={`Delete ${course.name || "course"}`}
                 title={`Delete ${course.name || "course"}`}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.94 }}
               >
                 <Trash2 size={18} />
               </motion.button>
-              {/* Glowing Border */}
-              <div className="absolute inset-0 pointer-events-none rounded-2xl border border-transparent hover:border-blue-400/30 transition-all duration-300" />
             </motion.div>
           ))}
         </motion.div>
@@ -205,7 +203,7 @@ export const AdminCoursePanel = () => {
               className="fixed inset-0 flex items-center justify-center bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 p-4"
             >
               <div
-                className="relative max-w-sm w-full bg-gradient-to-b from-white/80 to-white/60 dark:from-gray-800/80 dark:to-gray-900/60 backdrop-blur-lg rounded-2xl shadow-2xl p-6"
+                className="relative max-w-sm w-full bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6 ring-1 ring-gray-200/70 dark:ring-white/10"
                 role="alertdialog"
                 aria-label="Confirm course deletion"
               >
@@ -225,7 +223,7 @@ export const AdminCoursePanel = () => {
                 <div className="flex justify-end space-x-4">
                   <motion.button
                     onClick={() => setIsConfirmOpen(false)}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
+                    className="min-h-[44px] px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all duration-300"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -234,7 +232,7 @@ export const AdminCoursePanel = () => {
                   <motion.button
                     onClick={handleDeleteCourse}
                     disabled={isDeleting}
-                    className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-300 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     whileHover={isDeleting ? undefined : { scale: 1.05 }}
                     whileTap={isDeleting ? undefined : { scale: 0.95 }}
                   >

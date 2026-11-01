@@ -38,26 +38,26 @@ const speakText = (text, onStart, onEnd) => {
 
 const themes = {
   dark: {
-    bg: "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900",
-    card: "bg-gray-800/90 shadow-gray-900/30 backdrop-blur-xl",
-    header: "bg-gray-900/80 border-gray-800/30",
-    chat: "bg-gray-900/90",
-    input: "bg-gray-800/90 border-gray-700/50 text-gray-100 placeholder-gray-400",
-    codeBg: "bg-gray-800/90",
-    button: "bg-gray-700/70 text-gray-200",
-    sidebar: "bg-gray-800/95 border-gray-800/50 text-gray-200",
-    sidebarHover: "hover:bg-gray-700/50",
+    card: "bg-gray-900 shadow-lg ring-1 ring-white/10",
+    header: "bg-gray-900 border-gray-800",
+    chat: "bg-gray-950",
+    input: "bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-400",
+    codeBg: "bg-gray-800",
+    button: "bg-gray-800 text-gray-200 hover:bg-gray-700",
+    sidebar: "bg-gray-900 ring-1 ring-white/10 text-gray-100",
+    sidebarHover: "hover:bg-gray-800",
+    bubble: "bg-gray-800 text-gray-100",
   },
   light: {
-    bg: "bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100",
-    card: "bg-white/95 shadow-gray-200/30 backdrop-blur-xl",
-    header: "bg-white/90 border-gray-200/30",
-    chat: "bg-gray-50/90",
-    input: "bg-gray-100/90 border-gray-300/50 text-gray-900 placeholder-gray-500",
-    codeBg: "bg-gray-100/90",
-    button: "bg-gray-200/70 text-gray-700",
-    sidebar: "bg-white/95 border-gray-200/50 text-gray-900",
-    sidebarHover: "hover:bg-gray-300/50",
+    card: "bg-white shadow-lg ring-1 ring-black/5",
+    header: "bg-white border-gray-200",
+    chat: "bg-gray-50",
+    input: "bg-white border border-gray-200 text-gray-900 placeholder-gray-500",
+    codeBg: "bg-gray-100",
+    button: "bg-gray-100 text-gray-700 hover:bg-gray-200",
+    sidebar: "bg-white ring-1 ring-black/5 text-gray-900",
+    sidebarHover: "hover:bg-gray-100",
+    bubble: "bg-white text-gray-800 ring-1 ring-gray-200",
   },
 };
 
@@ -532,18 +532,8 @@ const LearnWithoutLimitsAI = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
-      className={`min-h-screen flex items-center justify-center p-4 ${themes[theme].bg} transition-colors duration-500 font-sans`}
+      className="min-h-screen flex items-center justify-center p-4 transition-colors duration-500"
     >
-      <style>{`
-        @keyframes pulse-glow { 0%, 100% { filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5)); } 50% { filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.8)); } }
-        .glow { animation: pulse-glow 2s ease-in-out infinite; }
-        .pulse { animation: pulse 1.5s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .code-section { max-height: 500px; overflow-y: auto; }
-        .recording-wave { animation: wave 1.5s ease-in-out infinite; }
-        @keyframes wave { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.5); } }
-      `}</style>
-
       <div className="w-full max-w-screen-xl flex justify-center">
         <AnimatePresence>
           {showSidebar && (
@@ -552,7 +542,7 @@ const LearnWithoutLimitsAI = () => {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: "tween", ease: "easeInOut", duration: 0.3 }}
-              className={`w-64 sm:w-80 h-[85vh] sm:h-[90vh] rounded-2xl mr-4 ${themes[theme].sidebar} backdrop-blur-xl overflow-y-auto p-4`}
+              className={`w-64 sm:w-80 h-[85vh] sm:h-[90vh] rounded-2xl mr-4 ${themes[theme].sidebar} overflow-y-auto p-4`}
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg sm:text-xl font-semibold">History</h2>
@@ -571,7 +561,7 @@ const LearnWithoutLimitsAI = () => {
                   <div key={item.id} className="flex justify-between items-center mb-2">
                     <button
                       type="button"
-                      className={`text-left cursor-pointer ${themes[theme].sidebarHover} rounded px-2 py-1 text-sm truncate`}
+                      className={`text-left cursor-pointer ${themes[theme].sidebarHover} rounded px-3 py-3 min-h-[44px] text-sm truncate`}
                       onClick={() => loadConversation(item)}
                     >
                       {item.title} ({new Date(item.timestamp).toLocaleDateString()})
@@ -581,7 +571,7 @@ const LearnWithoutLimitsAI = () => {
                       whileTap={{ scale: 0.95 }}
                       onClick={() => deleteConversation(item.id)}
                       aria-label={`Delete ${item.title}`}
-                      className="p-1 rounded-full bg-red-500/70"
+                      className="p-1 rounded-full bg-red-600 text-white"
                     >
                       <Trash className="w-4 h-4" />
                     </motion.button>
@@ -597,7 +587,7 @@ const LearnWithoutLimitsAI = () => {
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={`w-full max-w-[90vw] sm:max-w-4xl rounded-3xl shadow-2xl overflow-hidden ${themes[theme].card} h-[85vh] sm:h-[90vh]`}
         >
-          <header className={`flex items-center justify-between p-4 sm:p-5 ${themes[theme].header} backdrop-blur-xl border-b`}>
+          <header className={`flex items-center justify-between p-4 sm:p-5 ${themes[theme].header} border-b`}>
             <div className="flex items-center space-x-3">
               <motion.button
                 whileHover={{ scale: 1.1 }}
@@ -612,13 +602,13 @@ const LearnWithoutLimitsAI = () => {
               <motion.div
                 whileHover={{ rotate: 360 }}
                 transition={{ duration: 0.8 }}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg"
+                className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg"
               >
                 🤖
               </motion.div>
               <motion.h1
                 whileHover={{ scale: 1.05 }}
-                className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${theme === "light" ? "from-blue-600 to-indigo-600" : "from-blue-400 to-indigo-400"}`}
+                className="text-2xl font-bold text-gray-900 dark:text-white"
               >
                 Learn Without Limits AI
               </motion.h1>
@@ -629,7 +619,7 @@ const LearnWithoutLimitsAI = () => {
                   href={channels.telegram.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                  className={`min-h-[44px] px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
                 >
                   Telegram
                 </a>
@@ -639,7 +629,7 @@ const LearnWithoutLimitsAI = () => {
                   href={channels.whatsapp.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
+                  className={`min-h-[44px] px-3 py-1 rounded-full text-sm ${themes[theme].button} ${themes[theme].sidebarHover}`}
                 >
                   WhatsApp
                 </a>
@@ -659,7 +649,7 @@ const LearnWithoutLimitsAI = () => {
                     className={`mb-4 flex ${msg.className === "user-message" ? "justify-end" : "justify-start"} items-end max-w-[80%] ${msg.className === "user-message" ? "ml-auto" : "mr-auto"}`}
                   >
                     {msg.className === "ai-message" && (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center text-white text-sm font-bold mr-3 shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold mr-3 shrink-0">
                         AI
                       </div>
                     )}
@@ -668,8 +658,8 @@ const LearnWithoutLimitsAI = () => {
                         <div
                           className={`p-4 rounded-2xl ${
                             msg.className === "user-message"
-                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20"
-                              : "bg-gray-800/90 text-gray-200 shadow-gray-900/30"
+                              ? "bg-indigo-600 text-white shadow-md"
+                              : themes[theme].bubble
                           } text-base whitespace-pre-wrap ${msg.isTyping ? "animate-pulse" : ""}`}
                         >
                           {msg.text}
@@ -700,7 +690,7 @@ const LearnWithoutLimitsAI = () => {
                               <Code className="w-4 h-4 mr-2" />
                               <span>{showCodeSections[msg.id] ? "Hide Code" : "Show Code"}</span>
                             </div>
-                            <span className="text-xs opacity-70">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               {msg.code[0].language}
                             </span>
                           </motion.button>
@@ -711,7 +701,7 @@ const LearnWithoutLimitsAI = () => {
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
                                 exit={{ opacity: 0, height: 0 }}
-                                className={`mt-2 p-3 rounded-xl ${themes[theme].codeBg} code-section`}
+                                className={`mt-2 p-3 rounded-xl ${themes[theme].codeBg} max-h-[500px] overflow-y-auto`}
                               >
                                 {msg.code.map(({ language, code }, i) => (
                                   <div key={i} className="relative mb-4 last:mb-0">
@@ -724,7 +714,7 @@ const LearnWithoutLimitsAI = () => {
                                         whileTap={{ scale: 0.95 }}
                                         onClick={() => copyToClipboard(code)}
                                         aria-label="Copy code"
-                                        className="p-1 rounded-md bg-opacity-70 hover:bg-opacity-100 transition-all"
+                                        className={`p-1 rounded-md ${themes[theme].button} transition-all`}
                                       >
                                         <Copy className="w-4 h-4" />
                                       </motion.button>
@@ -751,7 +741,7 @@ const LearnWithoutLimitsAI = () => {
                       )}
                     </div>
                     {msg.className === "user-message" && (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-gray-700 to-gray-800 flex items-center justify-center text-white text-sm font-bold ml-3 shrink-0">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ml-3 shrink-0 ${themes[theme].button}`}>
                         You
                       </div>
                     )}
@@ -765,12 +755,12 @@ const LearnWithoutLimitsAI = () => {
                   exit={{ opacity: 0 }}
                   className="flex justify-center items-center py-4"
                 >
-                  <div className="w-6 h-6 rounded-full glow bg-blue-500 animate-pulse"></div>
+                  <div className="w-6 h-6 rounded-full bg-indigo-500 animate-pulse"></div>
                 </motion.div>
               )}
             </div>
 
-            <div className={`p-4 sm:p-6 relative border-t ${themes[theme].header} backdrop-blur-xl transition-all duration-300`}>
+            <div className={`p-4 sm:p-6 relative border-t ${themes[theme].header} transition-all duration-300`}>
   <div className="relative">
     <textarea
       ref={textareaRef}
@@ -778,7 +768,7 @@ const LearnWithoutLimitsAI = () => {
       onChange={(e) => setMessage(e.target.value)}
       onKeyDown={handleKeyDown}
       placeholder="Ask me anything..."
-      className={`w-full p-4 pr-36 sm:pr-44 rounded-2xl resize-none ${themes[theme].input} shadow-inner transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500/70`}
+      className={`w-full p-4 pr-36 sm:pr-44 rounded-2xl resize-none ${themes[theme].input} shadow-inner transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500`}
       style={{ minHeight: "60px", maxHeight: "150px" }}
     ></textarea>
 
@@ -792,7 +782,7 @@ const LearnWithoutLimitsAI = () => {
           whileTap={{ scale: 0.95 }}
           onClick={stopVoiceInput}
           aria-label="Stop voice input"
-          className="p-2 rounded-full bg-red-500 text-white shadow-md flex items-center justify-center"
+          className="h-11 w-11 rounded-full bg-red-600 text-white shadow-md flex items-center justify-center"
         >
           <div className="flex space-x-1 items-center h-5">
             {[0, 100, 200].map((delay, i) => (
@@ -810,7 +800,7 @@ const LearnWithoutLimitsAI = () => {
           whileTap={{ scale: 0.95 }}
           onClick={startVoiceInput}
           aria-label="Start voice input"
-          className={`p-2 rounded-full ${themes[theme].button} shadow-md flex items-center justify-center`}
+          className={`h-11 w-11 rounded-full ${themes[theme].button} shadow-md flex items-center justify-center`}
         >
           <Mic className="w-5 h-5" />
         </motion.button>
@@ -825,7 +815,7 @@ const LearnWithoutLimitsAI = () => {
           aria-expanded={showActions}
           aria-haspopup="true"
           aria-label="More chat actions"
-          className={`p-2 rounded-full ${themes[theme].button} shadow-md`}
+          className={`h-11 w-11 flex items-center justify-center rounded-full ${themes[theme].button} shadow-md`}
         >
           <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${showActions ? "rotate-180" : ""}`} />
         </motion.button>
@@ -837,7 +827,7 @@ const LearnWithoutLimitsAI = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl ${themes[theme].sidebar} shadow-lg z-10 backdrop-blur-xl w-44`}
+              className={`absolute bottom-full right-0 mb-2 p-2 rounded-xl ${themes[theme].sidebar} shadow-lg z-10 w-44`}
             >
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -857,7 +847,7 @@ const LearnWithoutLimitsAI = () => {
                   setShowCodeSections({});
                   showToast("🧹 Cleared chat!");
                 }}
-                className="p-2 flex items-center justify-start bg-red-500/80 text-white rounded-md w-full"
+                className="p-2 flex items-center justify-start bg-red-600 text-white rounded-md w-full"
               >
                 <Trash className="w-4 h-4 mr-2" />
                 <span className="text-sm">Clear Chat</span>
@@ -873,7 +863,7 @@ const LearnWithoutLimitsAI = () => {
         whileTap={{ scale: 0.95 }}
         onClick={() => (loading ? stopGeneration() : generate())}
         aria-label={loading ? "Stop generating" : "Send message"}
-        className="p-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+        className="h-11 w-11 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
       >
         {loading ? <Square className="w-5 h-5" /> : <Send className="w-5 h-5" />}
       </motion.button>

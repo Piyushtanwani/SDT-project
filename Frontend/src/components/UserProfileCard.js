@@ -113,7 +113,7 @@ const UserProfileCard = ({
   };
 
   const skillColors = [
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+    "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
     "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
     "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
     "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
@@ -258,10 +258,7 @@ const UserProfileCard = ({
             className="flex items-center p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg"
           >
             <FiCalendar
-              className="mr-3 text-lg"
-              style={{
-                color: user.availability ? "#10b981" : "#ef4444",
-              }}
+              className={`mr-3 text-lg ${user.availability ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
             />
             <div>
               <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400">Availability</h4>
@@ -273,8 +270,8 @@ const UserProfileCard = ({
                   </>
                 ) : (
                   <>
-                    <FiXCircle className="text-red-500 dark:text-red-400" />
-                    <p className="text-sm font-medium text-red-600 dark:text-red-400">Not set</p>
+                    <FiXCircle className="text-gray-400 dark:text-gray-500" />
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Not set</p>
                   </>
                 )}
               </div>
@@ -300,7 +297,7 @@ const UserProfileCard = ({
               onClick={canAccept ? handleAccept : canConnect ? handleConnect : undefined}
               disabled={connectDisabled || busy}
               title={status === "SELF" ? "This is your own profile" : undefined}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition ${
+              className={`flex-1 flex min-h-[44px] items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition ${
                 connectDisabled || busy
                   ? status === "CONNECTED"
                     ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 cursor-default"
@@ -319,7 +316,7 @@ const UserProfileCard = ({
               whileTap={canChat ? { scale: 0.97 } : undefined}
               onClick={handleChatNavigation}
               disabled={!canChat}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition ${
+              className={`flex-1 flex min-h-[44px] items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition ${
                 canChat
                   ? "bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 shadow-md"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"

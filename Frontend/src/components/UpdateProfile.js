@@ -144,7 +144,7 @@ export const UpdateProfile = () => {
 
   if (!userData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950">
+      <div className="min-h-screen flex items-center justify-center">
         {error ? (
           <motion.div
             initial={{ opacity: 0 }}
@@ -156,7 +156,7 @@ export const UpdateProfile = () => {
             </p>
             <button
               onClick={() => navigate("/profile")}
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
             >
               Back to Profile
             </button>
@@ -175,7 +175,7 @@ export const UpdateProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500/20 via-purple-400/20 to-blue-400/20 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950 p-4 sm:p-8">
+    <div className="min-h-screen p-4 sm:p-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -249,7 +249,7 @@ export const UpdateProfile = () => {
                   name="fullName"
                   autoComplete="name"
                   defaultValue={userData.name}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Enter your full name"
                   required
                 />
@@ -265,7 +265,7 @@ export const UpdateProfile = () => {
                   name="username"
                   autoComplete="username"
                   defaultValue={userData.username}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Choose a username"
                   required
                 />
@@ -281,7 +281,7 @@ export const UpdateProfile = () => {
                   name="email"
                   autoComplete="email"
                   defaultValue={userData.email}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
                   disabled
                 />
               </div>
@@ -297,7 +297,7 @@ export const UpdateProfile = () => {
                   autoComplete="tel"
                   inputMode="tel"
                   defaultValue={userData.phonenum}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="Enter your phone number"
                 />
               </div>
@@ -310,7 +310,7 @@ export const UpdateProfile = () => {
                   id="state"
                   name="state"
                   defaultValue={userData.state}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                 >
                   <option value="">Select your state</option>
                   <option value="Andhra Pradesh">Andhra Pradesh</option>
@@ -364,7 +364,7 @@ export const UpdateProfile = () => {
                   id="accountRole"
                   value={formatRole(userData.role) || "Community Member"}
                   disabled
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 rounded-lg cursor-not-allowed"
                 />
               </div>
 
@@ -376,7 +376,7 @@ export const UpdateProfile = () => {
                   id="bio"
                   name="bio"
                   defaultValue={userData.bio}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all resize-none"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all resize-none"
                   placeholder="Tell us about yourself"
                   rows="4"
                 ></textarea>
@@ -390,7 +390,7 @@ export const UpdateProfile = () => {
                   id="timezone"
                   name="timezone"
                   defaultValue={userData.timezone}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                 >
                   <option value="">Select your timezone</option>
                   <option value="UTC">UTC</option>
@@ -411,7 +411,7 @@ export const UpdateProfile = () => {
                   id="availability"
                   name="availability"
                   defaultValue={userData.availability}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                  className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   placeholder="E.g., Weekdays 6-8 PM"
                 />
               </div>
@@ -428,7 +428,7 @@ export const UpdateProfile = () => {
                     placeholder="Search skills..."
                     value={skillSearch}
                     onChange={(e) => setSkillSearch(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
+                    className="min-h-[44px] w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:outline-none transition-all"
                   />
                 </div>
                 {isLoadingSkills ? (
@@ -443,7 +443,7 @@ export const UpdateProfile = () => {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleSkillToggle(skill.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                        className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                           selectedSkillIds.includes(skill.id)
                             ? "bg-indigo-600 dark:bg-indigo-700 text-white font-semibold"
                             : "bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500"
