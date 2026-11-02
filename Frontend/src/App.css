@@ -2,55 +2,24 @@
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media print{
-    nav{
-      display: none;
-    }
-
-    footer{
-      display:none;
-    }
-    .non_certificate{
-      display: none;
-    }
-    @page {
-      size: 280mm 280mm;
-      margin: 0;
-      padding: 0;
-    }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
+/* A printed certificate is the one document in this app that has to leave the browser intact:
+   the page furniture goes and the sheet keeps its own square geometry. */
+@media print {
+  nav {
+    display: none;
   }
-}
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+  footer {
+    display: none;
   }
-  to {
-    transform: rotate(360deg);
+
+  .non_certificate {
+    display: none;
+  }
+
+  @page {
+    size: 280mm 280mm;
+    margin: 0;
+    padding: 0;
   }
 }
