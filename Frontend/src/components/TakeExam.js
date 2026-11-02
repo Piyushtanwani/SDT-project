@@ -212,7 +212,6 @@ export const TakeExam = () => {
 
   useEffect(
     () => () => {
-      document.body.style.overflow = "auto";
       if (stream.current) {
         stream.current.getTracks().forEach((track) => track.stop());
       }
@@ -288,7 +287,6 @@ export const TakeExam = () => {
       setCover({ covered: false, coveredSeconds: 0, budgetSeconds: detail.maxFullscreenBlockSeconds || 60 });
       setTimeLeft(remainingSeconds(detail.deadline, clockOffsetMs(detail.serverNow)));
       setPhase("exam");
-      document.body.style.overflow = "hidden";
       reportProctor();
     } catch (err) {
       setError(err.message);
@@ -326,7 +324,6 @@ export const TakeExam = () => {
         throw new Error(data?.message || `Server responded with ${response.status}`);
       }
       stopCamera();
-      document.body.style.overflow = "auto";
       if (document.fullscreenElement && document.exitFullscreen) {
         await document.exitFullscreen().catch(() => {});
       }
@@ -554,11 +551,11 @@ export const TakeExam = () => {
 
       {notice && (
         <div
-          className="fixed inset-0 z-20 bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-20 bg-black/60 flex overflow-y-auto p-4"
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl p-6">
+          <div className="w-full max-w-md mx-auto my-auto bg-white dark:bg-gray-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               We noticed something
             </h2>
@@ -585,12 +582,12 @@ export const TakeExam = () => {
 
       {cover.covered && !ending && (
         <div
-          className="fixed inset-0 z-30 bg-gray-900 text-white flex items-center justify-center p-6"
+          className="fixed inset-0 z-30 bg-gray-900 text-white flex overflow-y-auto p-6"
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="cover-title"
         >
-          <div className="w-full max-w-md text-center">
+          <div className="w-full max-w-md mx-auto my-auto text-center">
             <h2 id="cover-title" className="text-2xl font-semibold">
               Full screen is required
             </h2>
