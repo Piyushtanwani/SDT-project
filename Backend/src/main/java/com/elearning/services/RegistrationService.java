@@ -24,7 +24,9 @@ public class RegistrationService {
     private final PasswordEncoder passwordEncoder;
 
     private static final int MAX_OTP_ATTEMPTS = 5;
-    private final Map<String, Integer> failedOtpAttempts = new ConcurrentHashMap<>();
+    private static final long LOCKOUT_DURATION_MS = 15 * 60 * 1000L;
+    private record OtpAttempt(int count, long timestamp) {}
+    private final Map<String, OtpAttempt> failedOtpAttempts = new ConcurrentHashMap<>();
 
     @Autowired
     public RegistrationService(
@@ -53,6 +55,12 @@ public class RegistrationService {
         if (user.getPhonenum() != null && !user.getPhonenum().isBlank()) {
             User existingPhone = userRepository.findByPhonenum(user.getPhonenum().trim()).orElse(null);
             if (existingPhone != null && !sameAccount(existingEmail, existingPhone)) {
+                return false;
+            }
+        }
+
+        if (existingEmail != null && !existingEmail.isEnabled()) {
+            if (existingUserName == null || !sameAccount(existingEmail, existingUserName)) {
                 return false;
             }
         }
@@ -127,7 +135,13 @@ public class RegistrationService {
             return false;
         }
         String attemptKey = email.trim().toLowerCase();
-        if (failedOtpAttempts.getOrDefault(attemptKey, 0) >= MAX_OTP_ATTEMPTS) {
+        long now = System.currentTimeMillis();
+        OtpAttempt attempt = failedOtpAttempts.get(attemptKey);
+        if (attempt != null && now - attempt.timestamp >= LOCKOUT_DURATION_MS) {
+            failedOtpAttempts.remove(attemptKey);
+            attempt = null;
+        }
+        if (attempt != null && attempt.count >= MAX_OTP_ATTEMPTS) {
             return false;
         }
 
@@ -141,7 +155,15 @@ public class RegistrationService {
                 && user.getOtpExpiry().isAfter(LocalDateTime.now());
 
         if (!matches) {
-            failedOtpAttempts.merge(attemptKey, 1, Integer::sum);
+            failedOtpAttempts.compute(attemptKey, (k, v) -> {
+                if (v == null || now - v.timestamp >= LOCKOUT_DURATION_MS) {
+                    return new OtpAttempt(1, now);
+                }
+                return new OtpAttempt(v.count + 1, v.timestamp);
+            });
+            if (failedOtpAttempts.size() > 1000) {
+                failedOtpAttempts.entrySet().removeIf(e -> now - e.getValue().timestamp >= LOCKOUT_DURATION_MS);
+            }
             return false;
         }
 

@@ -96,7 +96,7 @@ public class CertificateController {
         try {
             Certificate cert = certificateService.issueCertificate(userId, courseId);
             return ResponseEntity.ok(cert);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

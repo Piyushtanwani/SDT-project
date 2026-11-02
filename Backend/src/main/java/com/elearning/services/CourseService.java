@@ -43,6 +43,11 @@ public class CourseService {
         return obj1.getName();
     }
 
+    public Course getCourseById(Long id) {
+        return courseRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Course Not Found"));
+    }
+
     public List<Course> getAllCourses() {
         List<Course> allcourses = courseRepository.findAll();
         return allcourses;

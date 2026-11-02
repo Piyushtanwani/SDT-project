@@ -4,16 +4,6 @@ Learn Without Limits is an e-learning platform. Learners work through a Course m
 
 Built for the IT643 Software Design and Testing project.
 
-## Live deployment
-
-| Surface | URL |
-| --- | --- |
-| Web app | https://www.elearning.bitecodes.com |
-| API | https://elearningbackend.bitecodes.com |
-| API docs (Swagger UI) | https://elearningbackend.bitecodes.com/swagger-ui.html |
-
-**Deployment status (checked 2026-10-28):** both hostnames return `NXDOMAIN`, so the app is not publicly reachable. Redeploy and verify these URLs before pushing the `project-final` tag.
-
 ## Team
 
 | Name | GitHub |

@@ -14,9 +14,9 @@ const VALID = ["light", "dark", "system"];
 function readStoredTheme() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return VALID.includes(stored) ? stored : "system";
+    return VALID.includes(stored) ? stored : "light";
   } catch {
-    return "system";
+    return "light";
   }
 }
 

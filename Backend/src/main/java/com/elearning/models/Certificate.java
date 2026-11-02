@@ -3,16 +3,17 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "certificate", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_certificate_user_course", columnNames = {"user_id", "course_id"})
+})
 public class Certificate {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false)
+    @Column(name = "user_id", nullable = false)
     private Long userId; // Links to the user who received the certificate
-
-    @Column(nullable = false)
+    @Column(name = "course_id", nullable = false)
     private Long courseId; // Links to the course for which the certificate was awarded
 
     @Column(nullable = false)

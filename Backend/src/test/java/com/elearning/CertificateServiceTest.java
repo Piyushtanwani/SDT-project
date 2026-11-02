@@ -6,6 +6,7 @@ import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.ExamAttemptRepository;
 import com.elearning.services.CertificateService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,8 +29,12 @@ class CertificateServiceTest {
     @Mock
     private ExamAttemptRepository examAttemptRepository;
 
-    @InjectMocks
     private CertificateService certificateService;
+
+    @BeforeEach
+    void setUp() {
+        certificateService = new CertificateService(certificateRepository, examAttemptRepository);
+    }
 
     private ExamAttempt attempt(long userId, long courseId, double score) {
         ExamAttempt a = new ExamAttempt();

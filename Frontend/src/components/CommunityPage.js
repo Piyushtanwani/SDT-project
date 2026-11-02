@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiFilter, FiChevronDown } from "react-icons/fi";
 import UserProfileCard from "./UserProfileCard";
+import { API_BASE_URL } from "../config/api";
 
 const CommunityPage = () => {
   const [users, setUsers] = useState([]);
@@ -19,10 +20,7 @@ const CommunityPage = () => {
   const [connectionStates, setConnectionStates] = useState(null);
   const [allSkills, setAllSkills] = useState([]);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   const userId = sessionStorage.getItem("userId");
   const token = sessionStorage.getItem("authToken");

@@ -125,7 +125,7 @@ public class AuthController {
 
             // SEC-03: Ensure caller is authorized (either account owner or ADMIN)
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ApiResponse(false, "Authentication required."));
             }
@@ -369,7 +369,7 @@ public class AuthController {
             user.setOtp(otp);
             user.setOtpExpiry(otpService.getOtpExpiryTime());
             userRepository.save(user);
-            new Thread(() -> emailService.sendOtpEmail(email, otp)).start();
+            java.util.concurrent.CompletableFuture.runAsync(() -> emailService.sendOtpEmail(email, otp));
         }
         return ResponseEntity.status(HttpStatus.OK)
                 .body("If this email belongs to an unverified account, a new OTP has been sent.");
@@ -541,7 +541,7 @@ public class AuthController {
                     .orElseThrow(() -> new UsernameNotFoundException("Receiver not found."));
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ApiResponse(false, "Authentication required."));
             }
@@ -592,7 +592,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(new ApiResponse(false, "User not found."));
             }
-            if (auth == null || !auth.isAuthenticated()) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ApiResponse(false, "Authentication required."));
             }
@@ -633,7 +633,15 @@ public class AuthController {
         try {
             User target = userRepository.findById(userId).orElse(null);
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (target != null && auth != null && !target.getEmail().equalsIgnoreCase(auth.getName())) {
+            if (target == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse(false, "User not found."));
+            }
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ApiResponse(false, "Authentication required."));
+            }
+            if (!target.getEmail().equalsIgnoreCase(auth.getName())) {
                 boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
                 if (!isAdmin) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -677,7 +685,7 @@ public class AuthController {
                     .orElseThrow(() -> new RuntimeException("Connection not found."));
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ApiResponse(false, "Authentication required."));
             }
@@ -716,7 +724,7 @@ public class AuthController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(new ApiResponse(false, "User not found."));
             }
-            if (auth == null || !auth.isAuthenticated()) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(new ApiResponse(false, "Authentication required."));
             }

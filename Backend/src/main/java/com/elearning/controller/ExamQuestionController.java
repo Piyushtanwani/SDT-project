@@ -3,6 +3,7 @@ package com.elearning.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.elearning.models.ExamQuestion;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/questions")
+@PreAuthorize("hasRole('ADMIN')")
 public class ExamQuestionController {
 
     private final ExamQuestionService examQuestionService;

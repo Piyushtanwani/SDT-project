@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { AnimatePresence } from "framer-motion";
 import Sidebar from "./AdminSlidebar";
+import { API_BASE_URL } from "../config/api";
 import { X, Trash2, Edit, Plus, Search } from "lucide-react";
 
 export const AdminSkillPanel = () => {
@@ -21,10 +22,7 @@ export const AdminSkillPanel = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   const selectedSkill = skills.find((skill) => skill.id === selectedSkillId);
 

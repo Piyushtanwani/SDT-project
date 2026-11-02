@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { API_BASE_URL } from "../config/api";
 
 export const LeaderBoard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -9,10 +10,7 @@ export const LeaderBoard = () => {
   const [filterValue, setFilterValue] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
-  const apiUrl =
-    process.env.REACT_APP_ENV === "production"
-      ? process.env.REACT_APP_LIVE_API
-      : process.env.REACT_APP_LOCAL_API;
+  const apiUrl = API_BASE_URL;
 
   useEffect(() => {
     const fetchLeaderboard = async () => {

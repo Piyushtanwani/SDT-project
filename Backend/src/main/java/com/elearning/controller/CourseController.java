@@ -34,6 +34,19 @@ public class CourseController {
 		 return ResponseEntity.status(HttpStatus.OK).body("Course Added Successfully" );
 	 }
 	 
+	 @GetMapping("/getCourseById/{id}")
+	 public ResponseEntity<?> getCourseById(@PathVariable Long id) {
+		 try {
+			 Course course = courseService.getCourseById(id);
+			 course.setModulesCount((int) moduleRepository.countByCourseId(course.getId()));
+			 return ResponseEntity.status(HttpStatus.OK).body(course);
+		 } catch (NoSuchElementException e) {
+			 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Course Not Found");
+		 } catch (Exception e) {
+			 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Course Not Found");
+		 }
+	 }
+
 	 @GetMapping("/getCourseName/{id}")
 	 public ResponseEntity<String> getNameById(@PathVariable Long id) {
 		 try {
