@@ -3,6 +3,8 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "certificate", uniqueConstraints = @UniqueConstraint(
+        name = "uq_certificate_learner_course", columnNames = { "user_id", "course_id" }))
 public class Certificate {
 
     /** The credential stands. */

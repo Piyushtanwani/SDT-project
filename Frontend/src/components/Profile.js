@@ -29,7 +29,6 @@ export const Profile = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (userResponse.data) {
-          console.log(userResponse.data);
           setUserData(userResponse.data);
         }
       } catch (error) {

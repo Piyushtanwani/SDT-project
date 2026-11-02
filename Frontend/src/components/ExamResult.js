@@ -113,7 +113,7 @@ export const ExamResult = () => {
   return (
     <div className="min-h-screen flex justify-center p-4 py-8">
       <div className="w-full max-w-2xl space-y-4">
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-left">
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Attempt {result.attemptNumber ?? "—"}
             {result.totalQuestions ? ` · ${result.correctCount ?? 0} of ${result.totalQuestions} correct` : ""}
@@ -149,7 +149,7 @@ export const ExamResult = () => {
         </section>
 
         {(verdict || voided || result.reviewNote) && (
-          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-left">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
               Integrity verdict
             </h2>
@@ -185,7 +185,7 @@ export const ExamResult = () => {
 
         {report && <IntegrityReportSheet report={report} variant="learner" />}
 
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-left">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
             What was recorded
           </h2>

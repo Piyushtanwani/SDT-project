@@ -23,11 +23,14 @@ public class CertificateService {
 
     private final CertificateRepository certificateRepository;
     private final ExamAttemptRepository examAttemptRepository;
+    private final PaymentService paymentService;
 
     public CertificateService(CertificateRepository certificateRepository,
-                              ExamAttemptRepository examAttemptRepository) {
+                              ExamAttemptRepository examAttemptRepository,
+                              PaymentService paymentService) {
         this.certificateRepository = certificateRepository;
         this.examAttemptRepository = examAttemptRepository;
+        this.paymentService = paymentService;
     }
 
     public long countCertificatesByCourse(Long courseId) {
@@ -75,15 +78,14 @@ public class CertificateService {
 
     @Transactional
     public Certificate issueCertificate(Long userId, Long courseId) {
-        // Return existing certificate if already issued for this user & course (idempotent)
-        List<Certificate> existing = certificateRepository.findByUserId(userId);
-        for (Certificate c : existing) {
-            if (courseId.equals(c.getCourseId())) {
-                // A credential withdrawn because of its sitting is put back the moment that sitting
-                // is cleared, so paying once never buys a second copy of the same certificate.
-                syncCredentialWith(c);
-                return c;
-            }
+        // One credential per learner per course: whatever is already on file is brought in line with
+        // its sitting and returned, rather than a second copy being written.
+        List<Certificate> existing = certificateRepository.findByUserIdAndCourseId(userId, courseId);
+        if (!existing.isEmpty()) {
+            // A credential withdrawn because of its sitting is put back the moment that sitting
+            // is cleared, so paying once never buys a second copy of the same certificate.
+            syncCredentialWith(existing.get(0));
+            return existing.get(0);
         }
 
         // The score is read from the learner's own recorded attempts, and only from attempts the
@@ -103,13 +105,28 @@ public class CertificateService {
             throw new IllegalArgumentException("Passing score of 80% is required for certificate issuance.");
         }
 
-        // Generate collision-resistant unique credential ID
-        String credentialId;
-        int attempts = 0;
-        do {
-            credentialId = "BC" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-            attempts++;
-        } while (certificateRepository.getByCredentialId(credentialId) != null && attempts < 5);
+        // A credential is bought with a fee this server verified, never with a receipt the browser
+        // claims (design rule 5). The gate only closes where a gateway exists to be paid into: with
+        // no Razorpay keys on this server nobody could pay, so issuing stays open rather than
+        // holding every learner's result hostage to a payment screen that cannot work.
+        boolean feeRequired = paymentService.isConfigured();
+        if (feeRequired && !paymentService.hasUnspentCertificateFee(userId)) {
+            throw new IllegalStateException(
+                    "The certificate fee has not been received for this account.");
+        }
+
+        // Reserve a credential id that is not already on file, and say so plainly if the space is
+        // somehow full instead of saving a duplicate and letting the caller eat a 500.
+        String credentialId = null;
+        for (int attempt = 0; attempt < 6 && credentialId == null; attempt++) {
+            String candidate = "BC" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            if (certificateRepository.getByCredentialId(candidate) == null) {
+                credentialId = candidate;
+            }
+        }
+        if (credentialId == null) {
+            throw new IllegalStateException("Could not reserve a credential id. Please try again.");
+        }
 
         Certificate certificate = new Certificate();
         certificate.setUserId(userId);
@@ -119,7 +136,11 @@ public class CertificateService {
         certificate.setCredentialId(credentialId);
         certificate.setIssuedAt(LocalDateTime.now());
         certificate.setStatus(Certificate.STATUS_ISSUED);
-        return certificateRepository.save(certificate);
+        Certificate saved = certificateRepository.save(certificate);
+        if (feeRequired) {
+            paymentService.spendCertificateFee(userId, saved.getId());
+        }
+        return saved;
     }
 
     /**

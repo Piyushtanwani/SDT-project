@@ -728,7 +728,7 @@ const LearnWithoutLimitsAI = () => {
                             msg.className === "user-message"
                               ? "bg-indigo-600 text-white shadow-md"
                               : themes[theme].bubble
-                          } text-base whitespace-pre-wrap ${msg.isTyping ? "animate-pulse" : ""}`}
+                          } text-left text-base whitespace-pre-wrap ${msg.isTyping ? "animate-pulse" : ""}`}
                         >
                           {msg.text}
                           {msg.className === "ai-message" && (

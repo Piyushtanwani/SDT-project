@@ -9,11 +9,10 @@ import com.elearning.repositories.UserRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class RegistrationService {
@@ -22,20 +21,23 @@ public class RegistrationService {
     private final OtpService otpService;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final RequestThrottle requestThrottle;
 
     private static final int MAX_OTP_ATTEMPTS = 5;
-    private final Map<String, Integer> failedOtpAttempts = new ConcurrentHashMap<>();
+    private static final Duration OTP_WINDOW = Duration.ofMinutes(15);
 
     @Autowired
     public RegistrationService(
             UserRepository userRepository,
             OtpService otpService,
             EmailService emailService,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            RequestThrottle requestThrottle) {
         this.userRepository = userRepository;
         this.otpService = otpService;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
+        this.requestThrottle = requestThrottle;
     }
 
     public boolean validUser(User user) {
@@ -99,9 +101,10 @@ public class RegistrationService {
             User existingUser = existingUserOptional.get();
             existingUser.setOtp(otp);
             existingUser.setOtpExpiry(otpExpiry);
-            if (user.getPassword() != null && !user.getPassword().isBlank()) {
-                existingUser.setPassword(user.getPassword());
-            }
+            // The password a pending account was created with stays put. Re-sending the code is a
+            // legitimate second attempt; setting a new secret from that request would let anyone who
+            // knows an address take over a registration that has not verified its email yet, because
+            // the code still goes to the owner's inbox.
             userRepository.save(existingUser);
             CompletableFuture.runAsync(() -> {
                 try {
@@ -126,8 +129,8 @@ public class RegistrationService {
         if (email == null || otp == null) {
             return false;
         }
-        String attemptKey = email.trim().toLowerCase();
-        if (failedOtpAttempts.getOrDefault(attemptKey, 0) >= MAX_OTP_ATTEMPTS) {
+        String attemptKey = otpThrottleKey(email);
+        if (requestThrottle.isBlocked(attemptKey, MAX_OTP_ATTEMPTS, OTP_WINDOW)) {
             return false;
         }
 
@@ -141,11 +144,15 @@ public class RegistrationService {
                 && user.getOtpExpiry().isAfter(LocalDateTime.now());
 
         if (!matches) {
-            failedOtpAttempts.merge(attemptKey, 1, Integer::sum);
+            // Only a real account can be locked out, so a probe against addresses nobody registered
+            // leaves nothing behind in memory.
+            if (user != null) {
+                requestThrottle.hit(attemptKey, OTP_WINDOW);
+            }
             return false;
         }
 
-        failedOtpAttempts.remove(attemptKey);
+        requestThrottle.reset(attemptKey);
         user.setEnabled(true);
         user.setOtp(null);
         user.setOtpExpiry(null);
@@ -163,8 +170,12 @@ public class RegistrationService {
 
     public void resetOtpAttempts(String email) {
         if (email != null) {
-            failedOtpAttempts.remove(email.trim().toLowerCase());
+            requestThrottle.reset(otpThrottleKey(email));
         }
+    }
+
+    private static String otpThrottleKey(String email) {
+        return "verify-otp:" + email.trim().toLowerCase();
     }
 
     private void sendRegistrationSuccessEmail(String email) {

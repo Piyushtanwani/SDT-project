@@ -58,10 +58,13 @@ export const LeaderBoard = () => {
     let filtered = [...leaderboard];
 
     if (filterValue) {
+      const needle = filterValue.toLowerCase();
+      // A certificate can outlive the course it was issued for, so a missing name must not throw
+      // and take the whole board down with it.
       filtered = filtered.filter(
         (student) =>
-          student.userName.toLowerCase().includes(filterValue.toLowerCase()) ||
-          student.courseName.toLowerCase().includes(filterValue.toLowerCase())
+          (student.userName || "").toLowerCase().includes(needle) ||
+          (student.courseName || "").toLowerCase().includes(needle)
       );
     }
 

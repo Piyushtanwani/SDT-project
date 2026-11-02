@@ -105,6 +105,10 @@ public class CertificateController {
             return ResponseEntity.ok(cert);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (IllegalStateException e) {
+            // Either the fee has not arrived or the result is not certifiable — the learner can act
+            // on both, and the reason is ours to say, not a stack trace's.
+            return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to issue certificate");

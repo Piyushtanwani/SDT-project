@@ -15,6 +15,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 public class PaymentService {
@@ -39,8 +41,51 @@ public class PaymentService {
                 && razorpaySecret != null && !razorpaySecret.isBlank();
     }
 
+    /**
+     * The publishable key the checkout window must be opened with.
+     *
+     * The browser used to carry its own key as a build-time fallback, which meant a bundle could
+     * open a checkout against a merchant account the server never created the order for. Handing
+     * back the key this server actually holds keeps the two ends of a payment on the same account.
+     */
+    public String publicKeyId() {
+        return isConfigured() ? razorpayKey.trim() : null;
+    }
+
     public Payment findByOrderId(String orderId) {
         return paymentRepository.findByTransactionId(orderId);
+    }
+
+    /**
+     * Whether a signature-verified fee is sitting here unspent.
+     *
+     * A certificate is bought, not awarded for free, so issuance asks this question of the payment
+     * records the server itself wrote. A learner cannot present a receipt to unlock a credential.
+     */
+    public boolean hasUnspentCertificateFee(Long userId) {
+        return !unspentFees(userId).isEmpty();
+    }
+
+    /** Ties the oldest unspent fee to the credential it paid for, so it cannot buy a second one. */
+    @Transactional
+    public void spendCertificateFee(Long userId, Long certificateId) {
+        List<Payment> free = unspentFees(userId);
+        if (free.isEmpty()) {
+            throw new IllegalStateException("No verified certificate fee is on record for this account.");
+        }
+        Payment paid = free.get(0);
+        paid.setCertificateId(certificateId);
+        paymentRepository.save(paid);
+    }
+
+    private List<Payment> unspentFees(Long userId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return paymentRepository.findByUserIdAndStatusAndCertificateIdIsNull(userId, "SUCCESS").stream()
+                .filter(paid -> paid.getAmount() != null && paid.getAmount() + 0.001 >= CERTIFICATE_FEE_INR)
+                .sorted(Comparator.comparing(Payment::getCreatedAt))
+                .toList();
     }
 
     @Transactional

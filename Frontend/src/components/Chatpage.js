@@ -40,6 +40,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const lastMessageIdRef = useRef(null);
   const reconnectAttempts = useRef(0);
+  const reconnectTimer = useRef(null);
   const maxReconnectAttempts = 3;
 
   const chatId =
@@ -151,7 +152,8 @@ const ChatPage = () => {
         console.error("WebSocket connection failed:", err);
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current += 1;
-          setTimeout(connectWebSocket, 3000);
+          clearTimeout(reconnectTimer.current);
+          reconnectTimer.current = setTimeout(connectWebSocket, 3000);
         } else {
           setError("Chat is unavailable right now. Please refresh the page to try again.");
         }
@@ -163,6 +165,7 @@ const ChatPage = () => {
     if (!currentUser || !otherUser || error) return undefined;
     connectWebSocket();
     return () => {
+      clearTimeout(reconnectTimer.current);
       try {
         stompClient.current?.disconnect();
       } catch (disconnectError) {
@@ -172,6 +175,21 @@ const ChatPage = () => {
       setIsConnected(false);
     };
   }, [currentUser, otherUser, error, connectWebSocket]);
+
+  // A reconnect attempt scheduled seconds earlier can outlive the page it was made for, so the
+  // leaving side of the route clears whatever is still pending.
+  useEffect(
+    () => () => {
+      clearTimeout(reconnectTimer.current);
+      try {
+        stompClient.current?.disconnect();
+      } catch (disconnectError) {
+        console.error("Failed to close chat connection on exit:", disconnectError);
+      }
+      stompClient.current = null;
+    },
+    []
+  );
 
   useEffect(() => {
     const newestId = messages.length > 0 ? messages[messages.length - 1].id : null;
@@ -365,7 +383,7 @@ const ChatPage = () => {
               className={`mb-4 flex ${msg.sender?.id === parseInt(userId) ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[70%] p-3 rounded-lg shadow-sm ${
+                className={`max-w-[70%] p-3 rounded-lg shadow-sm text-left ${
                   msg.sender?.id === parseInt(userId)
                     ? "bg-indigo-600 text-white"
                     : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"

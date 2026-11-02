@@ -22,6 +22,7 @@ import com.elearning.services.ExamPolicy;
 import com.elearning.services.ExamProctorService;
 import com.elearning.services.ExamRuleException;
 import com.elearning.services.ProctorSignal;
+import com.elearning.services.PaymentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -114,7 +115,8 @@ class ExamIntegrityServiceTest {
         // supposed to move the certificate with it, and a stub would let that rule go untested.
         service = new ExamIntegrityService(attempts, events, snapshots, certificates, users, courses,
                 new ExamProctorService(events, snapshots, policy),
-                new CertificateService(certificates, attempts), policy, new ObjectMapper());
+                new CertificateService(certificates, attempts, new PaymentService(null, "", "")),
+                policy, new ObjectMapper());
     }
 
     private List<ExamSnapshot> snapshot(Long attemptId) {

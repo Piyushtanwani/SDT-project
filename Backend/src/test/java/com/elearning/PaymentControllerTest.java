@@ -65,6 +65,10 @@ class PaymentControllerTest {
         assertEquals(HttpStatus.OK.value(), response.getStatusCode().value());
         assertEquals(1L, paymentService.capturedUserId);
         assertEquals(PaymentService.CERTIFICATE_FEE_INR, paymentService.capturedAmount);
+        // The checkout window has to be opened with the key that created the order, so the browser
+        // never pays a merchant account this server does not hold.
+        assertEquals("rzp_test_capture",
+                ((java.util.Map<?, ?>) response.getBody()).get("keyId"));
     }
 
     @Test
@@ -113,7 +117,7 @@ class PaymentControllerTest {
         private double capturedAmount;
 
         CapturingPaymentService(PaymentRepository repository) {
-            super(repository, "", "");
+            super(repository, "rzp_test_capture", "a-secret-only-used-in-tests");
         }
 
         @Override

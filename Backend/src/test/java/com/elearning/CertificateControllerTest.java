@@ -4,13 +4,16 @@ import com.elearning.controller.CertificateController;
 import com.elearning.models.Certificate;
 import com.elearning.models.Course;
 import com.elearning.models.ExamAttempt;
+import com.elearning.models.Payment;
 import com.elearning.models.User;
 import com.elearning.repositories.CertificateRepository;
 import com.elearning.repositories.CourseRepository;
 import com.elearning.repositories.ExamAttemptRepository;
+import com.elearning.repositories.PaymentRepository;
 import com.elearning.repositories.UserRepository;
 import com.elearning.response_request.CredentialVerificationDTO;
 import com.elearning.services.CertificateService;
+import com.elearning.services.PaymentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,9 @@ class CertificateControllerTest {
     @Mock
     private CourseRepository courseRepository;
 
+    @Mock
+    private PaymentRepository paymentRepository;
+
     private CertificateController certificateController;
     private UserDetails alice;
     private User aliceUser;
@@ -50,12 +56,24 @@ class CertificateControllerTest {
 
     @BeforeEach
     void setUp() {
-        CertificateService certificateService = new CertificateService(certificateRepository, examAttemptRepository);
-        certificateController = new CertificateController(certificateService, userRepository, courseRepository);
+        // A real ledger with no gateway keys, which is how the gate stays out of the way of the
+        // tests below; the two fee tests swap in one that has keys.
+        certificateController = controllerWith(new PaymentService(null, "", ""));
         alice = org.springframework.security.core.userdetails.User
                 .withUsername("alice@example.com").password("x").authorities("ROLE_USER").build();
         aliceUser = user(1L, "alice@example.com", "USER");
         adminUser = user(9L, "admin@example.com", "ADMIN");
+    }
+
+    private CertificateController controllerWith(PaymentService payments) {
+        return new CertificateController(
+                new CertificateService(certificateRepository, examAttemptRepository, payments),
+                userRepository, courseRepository);
+    }
+
+    /** The same ledger, but pointed at Razorpay test keys so the fee rule switches on. */
+    private PaymentService gatewayOn() {
+        return new PaymentService(paymentRepository, "rzp_test_key", "test-secret");
     }
 
     @Test
@@ -73,7 +91,7 @@ class CertificateControllerTest {
     @DisplayName("A learner can request their own certificate after a passing attempt")
     void issueForSelfSucceeds() {
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(aliceUser));
-        when(certificateRepository.findByUserId(1L)).thenReturn(List.of());
+        when(certificateRepository.findByUserIdAndCourseId(1L, 1L)).thenReturn(List.of());
         when(examAttemptRepository.findByUserIdAndCourseId(1L, 1L))
                 .thenReturn(List.of(attempt(1L, 1L, 90.0)));
         when(certificateRepository.getByCredentialId(anyString())).thenReturn(null);
@@ -89,10 +107,55 @@ class CertificateControllerTest {
     }
 
     @Test
+    @DisplayName("RULE-05: with a gateway configured, an unpaid fee cannot buy a certificate")
+    void issuanceWaitsForAVerifiedFee() {
+        certificateController = controllerWith(gatewayOn());
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(aliceUser));
+        when(certificateRepository.findByUserIdAndCourseId(1L, 1L)).thenReturn(List.of());
+        when(examAttemptRepository.findByUserIdAndCourseId(1L, 1L))
+                .thenReturn(List.of(attempt(1L, 1L, 95.0)));
+        when(paymentRepository.findByUserIdAndStatusAndCertificateIdIsNull(1L, "SUCCESS"))
+                .thenReturn(List.of());
+
+        var response = certificateController.issueCertificate(1L, 1L, alice);
+
+        assertEquals(HttpStatus.PAYMENT_REQUIRED.value(), response.getStatusCode().value());
+        verify(certificateRepository, never()).save(any(Certificate.class));
+    }
+
+    @Test
+    @DisplayName("RULE-05: a verified fee is spent by the credential it bought")
+    void issuanceSpendsTheFeeItWasGatedOn() {
+        certificateController = controllerWith(gatewayOn());
+        Payment paid = new Payment();
+        paid.setUserId(1L);
+        paid.setAmount(50.0);
+        paid.setStatus("SUCCESS");
+        paid.setCreatedAt(LocalDateTime.now());
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(aliceUser));
+        when(certificateRepository.findByUserIdAndCourseId(1L, 1L)).thenReturn(List.of());
+        when(examAttemptRepository.findByUserIdAndCourseId(1L, 1L))
+                .thenReturn(List.of(attempt(1L, 1L, 95.0)));
+        when(paymentRepository.findByUserIdAndStatusAndCertificateIdIsNull(1L, "SUCCESS"))
+                .thenReturn(List.of(paid));
+        when(certificateRepository.getByCredentialId(anyString())).thenReturn(null);
+        when(certificateRepository.save(any(Certificate.class))).thenAnswer(invocation -> {
+            Certificate saved = invocation.getArgument(0);
+            saved.setId(77L);
+            return saved;
+        });
+
+        var response = certificateController.issueCertificate(1L, 1L, alice);
+
+        assertEquals(HttpStatus.OK.value(), response.getStatusCode().value());
+        assertEquals(77L, paid.getCertificateId().longValue());
+    }
+
+    @Test
     @DisplayName("An admin can issue a certificate for any learner")
     void adminCanIssueForAnyone() {
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(adminUser));
-        when(certificateRepository.findByUserId(2L)).thenReturn(List.of());
+        when(certificateRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(List.of());
         when(examAttemptRepository.findByUserIdAndCourseId(2L, 1L))
                 .thenReturn(List.of(attempt(2L, 1L, 88.0)));
         when(certificateRepository.getByCredentialId(anyString())).thenReturn(null);

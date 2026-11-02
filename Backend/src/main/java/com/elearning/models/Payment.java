@@ -18,8 +18,19 @@ public class Payment {
     private String status; // PENDING, SUCCESS, FAILED
     private String appName; // Name of the app that initiated payment
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    /** The credential this fee bought, so one verified payment cannot issue two certificates. */
+    @Column(name = "certificate_id")
+    private Long certificateId;
+
 	public Long getId() {
 		return id;
+	}
+	public void setCertificateId(Long certificateId) {
+		this.certificateId = certificateId;
+	}
+	public Long getCertificateId() {
+		return certificateId;
 	}
 	public void setId(Long id) {
 		this.id = id;

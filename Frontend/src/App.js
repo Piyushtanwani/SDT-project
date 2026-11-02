@@ -80,9 +80,9 @@ function AppShell() {
         <Routes>
           <Route path="/register" element={<Register />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/connections" element={<Connections />} />
+          <Route path="/connections" element={<ProtectedRoute><Connections /></ProtectedRoute>} />
           <Route path="/community" element={<CommunityPage />} />
-          <Route path="/chat/:id" element={<ChatPage />} />
+          <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/login" element={<LoginSignup />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/courses" element={<Courses />} />

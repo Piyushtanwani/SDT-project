@@ -85,10 +85,10 @@ function ProtectedAdmin() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate('/profile')}
                             className="min-h-[44px] px-5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                         >
-                            Back to my dashboard
+                            Back to my profile
                         </button>
                     </div>
                 </div>

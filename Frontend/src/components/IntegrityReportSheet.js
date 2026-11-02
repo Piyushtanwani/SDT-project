@@ -44,7 +44,7 @@ export const IntegrityReportSheet = ({ report, variant = "learner" }) => {
   const allowance = worked.coveredAllowanceSeconds || 0;
 
   return (
-    <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+    <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-left">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">

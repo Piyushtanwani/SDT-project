@@ -91,8 +91,8 @@ export const UserAttempts = () => {
       headers: { ...getAuthHeaders() },
     });
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || "Certificate issuance failed.");
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.message || "We could not create your certificate. Please try again.");
     }
     return response.json();
   };
@@ -110,14 +110,25 @@ export const UserAttempts = () => {
 
       if (paymentResponse.status === 503) {
         // Payments are unavailable; passing learners can still issue their certificate.
-        await issueCertificate(attempt);
+        try {
+          await issueCertificate(attempt);
+        } catch (err) {
+          alert(err.message);
+          return;
+        }
         alert("Payment isn't available right now, so your certificate was issued for free.");
         navigate("/certificates");
         return;
       }
 
       if (!paymentResponse.ok || !result.transactionId) {
-        alert("We couldn't start the payment. Please try again.");
+        alert(result.message || "We couldn't start the payment. Please try again.");
+        return;
+      }
+
+      if (!result.keyId) {
+        // Without the server's own key the checkout window would belong to an unknown merchant.
+        alert("This server is not configured to take the certificate fee. Please contact us.");
         return;
       }
 
@@ -127,7 +138,7 @@ export const UserAttempts = () => {
       }
 
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_mQf2cASnEwehms",
+        key: result.keyId,
         amount: CERTIFICATE_FEE_INR * 100,
         currency: "INR",
         name: "Learn Without Limits",
@@ -150,33 +161,46 @@ export const UserAttempts = () => {
               const errData = await verifyResponse.json().catch(() => ({}));
               throw new Error(errData.message || "Payment verification failed on server");
             }
+          } catch (err) {
+            console.error("Verification failed:", err);
+            // The fee is not marked received, so pressing the button again asks for a payment
+            // rather than quietly treating this one as paid.
+            alert(
+              "We could not confirm that payment with our server, so no certificate was issued. " +
+                "If the money left your account, please contact us with the payment reference."
+            );
+            return;
+          }
 
+          try {
             await issueCertificate(attempt);
-
             alert("Payment verified! Your certificate has been issued.");
             navigate("/certificates");
           } catch (err) {
-            console.error("Verification failed:", err);
-            alert("We couldn't verify your payment. Your certificate was not issued. Please try again.");
+            console.error("Issuance after a verified payment failed:", err);
+            // The fee is already recorded as received, so the same button finishes the job.
+            alert(
+              `${err.message} Your payment is confirmed on our side, so pressing Get Certificate ` +
+                "again will not charge you a second time."
+            );
           }
         },
         prefill: {
-          name: sessionStorage.getItem("userName") || "User",
-          email: sessionStorage.getItem("userEmail") || "user@example.com",
+          name: sessionStorage.getItem("userFirstName") || sessionStorage.getItem("userName") || "",
+          email: sessionStorage.getItem("userEmail") || "",
         },
         theme: { color: "#3399cc" },
       };
 
       const razorpay = new window.Razorpay(options);
-      razorpay.open();
-
       razorpay.on("payment.failed", function (response) {
-        console.error("Payment Failed:", response);
-        alert("Payment Failed. Please try again.");
+        console.error("Payment failed:", response);
+        alert("That payment did not go through, so no certificate was issued. Please try again.");
       });
+      razorpay.open();
     } catch (error) {
       console.error("Payment Error:", error);
-      alert("Error processing payment.");
+      alert("We couldn't process that payment. Please try again.");
     }
   };
 

@@ -69,9 +69,8 @@ export const ShowCertificates = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      let certFailed = false;
+      setFetchError("");
       try {
-        setFetchError("");
         const certRes = await fetch(`${apiUrl}/api/certificates/user/${userId}`, {
           headers: { ...getAuthHeaders() },
         });
@@ -79,33 +78,29 @@ export const ShowCertificates = () => {
           const certData = await certRes.json();
           setCertificates(Array.isArray(certData) ? certData : []);
         } else {
-          certFailed = true;
           setCertificates([]);
-        }
-
-        const courseRes = await fetch(`${apiUrl}/course/getCourses`);
-        const courseData = await courseRes.json();
-        setCourses(Array.isArray(courseData) ? courseData : []);
-        
-        // Extract unique categories and filter out any undefined values
-        if (Array.isArray(courseData)) {
-          const uniqueCategories = [...new Set(
-            courseData
-              .map(course => course.category)
-              .filter(category => category !== undefined)
-          )];
-          setCategories(uniqueCategories);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        certFailed = true;
-        setCertificates([]);
-      } finally {
-        if (certFailed) {
           setFetchError("Couldn't load your certificates. Please check your connection and try again.");
         }
-        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching certificates:", error);
+        setCertificates([]);
+        setFetchError("Couldn't load your certificates. Please check your connection and try again.");
       }
+
+      // The course list only names and groups the certificates a learner already holds. When it
+      // fails, the credentials stay on screen rather than vanishing behind a false error.
+      try {
+        const courseRes = await fetch(`${apiUrl}/course/getCourses`);
+        const courseData = await courseRes.json();
+        if (Array.isArray(courseData)) {
+          setCourses(courseData);
+          setCategories([...new Set(courseData.map((course) => course.category).filter(Boolean))]);
+        }
+      } catch (error) {
+        console.error("Error fetching courses:", error);
+      }
+
+      setLoading(false);
     };
 
     fetchData();

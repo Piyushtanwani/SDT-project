@@ -61,7 +61,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/course/getCourses",
                                 "/course/getCourseName/**",
-                                "/course/getCourseById/**",
                                 "/module/course/**",
                                 "/module/**"
                         ).permitAll()

@@ -241,7 +241,7 @@ const CourseModuleDetail = () => {
                 </div>
                 <div className="flex justify-between mt-2 text-xs text-indigo-600 dark:text-indigo-400">
                   <span>Start</span>
-                  <span>Module {moduleNumber}/{totalModules}</span>
+                  <span>Module {moduleNumber}{totalModules > 0 ? `/${totalModules}` : ""}</span>
                   <span>Complete</span>
                 </div>
               </div>
@@ -252,7 +252,7 @@ const CourseModuleDetail = () => {
                 title="Sign in to read this module"
                 message="Log in to unlock the full lesson, keep your progress and take the exam."
               >
-              <div className="mt-12 space-y-6">
+              <div className="mt-12 space-y-6 text-left">
                 {hasImages && imageItems.map((url, index) => (
                   <div
                     key={index}
@@ -382,7 +382,17 @@ const CourseModuleDetail = () => {
                   <div />
                 )}
 
-                {parseInt(moduleNumber) < totalModules ? (
+                {/* A failed module count is not proof this is the last module, so the way forward
+                    stays a real module link. The exam is offered from the course's module list. */}
+                {totalModules > 0 && parseInt(moduleNumber) >= totalModules ? (
+                  <button
+                    onClick={handleTakeExam}
+                    className="px-6 py-3 bg-green-700 hover:bg-green-800 text-white rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center"
+                  >
+                    <Award className="w-5 h-5 mr-2" />
+                    Take Final Exam
+                  </button>
+                ) : (
                   <button
                     onClick={() => handleNavigation("next")}
                     className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md hover:shadow-lg transition-colors"
@@ -391,14 +401,6 @@ const CourseModuleDetail = () => {
                       Continue to Next Module
                       <ChevronRight className="w-5 h-5 ml-1" />
                     </span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleTakeExam}
-                    className="px-6 py-3 bg-green-700 hover:bg-green-800 text-white rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center"
-                  >
-                    <Award className="w-5 h-5 mr-2" />
-                    Take Final Exam
                   </button>
                 )}
               </div>
@@ -427,14 +429,14 @@ const CourseModuleDetail = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 dark:bg-black/90 z-50 flex flex-col items-center justify-center p-4"
+            className="fixed inset-0 bg-black/80 dark:bg-black/90 z-50 flex overflow-y-auto p-4"
             onClick={hideImage}
           >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-full max-w-4xl"
+              className="w-full max-w-4xl my-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header above image */}
@@ -443,7 +445,7 @@ const CourseModuleDetail = () => {
                 <button
                   onClick={hideImage}
                   aria-label="Close image"
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
                 >
                   <X className="w-5 h-5" />
                 </button>

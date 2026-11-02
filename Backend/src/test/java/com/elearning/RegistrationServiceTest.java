@@ -5,6 +5,7 @@ import com.elearning.repositories.UserRepository;
 import com.elearning.services.EmailService;
 import com.elearning.services.OtpService;
 import com.elearning.services.RegistrationService;
+import com.elearning.services.RequestThrottle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +36,7 @@ class RegistrationServiceTest {
     void setUp() {
         EmailService emailService = new EmailService(mailSender, "no-reply@example.com", true);
         registrationService = new RegistrationService(
-                userRepository, new OtpService(), emailService, new BCryptPasswordEncoder());
+                userRepository, new OtpService(), emailService, new BCryptPasswordEncoder(), new RequestThrottle());
     }
 
     private User pendingUser(String email, String otp, LocalDateTime expiry) {
@@ -126,6 +127,27 @@ class RegistrationServiceTest {
         when(userRepository.findByUsernameIgnoreCase("learner")).thenReturn(Optional.of(pending));
 
         assertTrue(registrationService.validUser(candidate));
+    }
+
+    @Test
+    void reRegisteringAPendingAccountKeepsTheOriginalPassword() {
+        User pending = pendingUser("learner@example.com", "123456", LocalDateTime.now().plusMinutes(5));
+        pending.setId(5L);
+        String originalHash = new BCryptPasswordEncoder().encode("the-victim-secret");
+        pending.setPassword(originalHash);
+        when(userRepository.findByEmailIgnoreCase("learner@example.com")).thenReturn(Optional.of(pending));
+
+        // A stranger submits the same address with their own password, hoping to take the account
+        // over once the code that arrives in the owner's inbox is entered.
+        User attacker = new User();
+        attacker.setEmail("learner@example.com");
+        attacker.setUsername("learner");
+        attacker.setPassword("the-attacker-secret");
+        registrationService.registerUser(attacker);
+
+        assertEquals(originalHash, pending.getPassword());
+        assertNotEquals("the-attacker-secret", pending.getPassword());
+        assertFalse(pending.isEnabled());
     }
 
     @Test

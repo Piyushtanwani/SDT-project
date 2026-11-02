@@ -5,6 +5,7 @@ import {
   faXTwitter,
 } from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Link } from "react-router-dom";
 import React, { useState } from "react";
 
 export const Contact = () => {
@@ -24,12 +25,18 @@ export const Contact = () => {
         body: formData,
       });
 
-      if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+
+      // web3forms answers 200 even when it refused the submission, so the body decides whether
+      // the learner's message actually left the browser.
+      if (response.ok && data.success) {
         setIsSubmitted(true);
         e.target.reset();
         setTimeout(() => setIsSubmitted(false), 2500);
       } else {
-        setError("We couldn't send your message right now. Please email us at bitecodes.global@gmail.com.");
+        setError(
+          "We couldn't send your message right now. Please email us at bitecodes.global@gmail.com."
+        );
       }
     } catch (error) {
       console.error("Form submission error:", error);
@@ -85,6 +92,16 @@ export const Contact = () => {
                 type="hidden"
                 name="access_key"
                 value="87c6a13e-cb0a-4053-991b-c8c151167bff"
+              ></input>
+              {/* web3forms reads this honeypot to drop automated submissions. */}
+              <input
+                type="checkbox"
+                name="botcheck"
+                className="hidden"
+                style={{ display: "none" }}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
               ></input>
               <div className="space-y-6">
                 <div>
@@ -206,20 +223,20 @@ export const Contact = () => {
                 <div className="pt-6">
                   <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Follow Us</h3>
                   <div className="flex space-x-4">
-                    <a
-                      href="/socialmedia"
+                    <Link
+                      to="/socialmedia"
                       className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                       aria-label="Facebook (coming soon)"
                     >
                       <FontAwesomeIcon icon={faFacebookF} className="text-gray-600 dark:text-gray-400" />
-                    </a>
-                    <a
-                      href="/socialmedia"
+                    </Link>
+                    <Link
+                      to="/socialmedia"
                       className="w-11 h-11 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200"
                       aria-label="X (coming soon)"
                     >
                       <FontAwesomeIcon icon={faXTwitter} className="text-gray-600 dark:text-gray-400" />
-                    </a>
+                    </Link>
                     <a
                       href="https://www.linkedin.com/in/bite-codes/"
                       rel="noreferrer"

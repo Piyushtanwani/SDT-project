@@ -83,8 +83,11 @@ public class UploadImage {
             Files.copy(file.getInputStream(), destinationPath, StandardCopyOption.REPLACE_EXISTING);
             return ResponseEntity.ok("/uploads/" + safeFileName);
         } catch (IOException e) {
+            // The detail says which path or volume failed; the learner only needs to know the
+            // picture did not arrive.
+            System.err.println("Profile picture upload failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("File upload failed: " + e.getMessage());
+                    .body("File upload failed. Please try again.");
         }
     }
 }

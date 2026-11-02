@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @RestController
@@ -309,8 +310,10 @@ public class AuthController {
                     "role", user.getRole() != null ? user.getRole() : "USER"
             ));
         } catch (Exception e) {
+            log.warn("Google sign-in could not be completed", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("success", false, "message", "Google OAuth failed: " + e.getMessage()));
+                    .body(Map.of("success", false,
+                            "message", "Google sign-in did not complete. Please try again, or sign in with your password."));
         }
     }
 
@@ -370,7 +373,13 @@ public class AuthController {
             user.setOtp(otp);
             user.setOtpExpiry(otpService.getOtpExpiryTime());
             userRepository.save(user);
-            new Thread(() -> emailService.sendOtpEmail(email, otp)).start();
+            CompletableFuture.runAsync(() -> {
+                try {
+                    emailService.sendOtpEmail(email, otp);
+                } catch (Exception e) {
+                    log.warn("Resend OTP email failed for {}: {}", email, e.toString());
+                }
+            });
         }
         return ResponseEntity.status(HttpStatus.OK)
                 .body("If this email belongs to an unverified account, a new OTP has been sent.");
@@ -434,8 +443,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
         } catch (Exception e) {
+            log.warn("Fetching a user failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch user: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch user."));
         }
     }
 
@@ -456,8 +466,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
         } catch (Exception e) {
+            log.warn("Fetching a username failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch username: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch username."));
         }
     }
 
@@ -527,8 +538,9 @@ public class AuthController {
                     .toList();
             return ResponseEntity.ok(users);
         } catch (Exception e) {
+            log.warn("Fetching the user list failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch users: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch users."));
         }
     }
 
@@ -549,8 +561,9 @@ public class AuthController {
                     .toList();
             return ResponseEntity.ok(users);
         } catch (Exception e) {
+            log.warn("Filtering the user list failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to filter users: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to filter users."));
         }
     }
 
@@ -600,8 +613,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
         } catch (Exception e) {
+            log.warn("Sending a connection request failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to send request: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to send request."));
         }
     }
 
@@ -645,8 +659,9 @@ public class AuthController {
             }
             return ResponseEntity.ok(Map.of("statuses", statuses));
         } catch (Exception e) {
+            log.warn("Fetching connection statuses failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch connection statuses: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch connection statuses."));
         }
     }
 
@@ -654,8 +669,14 @@ public class AuthController {
     public ResponseEntity<?> getPendingRequests(@PathVariable Long userId) {
         try {
             User target = userRepository.findById(userId).orElse(null);
+            if (target == null) {
+                // Same shape as the sibling endpoints: an id that is not an account is a 404, and it
+                // never reaches the query below.
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse(false, "User not found."));
+            }
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (target != null && auth != null && !target.getEmail().equalsIgnoreCase(auth.getName())) {
+            if (auth != null && !target.getEmail().equalsIgnoreCase(auth.getName())) {
                 boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
                 if (!isAdmin) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -687,8 +708,9 @@ public class AuthController {
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.warn("Fetching pending requests failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch requests: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch requests."));
         }
     }
 
@@ -724,8 +746,9 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse(false, e.getMessage()));
         } catch (Exception e) {
+            log.warn("Updating a connection failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to update connection: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to update connection."));
         }
     }
 
@@ -771,8 +794,9 @@ public class AuthController {
             }
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.warn("Fetching connections failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse(false, "Failed to fetch connections: " + e.getMessage()));
+                    .body(new ApiResponse(false, "Failed to fetch connections."));
         }
     }
 

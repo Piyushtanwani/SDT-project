@@ -40,7 +40,10 @@ public class PaymentController {
         try {
             String orderId = paymentService.createPayment(
                     userId, PaymentService.CERTIFICATE_FEE_INR, paymentMethod, upiId, appName);
-            return ResponseEntity.ok(Map.of("transactionId", orderId, "amount", String.valueOf(PaymentService.CERTIFICATE_FEE_INR)));
+            return ResponseEntity.ok(Map.of(
+                    "transactionId", orderId,
+                    "amount", String.valueOf(PaymentService.CERTIFICATE_FEE_INR),
+                    "keyId", paymentService.publicKeyId()));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of("success", false, "message", e.getMessage()));

@@ -212,6 +212,9 @@ export const TakeExam = () => {
 
   useEffect(
     () => () => {
+      // A pending debounce outlives the component; without this the timer fires against an
+      // attempt that has already been handed in.
+      clearTimeout(saveTimer.current);
       if (stream.current) {
         stream.current.getTracks().forEach((track) => track.stop());
       }
@@ -421,7 +424,7 @@ export const TakeExam = () => {
     const exhausted = rules ? rules.attemptsRemaining <= 0 : false;
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
+        <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 sm:p-8 text-left">
           <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Your assessment
           </h1>
@@ -433,7 +436,7 @@ export const TakeExam = () => {
           {loading && !rules && <p className="text-gray-500 dark:text-gray-400 text-sm">Loading the rules…</p>}
 
           {rules && (
-            <ul className="space-y-3 mb-6">
+            <ul className="space-y-3 mb-6 text-left">
               {rules.disclosures.map((line) => (
                 <li key={line} className="flex items-start text-gray-800 dark:text-gray-300 text-sm">
                   <span className="mr-3 mt-1 text-indigo-600 dark:text-indigo-400" aria-hidden="true">
@@ -619,7 +622,7 @@ export const TakeExam = () => {
       )}
 
       <main className="flex-grow max-w-5xl w-full mx-auto p-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <section ref={paper} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <section ref={paper} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 text-left">
           {submitting ? (
             <p className="text-gray-700 dark:text-gray-300">Handing your paper in…</p>
           ) : current ? (
@@ -682,7 +685,7 @@ export const TakeExam = () => {
                   onClick={() => setIndex(position)}
                   aria-label={`Question ${position + 1}${answers[question.id] ? ", answered" : ""}`}
                   aria-current={position === index ? "true" : undefined}
-                  className={`w-9 h-9 flex-shrink-0 rounded-md text-xs font-semibold ${
+                  className={`min-h-[44px] min-w-[44px] flex-shrink-0 rounded-md text-xs font-semibold ${
                     position === index
                       ? "bg-indigo-600 text-white"
                       : answers[question.id]
@@ -705,7 +708,7 @@ export const TakeExam = () => {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 text-left">
           <ExamProctorPanel entries={proctor.entries} points={proctor.points} level={proctor.level} />
 
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
