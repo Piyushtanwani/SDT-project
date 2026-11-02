@@ -7,6 +7,19 @@ import { getAuthHeaders, API_BASE_URL} from "../config/api";
 const PASSING_SCORE = 80;
 const CERTIFICATE_FEE_INR = 50;
 
+// The 146 kB checkout bundle belongs to one button on one page, so it is fetched when that
+// button is pressed instead of blocking every page load of the app.
+const loadRazorpay = () =>
+  window.Razorpay
+    ? Promise.resolve()
+    : new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => (window.Razorpay ? resolve() : reject());
+        script.onerror = () => reject();
+        document.body.appendChild(script);
+      });
+
 export const UserAttempts = () => {
   const [attempts, setAttempts] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -132,14 +145,18 @@ export const UserAttempts = () => {
         return;
       }
 
-      if (!window.Razorpay) {
+      try {
+        await loadRazorpay();
+      } catch {
         alert("The payment window could not load. Please disable any blockers and try again.");
         return;
       }
 
       const options = {
         key: result.keyId,
-        amount: CERTIFICATE_FEE_INR * 100,
+        // The server priced the order it just created; a second source of truth here could
+        // show a different figure than the one the order was opened for.
+        amount: Math.round(Number(result.amount) * 100),
         currency: "INR",
         name: "Learn Without Limits",
         description: "Certificate Issuance Verification",

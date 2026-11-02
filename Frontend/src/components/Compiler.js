@@ -227,32 +227,10 @@ export default function CodingPlatform() {
       return;
     }
 
-    // Isolated JavaScript runner (Server Piston sandbox with isolated Web Worker fallback)
+    // Isolated JavaScript runner. This runs in the browser straight away: the remote runner
+    // it used to try first is no longer reachable without an API key, and a request that always
+    // fails only delays the output.
     if (currentTab.language === "javascript") {
-      try {
-        // Try Piston API first (isolated remote container)
-        const response = await fetch("https://emkc.org/api/v2/piston/execute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            language: "javascript",
-            version: "18.15.0",
-            files: [{ content: currentTab.content }],
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const out = data.run.output || (data.run.stderr ? `❌ Error: ${data.run.stderr}` : "Code executed successfully (no output).");
-          setOutput(out);
-          setLoading(false);
-          return;
-        }
-      } catch (networkErr) {
-        // Piston unreachable, fallback to strictly isolated Web Worker sandbox
-      }
-
-      // Fallback: Isolated Web Worker (no access to window, document, or sessionStorage)
       try {
         const workerScript = `
           self.onmessage = function(e) {
@@ -327,7 +305,12 @@ export default function CodingPlatform() {
       });
 
       if (response.status === 401) {
-        setOutput("⚠️ Notice: The public Piston execution service (emkc.org) is currently whitelist-restricted. To run compiled languages like C++, Java, or Python, please connect a self-hosted Piston or Judge0 instance in settings. JavaScript and HTML can be executed directly.");
+        setOutput(
+          "⚠️ Compiled languages can't run here right now. The free execution service this page " +
+            "used (emkc.org Piston) went whitelist-only on 15 Feb 2026, and the site has no runner " +
+            "of its own yet. JavaScript and HTML still run in your browser; for C, C++, Java or " +
+            "Python the site owner needs to enable a hosted runner."
+        );
       } else if (!response.ok) {
         const errorText = await response.text();
         setOutput(`❌ Execution Service Error (${response.status}): ${errorText || response.statusText}`);
